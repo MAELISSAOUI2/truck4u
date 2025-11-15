@@ -1,102 +1,184 @@
 'use client';
 
 import Link from 'next/link';
-import { Truck, Users, Shield, Clock, MapPin, Star, ArrowRight } from 'lucide-react';
+import {
+  Truck, Users, Shield, Clock, MapPin, Star, ArrowRight,
+  CheckCircle, TrendingUp, Zap, Lock, Phone, MessageSquare,
+  Menu, X
+} from 'lucide-react';
+import { useState } from 'react';
 
 export default function HomePage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Truck className="w-8 h-8 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Truck4u</h1>
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg">
+                <Truck className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Truck4u
+              </h1>
+            </Link>
+
+            <nav className="hidden md:flex gap-8">
+              <a href="#features" className="text-muted-foreground hover:text-foreground transition text-sm font-medium">
+                Fonctionnalités
+              </a>
+              <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition text-sm font-medium">
+                Comment ça marche
+              </a>
+              <a href="#pricing" className="text-muted-foreground hover:text-foreground transition text-sm font-medium">
+                Tarifs
+              </a>
+              <a href="#contact" className="text-muted-foreground hover:text-foreground transition text-sm font-medium">
+                Contact
+              </a>
+            </nav>
+
+            <div className="hidden md:flex gap-3">
+              <Link href="/customer/login" className="px-4 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-lg transition">
+                Connexion
+              </Link>
+              <Link href="/customer/login" className="btn-primary text-sm">
+                Commencer
+              </Link>
+            </div>
+
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
           </div>
-          <nav className="hidden md:flex gap-6">
-            <a href="#features" className="text-gray-600 hover:text-blue-600 transition">Fonctionnalités</a>
-            <a href="#how-it-works" className="text-gray-600 hover:text-blue-600 transition">Comment ça marche</a>
-            <a href="#contact" className="text-gray-600 hover:text-blue-600 transition">Contact</a>
-          </nav>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden pt-4 border-t border-border mt-4 space-y-4">
+              <a href="#features" className="block text-sm font-medium">Fonctionnalités</a>
+              <a href="#how-it-works" className="block text-sm font-medium">Comment ça marche</a>
+              <a href="#pricing" className="block text-sm font-medium">Tarifs</a>
+              <a href="#contact" className="block text-sm font-medium">Contact</a>
+              <div className="flex flex-col gap-3 pt-4">
+                <Link href="/customer/login" className="px-4 py-2 text-sm font-medium text-center text-primary hover:bg-primary/5 rounded-lg transition">
+                  Connexion
+                </Link>
+                <Link href="/customer/login" className="btn-primary text-sm justify-center">
+                  Commencer
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 py-16 md:py-24">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <div className="inline-block bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold mb-6">
-              🚀 Plateforme N°1 en Tunisie
-            </div>
-            <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Transport rapide et sécurisé en Tunisie
-            </h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Connectez-vous avec des chauffeurs vérifiés pour tous vos besoins de transport. 
-              Enchères en temps réel, paiement sécurisé, tracking GPS.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/customer/login">
-                <div className="group bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
+      <section className="relative overflow-hidden py-20 md:py-32 px-4 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative">
+          <div className="grid md:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-sm font-semibold text-primary">Logistique n°1 en Tunisie</span>
+              </div>
+
+              <h1 className="mb-6">
+                Transport rapide et sécurisé
+              </h1>
+
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed max-w-lg">
+                Connectez-vous avec des chauffeurs vérifiés pour tous vos besoins de transport. Enchères en temps réel, paiement sécurisé, suivi GPS en direct.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+                <Link href="/customer/login" className="btn-primary gap-2 justify-center sm:justify-start">
                   <Users className="w-5 h-5" />
                   Je suis Client
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Link>
-              
-              <Link href="/driver/login">
-                <div className="group bg-white border-2 border-gray-200 hover:border-blue-600 text-gray-900 px-8 py-4 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                  <Truck className="w-5 h-5 text-blue-600" />
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+
+                <Link href="/driver/login" className="btn-outline gap-2 justify-center sm:justify-start">
+                  <Truck className="w-5 h-5" />
                   Je suis Chauffeur
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Link>
-            </div>
-
-            <div className="mt-8 flex items-center gap-6 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-green-600" />
-                <span>100% Sécurisé</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-yellow-500" />
-                <span>4.8/5 sur 1200+ avis</span>
-              </div>
-            </div>
-          </div>
 
-          <div className="relative hidden md:block">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-3xl p-8 shadow-2xl">
-              <div className="bg-white rounded-2xl p-6 mb-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-blue-100 p-3 rounded-full">
-                    <MapPin className="w-6 h-6 text-blue-600" />
+              <div className="flex flex-col sm:flex-row gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-success/10">
+                    <Shield className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Point de départ</p>
-                    <p className="font-semibold text-gray-900">Tunis Centre-Ville</p>
+                    <p className="font-semibold">100% Sécurisé</p>
+                    <p className="text-muted-foreground text-xs">Vérification stricte</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <MapPin className="w-6 h-6 text-green-600" />
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-accent/10">
+                    <Star className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Destination</p>
-                    <p className="font-semibold text-gray-900">La Marsa</p>
+                    <p className="font-semibold">4.8/5 - 1200+ avis</p>
+                    <p className="text-muted-foreground text-xs">Clients satisfaits</p>
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-white/90 backdrop-blur rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Prix estimé</span>
-                  <span className="text-2xl font-bold text-blue-600">35-45 TND</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>12 chauffeurs disponibles</span>
+            </div>
+
+            {/* Hero Visual */}
+            <div className="relative hidden md:block">
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl blur-2xl" />
+
+              <div className="relative bg-gradient-to-br from-primary to-secondary rounded-2xl p-8 shadow-2xl">
+                <div className="space-y-4">
+                  <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-lg">
+                        <MapPin className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/60">Point de départ</p>
+                        <p className="text-white font-semibold">Tunis Centre-Ville</p>
+                      </div>
+                    </div>
+
+                    <div className="h-6 border-l-2 border-white/30 ml-5 mb-3" />
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-lg">
+                        <MapPin className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/60">Destination</p>
+                        <p className="text-white font-semibold">La Marsa</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/15 backdrop-blur rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-white/80 text-sm">Prix estimé</span>
+                      <span className="text-3xl font-bold text-white">35-45 DT</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/70 text-sm">
+                      <Clock className="w-4 h-4" />
+                      <span>12 chauffeurs disponibles</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -105,80 +187,100 @@ export default function HomePage() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="bg-white py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4">
+      <section id="features" className="py-20 md:py-28 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Pourquoi choisir Truck4u ?
-            </h3>
-            <p className="text-xl text-gray-600">
-              La plateforme la plus complète pour vos besoins de transport
+            <h2 className="mb-4">Pourquoi choisir Truck4u?</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              La plateforme la plus complète pour vos besoins de transport en Tunisie
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-blue-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Chauffeurs Vérifiés</h4>
-              <p className="text-gray-600">
-                Vérification stricte : CIN, permis de conduire, carte grise, et attestations professionnelles.
-              </p>
-            </div>
+            {[
+              {
+                icon: Shield,
+                title: 'Chauffeurs Vérifiés',
+                description: 'Vérification stricte : CIN, permis de conduire, carte grise et attestations professionnelles',
+                color: 'primary'
+              },
+              {
+                icon: Zap,
+                title: 'Enchères en Temps Réel',
+                description: 'Recevez plusieurs offres en quelques minutes. Comparez et choisissez le meilleur prix',
+                color: 'secondary'
+              },
+              {
+                icon: MapPin,
+                title: 'Suivi GPS en Direct',
+                description: 'Suivez votre chauffeur en temps réel sur la carte, du ramassage à la livraison',
+                color: 'accent'
+              },
+              {
+                icon: Clock,
+                title: 'Service Rapide',
+                description: 'Transport livré en quelques heures. Service urgent disponible 24/7',
+                color: 'primary'
+              },
+              {
+                icon: Lock,
+                title: 'Paiement Sécurisé',
+                description: 'Transactions chiffrées et garantie de remboursement si insatisfait',
+                color: 'secondary'
+              },
+              {
+                icon: TrendingUp,
+                title: 'Tarifs Compétitifs',
+                description: 'Système d\'enchères inversées pour les meilleurs prix du marché',
+                color: 'accent'
+              }
+            ].map((feature, i) => {
+              const Icon = feature.icon;
+              const colorClass = feature.color === 'primary' ? 'bg-primary/10 text-primary' :
+                                feature.color === 'secondary' ? 'bg-secondary/10 text-secondary' :
+                                'bg-accent/10 text-accent';
 
-            <div className="bg-green-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-green-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <Clock className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Enchères en Temps Réel</h4>
-              <p className="text-gray-600">
-                Recevez plusieurs offres en quelques minutes. Comparez et choisissez le meilleur prix.
-              </p>
-            </div>
-
-            <div className="bg-purple-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-purple-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <MapPin className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Suivi GPS en Direct</h4>
-              <p className="text-gray-600">
-                Suivez votre chauffeur en temps réel sur la carte, du ramassage à la livraison.
-              </p>
-            </div>
+              return (
+                <div key={i} className="card p-8 hover:shadow-md transition-all hover:-translate-y-1">
+                  <div className={`flex items-center justify-center w-12 h-12 rounded-lg ${colorClass} mb-6`}>
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4">
+      <section id="how-it-works" className="py-20 md:py-28 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Comment ça marche ?
-            </h3>
-            <p className="text-xl text-gray-600">
-              Simple, rapide et efficace
+            <h2 className="mb-4">Comment ça marche?</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              4 étapes simples pour commander votre transport
             </p>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-4 gap-6 lg:gap-8">
             {[
-              { num: 1, title: 'Créez votre demande', desc: 'Indiquez votre itinéraire et le type de véhicule nécessaire' },
+              { num: 1, title: 'Créez votre demande', desc: 'Indiquez votre itinéraire et type de véhicule' },
               { num: 2, title: 'Recevez des offres', desc: 'Les chauffeurs proches vous envoient leurs tarifs' },
-              { num: 3, title: 'Choisissez le meilleur', desc: 'Comparez les prix et les notes, puis acceptez' },
-              { num: 4, title: 'Suivez en direct', desc: 'Tracking GPS et paiement sécurisé à la livraison' }
+              { num: 3, title: 'Acceptez la meilleure', desc: 'Comparez les prix et notes, puis confirmez' },
+              { num: 4, title: 'Suivi en direct', desc: 'Tracking GPS et paiement sécurisé' }
             ].map((step, i) => (
               <div key={i} className="relative">
-                <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-100 hover:border-blue-600 transition">
-                  <div className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mb-4">
+                <div className="card p-6 text-center h-full flex flex-col justify-between hover:shadow-md transition-all">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg mx-auto mb-4">
                     {step.num}
                   </div>
-                  <h4 className="font-bold text-gray-900 mb-2">{step.title}</h4>
-                  <p className="text-gray-600 text-sm">{step.desc}</p>
+                  <h4 className="font-bold mb-2">{step.title}</h4>
+                  <p className="text-sm text-muted-foreground">{step.desc}</p>
                 </div>
                 {i < 3 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-blue-200" />
+                  <div className="hidden lg:block absolute top-12 -right-4 w-8 h-0.5 bg-gradient-to-r from-primary/50 to-transparent" />
                 )}
               </div>
             ))}
@@ -186,70 +288,114 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h3 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Prêt à commencer ?
-          </h3>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Rejoignez des milliers d'utilisateurs qui font confiance à Truck4u pour leurs besoins de transport
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/customer/login">
-              <div className="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl">
-                Commander un transport
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 md:py-28 px-4 sm:px-6 lg:px-8 bg-muted/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="mb-4">Tarifs transparents</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Pas de frais cachés. Vous voyez le prix avant de confirmer
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { icon: '🚙', name: 'Pickup', price: 'À partir de 15 DT', capacity: '500 kg' },
+              { icon: '🚐', name: 'Camionnette', price: 'À partir de 25 DT', capacity: '1 tonne' },
+              { icon: '🚚', name: 'Camion', price: 'À partir de 45 DT', capacity: '3+ tonnes' }
+            ].map((vehicle, i) => (
+              <div key={i} className="card p-8 text-center hover:shadow-md hover:border-primary/50 transition-all">
+                <div className="text-5xl mb-4">{vehicle.icon}</div>
+                <h3 className="text-xl font-bold mb-2">{vehicle.name}</h3>
+                <p className="text-3xl font-bold text-primary mb-2">{vehicle.price}</p>
+                <p className="text-sm text-muted-foreground">{vehicle.capacity}</p>
               </div>
-            </Link>
-            <Link href="/driver/login">
-              <div className="bg-blue-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-blue-800 transition-all border-2 border-white/20">
-                Devenir chauffeur partenaire
-              </div>
-            </Link>
+            ))}
           </div>
         </div>
       </section>
 
+      {/* CTA Section */}
+      <section className="py-20 md:py-28 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary via-secondary to-accent">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="mb-4 text-white">Prêt à commencer?</h2>
+          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+            Rejoignez des milliers d'utilisateurs qui font confiance à Truck4u pour leurs besoins de transport
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/customer/login" className="px-8 py-4 rounded-lg font-bold text-primary bg-white hover:bg-white/90 transition-all shadow-lg inline-flex items-center justify-center gap-2">
+              <Users className="w-5 h-5" />
+              Devenir Client
+            </Link>
+            <Link href="/driver/login" className="px-8 py-4 rounded-lg font-bold text-white bg-white/20 hover:bg-white/30 border-2 border-white transition-all inline-flex items-center justify-center gap-2">
+              <Truck className="w-5 h-5" />
+              Devenir Chauffeur
+            </Link>
+          </div>
+
+          <p className="text-white/70 text-sm mt-8">
+            Pas de frais cachés • Support 24/7 • Satisfaction garantie
+          </p>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8">
+      <footer className="bg-foreground text-white py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Truck className="w-6 h-6" />
                 <span className="font-bold text-lg">Truck4u</span>
               </div>
-              <p className="text-gray-400 text-sm">
+              <p className="text-white/60 text-sm">
                 Plateforme logistique on-demand #1 en Tunisie
               </p>
             </div>
+
             <div>
               <h5 className="font-bold mb-4">Entreprise</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">À propos</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Carrières</a></li>
+              <ul className="space-y-2 text-sm text-white/60">
+                <li><a href="#" className="hover:text-white transition">À propos</a></li>
+                <li><a href="#" className="hover:text-white transition">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition">Carrières</a></li>
               </ul>
             </div>
+
             <div>
               <h5 className="font-bold mb-4">Support</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Centre d'aide</a></li>
-                <li><a href="#" className="hover:text-white">Sécurité</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
+              <ul className="space-y-2 text-sm text-white/60">
+                <li><a href="#" className="hover:text-white transition">Centre d'aide</a></li>
+                <li><a href="#" className="hover:text-white transition">Sécurité</a></li>
+                <li><a href="#" className="hover:text-white transition">Contact</a></li>
               </ul>
             </div>
+
             <div>
               <h5 className="font-bold mb-4">Légal</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">CGU</a></li>
-                <li><a href="#" className="hover:text-white">Confidentialité</a></li>
-                <li><a href="#" className="hover:text-white">Cookies</a></li>
+              <ul className="space-y-2 text-sm text-white/60">
+                <li><a href="#" className="hover:text-white transition">CGU</a></li>
+                <li><a href="#" className="hover:text-white transition">Confidentialité</a></li>
+                <li><a href="#" className="hover:text-white transition">Cookies</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-            © 2024 Truck4u. Tous droits réservés.
+
+          <div className="border-t border-white/10 pt-8">
+            <div className="flex flex-col md:flex-row justify-between items-center">
+              <p className="text-sm text-white/60">
+                © 2024 Truck4u. Tous droits réservés.
+              </p>
+              <div className="flex gap-4 mt-4 md:mt-0">
+                <a href="#" className="text-white/60 hover:text-white transition">
+                  <Phone className="w-5 h-5" />
+                </a>
+                <a href="#" className="text-white/60 hover:text-white transition">
+                  <MessageSquare className="w-5 h-5" />
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>
