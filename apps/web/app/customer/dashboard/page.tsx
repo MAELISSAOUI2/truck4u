@@ -3,19 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { customerApi, rideApi } from '@/lib/api';
+import { rideApi } from '@/lib/api';
 import {
   MapPin,
   Clock,
   Package,
   User,
-  ChevronRight,
+  LogOut,
   Plus,
+  ChevronRight,
+  TruckIcon,
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,101 +40,88 @@ export default function CustomerDashboard() {
     }
   };
 
+  const stats = {
+    total: rides.length,
+    pending: rides.filter(r => r.status === 'PENDING' || r.status === 'IN_PROGRESS').length,
+    completed: rides.filter(r => r.status === 'COMPLETED').length,
+  };
+
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header - Clean black bar like Uber */}
-      <div className="bg-black text-white px-6 py-4">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-white pb-24">
+      {/* Header - Moderne avec avatar */}
+      <div className="px-6 py-8 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-sm text-gray-400">Bonjour</p>
-            <h1 className="text-2xl font-bold">{user?.name?.split(' ')[0] || 'Client'}</h1>
+            <p className="text-sm text-gray-500 mb-1">Bonjour,</p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {user?.name?.split(' ')[0] || 'Client'}
+            </h1>
           </div>
           <button
             onClick={() => router.push('/customer/profile')}
-            className="w-11 h-11 bg-gray-800 rounded-full flex items-center justify-center"
+            className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center text-white hover:bg-gray-800 transition-colors"
           >
             <User className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Stats Grid - Minimaliste */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-gray-50 rounded-2xl">
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="text-xs text-gray-600 mt-1">Total</div>
+          </div>
+          <div className="text-center p-4 bg-gray-50 rounded-2xl">
+            <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
+            <div className="text-xs text-gray-600 mt-1">En cours</div>
+          </div>
+          <div className="text-center p-4 bg-gray-50 rounded-2xl">
+            <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+            <div className="text-xs text-gray-600 mt-1">Terminées</div>
+          </div>
+        </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto pb-24">
-        {/* Large CTA Card - Uber style with image */}
-        <div
-          className="mx-6 my-6 h-48 rounded-3xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
+      <div className="px-6 py-6 space-y-8">
+        {/* CTA Card - Simple et élégant */}
+        <button
           onClick={() => router.push('/customer/new-ride')}
+          className="w-full bg-black text-white rounded-3xl p-8 text-left hover:bg-gray-900 active:scale-[0.98] transition-all group"
         >
-          <img
-            src="https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=800&q=80"
-            alt="Truck"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
-          <div className="absolute bottom-0 left-0 right-0 p-6">
-            <h2 className="text-white text-2xl font-bold mb-2">
-              Nouvelle course
-            </h2>
-            <p className="text-white/90 text-sm">
-              Trouvez un transporteur en quelques clics
-            </p>
-          </div>
-          <div className="absolute top-6 right-6">
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Plus className="w-6 h-6 text-black" />
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-2">Nouvelle course</h2>
+              <p className="text-gray-300 text-sm">
+                Trouvez un transporteur en quelques minutes
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
+              <Plus className="w-6 h-6" />
             </div>
           </div>
-        </div>
-
-        {/* Quick Actions - Uber style */}
-        <div className="px-6 mb-6">
-          <div className="grid grid-cols-3 gap-3">
-            <button className="bg-white rounded-2xl p-4 text-center shadow-sm active:scale-95 transition-transform">
-              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center mx-auto mb-2">
-                <Clock className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-xs font-semibold text-gray-900">En cours</p>
-              <p className="text-lg font-bold text-gray-900">
-                {rides.filter(r => r.status === 'IN_PROGRESS' || r.status === 'PENDING').length}
-              </p>
-            </button>
-
-            <button className="bg-white rounded-2xl p-4 text-center shadow-sm active:scale-95 transition-transform">
-              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Package className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-xs font-semibold text-gray-900">Terminées</p>
-              <p className="text-lg font-bold text-gray-900">
-                {rides.filter(r => r.status === 'COMPLETED').length}
-              </p>
-            </button>
-
-            <button className="bg-white rounded-2xl p-4 text-center shadow-sm active:scale-95 transition-transform">
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <MapPin className="w-5 h-5 text-white" />
-              </div>
-              <p className="text-xs font-semibold text-gray-900">Total</p>
-              <p className="text-lg font-bold text-gray-900">{rides.length}</p>
-            </button>
+          <div className="flex items-center gap-2 text-sm text-gray-300">
+            <TruckIcon className="w-4 h-4" />
+            <span>Tous types de véhicules disponibles</span>
           </div>
-        </div>
+        </button>
 
-        {/* Recent Rides */}
-        <div className="px-6">
+        {/* Recent Activity */}
+        <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Activité récente</h3>
+            <h3 className="text-xl font-bold">Activité récente</h3>
             {rides.length > 0 && (
               <button
                 onClick={() => router.push('/customer/rides')}
-                className="text-sm font-semibold text-gray-900"
+                className="text-sm font-semibold hover:underline"
               >
                 Tout voir
               </button>
@@ -140,21 +129,19 @@ export default function CustomerDashboard() {
           </div>
 
           {rides.length === 0 ? (
-            <div className="bg-white rounded-3xl p-8 text-center shadow-sm">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Package className="w-10 h-10 text-gray-400" />
+            <div className="bg-gray-50 rounded-3xl p-12 text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="w-8 h-8 text-gray-400" />
               </div>
-              <h4 className="text-lg font-bold text-gray-900 mb-2">
-                Aucune course
-              </h4>
+              <h4 className="text-lg font-semibold mb-2">Aucune course</h4>
               <p className="text-sm text-gray-600 mb-6">
-                Créez votre première demande de transport
+                Commencez par créer votre première demande
               </p>
               <button
                 onClick={() => router.push('/customer/new-ride')}
-                className="h-12 px-8 bg-black text-white font-semibold rounded-full"
+                className="h-12 px-8 bg-black text-white font-semibold rounded-full hover:bg-gray-900 transition-colors"
               >
-                Commencer
+                Créer une course
               </button>
             </div>
           ) : (
@@ -163,16 +150,16 @@ export default function CustomerDashboard() {
                 <button
                   key={ride.id}
                   onClick={() => router.push(`/customer/rides/${ride.id}`)}
-                  className="w-full bg-white rounded-2xl p-5 text-left shadow-sm active:scale-[0.98] transition-transform"
+                  className="w-full bg-white border border-gray-200 rounded-2xl p-5 text-left hover:border-gray-300 hover:shadow-sm active:scale-[0.98] transition-all group"
                 >
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${
                         ride.status === 'COMPLETED'
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-green-50 text-green-700'
                           : ride.status === 'IN_PROGRESS'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-orange-50 text-orange-700'
                       }`}
                     >
                       {ride.status === 'COMPLETED'
@@ -181,33 +168,29 @@ export default function CustomerDashboard() {
                         ? 'En cours'
                         : 'En attente'}
                     </span>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                      <p className="text-sm font-semibold text-gray-900 line-clamp-1">
-                        {ride.pickupAddress}
-                      </p>
+                      <div className="w-2.5 h-2.5 bg-green-500 rounded-full mt-1.5 flex-shrink-0" />
+                      <p className="text-sm font-semibold line-clamp-1">{ride.pickupAddress}</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0" />
-                      <p className="text-sm font-semibold text-gray-900 line-clamp-1">
-                        {ride.deliveryAddress}
-                      </p>
+                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                      <p className="text-sm font-semibold line-clamp-1">{ride.deliveryAddress}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                     <span className="text-xs text-gray-500">
                       {new Date(ride.createdAt).toLocaleDateString('fr-FR', {
                         day: 'numeric',
-                        month: 'short',
+                        month: 'long',
                       })}
                     </span>
                     {(ride.finalPrice || ride.estimatedPrice) && (
-                      <span className="text-base font-bold text-gray-900">
+                      <span className="text-base font-bold">
                         {ride.finalPrice || ride.estimatedPrice} DT
                       </span>
                     )}
@@ -219,29 +202,28 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
-      {/* Bottom Navigation - Uber style with active indicator */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-pb">
+      {/* Bottom Navigation - Minimal et moderne */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100">
         <div className="flex items-center justify-around h-20 px-6">
-          <button className="flex flex-col items-center gap-1 relative">
-            <div className="w-1.5 h-1.5 bg-black rounded-full absolute -top-3"></div>
-            <Package className="w-6 h-6 text-black" />
-            <span className="text-xs font-bold text-black">Accueil</span>
+          <button className="flex flex-col items-center gap-2 text-black">
+            <Package className="w-6 h-6" />
+            <span className="text-xs font-semibold">Accueil</span>
           </button>
 
           <button
             onClick={() => router.push('/customer/rides')}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-2 text-gray-400 hover:text-black transition-colors"
           >
-            <Clock className="w-6 h-6 text-gray-400" />
-            <span className="text-xs font-medium text-gray-400">Activité</span>
+            <Clock className="w-6 h-6" />
+            <span className="text-xs font-medium">Courses</span>
           </button>
 
           <button
             onClick={() => router.push('/customer/profile')}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-2 text-gray-400 hover:text-black transition-colors"
           >
-            <User className="w-6 h-6 text-gray-400" />
-            <span className="text-xs font-medium text-gray-400">Compte</span>
+            <User className="w-6 h-6" />
+            <span className="text-xs font-medium">Profil</span>
           </button>
         </div>
       </div>
