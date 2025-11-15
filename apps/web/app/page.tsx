@@ -11,34 +11,43 @@ import {
   Star,
   ArrowRight,
   CheckCircle2,
-  Smartphone,
-  CreditCard
+  Sparkles,
+  Zap,
+  Award,
+  TrendingUp,
+  DollarSign,
+  Phone,
+  Mail
 } from 'lucide-react';
-import { Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui';
 
 export default function HomePage() {
   const router = useRouter();
 
   const features = [
     {
-      icon: <Clock className="w-8 h-8" />,
-      title: 'Réponse rapide',
-      description: 'Recevez des offres en quelques minutes'
+      icon: <Zap className="w-6 h-6" />,
+      title: 'Réponse Ultra-Rapide',
+      description: 'Recevez des offres de chauffeurs qualifiés en moins de 3 minutes',
+      color: 'from-blue-500 to-cyan-500'
     },
     {
-      icon: <Shield className="w-8 h-8" />,
-      title: 'Chauffeurs vérifiés',
-      description: 'Tous nos chauffeurs sont contrôlés'
+      icon: <Shield className="w-6 h-6" />,
+      title: 'Chauffeurs Certifiés',
+      description: 'Vérification complète : permis, assurance, antécédents',
+      color: 'from-green-500 to-emerald-500'
     },
     {
-      icon: <CreditCard className="w-8 h-8" />,
-      title: 'Paiement sécurisé',
-      description: 'Cash ou paiement en ligne'
+      icon: <DollarSign className="w-6 h-6" />,
+      title: 'Prix Transparents',
+      description: 'Comparez les offres et choisissez le meilleur tarif',
+      color: 'from-orange-500 to-amber-500'
     },
     {
-      icon: <MapPin className="w-8 h-8" />,
-      title: 'Tracking en temps réel',
-      description: 'Suivez votre course en direct'
+      icon: <MapPin className="w-6 h-6" />,
+      title: 'Suivi GPS Temps Réel',
+      description: 'Suivez votre livraison en direct sur la carte',
+      color: 'from-purple-500 to-pink-500'
     }
   ];
 
@@ -46,306 +55,444 @@ export default function HomePage() {
     {
       number: '01',
       title: 'Créez votre demande',
-      description: 'Indiquez votre point de départ, destination et type de véhicule'
+      description: 'En 2 minutes : adresses, type de véhicule, détails de la marchandise',
+      icon: <TruckIcon className="w-8 h-8" />
     },
     {
       number: '02',
-      title: 'Comparez les offres',
-      description: 'Recevez plusieurs propositions de chauffeurs vérifiés'
+      title: 'Recevez les offres',
+      description: 'Les chauffeurs disponibles vous envoient leurs propositions',
+      icon: <Users className="w-8 h-8" />
     },
     {
       number: '03',
-      title: 'Profitez du service',
-      description: 'Suivez votre course et payez en toute sécurité'
+      title: 'Choisissez & Suivez',
+      description: 'Acceptez la meilleure offre et suivez votre course en temps réel',
+      icon: <CheckCircle2 className="w-8 h-8" />
     }
   ];
 
   const stats = [
-    { value: '5,000+', label: 'Courses réalisées' },
-    { value: '500+', label: 'Chauffeurs actifs' },
-    { value: '4.8/5', label: 'Note moyenne' },
-    { value: '< 5min', label: 'Temps de réponse' }
+    { value: '5,000+', label: 'Courses réalisées', icon: <TruckIcon /> },
+    { value: '500+', label: 'Chauffeurs actifs', icon: <Users /> },
+    { value: '4.9/5', label: 'Note moyenne', icon: <Star /> },
+    { value: '< 3min', label: 'Temps de réponse', icon: <Clock /> }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-white">
+      {/* Modern Header with Glass Effect */}
+      <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-gray-200/50">
+        <div className="container-custom py-4">
           <div className="flex items-center justify-between">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center space-x-3"
+              className="flex items-center gap-3"
             >
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-xl">
-                <TruckIcon className="h-8 w-8 text-white" />
+              <div className="bg-gradient-primary p-2.5 rounded-2xl shadow-lg">
+                <TruckIcon className="w-7 h-7 text-white" />
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Truck4u
-              </h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gradient-primary">Truck4u</h1>
+                <p className="text-xs text-gray-500 font-medium">Transport Premium</p>
+              </div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="flex items-center space-x-4"
+              className="flex items-center gap-3"
             >
               <Button
                 variant="ghost"
                 onClick={() => router.push('/customer/login')}
+                className="hidden sm:inline-flex"
               >
                 Connexion
               </Button>
-              <Button onClick={() => router.push('/customer/register')}>
+              <Button onClick={() => router.push('/customer/onboarding')}>
                 Commencer
+                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </motion.div>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 py-16 md:py-24">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <div className="inline-block bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold mb-6">
-              🚀 Plateforme N°1 en Tunisie
-            </div>
-            <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Transport rapide et sécurisé en Tunisie
-            </h2>
-            <p className="text-xl text-gray-600 mb-8">
-              Connectez-vous avec des chauffeurs vérifiés pour tous vos besoins de transport. 
-              Enchères en temps réel, paiement sécurisé, tracking GPS.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                size="lg"
-                onClick={() => router.push('/customer/register')}
-                icon={<Users className="w-5 h-5" />}
-                className="flex items-center gap-2"
-              >
-                Je suis Client
-                <ArrowRight className="w-5 h-5" />
-              </Button>
+      {/* Hero Section with Gradient Mesh */}
+      <section className="relative pt-32 pb-20 overflow-hidden bg-gradient-mesh">
+        {/* Decorative Elements */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
 
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => router.push('/driver/register')}
-                icon={<TruckIcon className="w-5 h-5" />}
-                className="flex items-center gap-2"
-              >
-                Je suis Chauffeur
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-            </div>
+        <div className="container-custom relative">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left Content */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 px-4 py-2 rounded-full mb-6">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-semibold text-blue-700">
+                  #1 Plateforme de Transport en Tunisie
+                </span>
+              </div>
 
-            <div className="mt-8 flex items-center gap-6 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-green-600" />
-                <span>100% Sécurisé</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-yellow-500" />
-                <span>4.8/5 sur 1200+ avis</span>
-              </div>
-            </div>
-          </div>
+              <h1 className="text-6xl lg:text-7xl font-bold leading-tight mb-6">
+                Transport de{' '}
+                <span className="text-gradient-primary">marchandises</span>
+                <br />
+                simplifié
+              </h1>
 
-          <div className="relative hidden md:block">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-3xl p-8 shadow-2xl">
-              <div className="bg-white rounded-2xl p-6 mb-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="bg-blue-100 p-3 rounded-full">
-                    <MapPin className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Point de départ</p>
-                    <p className="font-semibold text-gray-900">Tunis Centre-Ville</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <MapPin className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Destination</p>
-                    <p className="font-semibold text-gray-900">La Marsa</p>
-                  </div>
-                </div>
+              <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+                Connectez-vous instantanément avec des chauffeurs vérifiés.
+                Comparez les prix, suivez vos livraisons en temps réel.
+                <strong className="text-gray-900"> Simple. Rapide. Fiable.</strong>
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <Button
+                  size="lg"
+                  onClick={() => router.push('/customer/onboarding')}
+                  className="btn-primary text-lg px-8 py-4 shadow-xl hover:shadow-2xl"
+                >
+                  <Users className="w-5 h-5 mr-2" />
+                  Je suis Client
+                </Button>
+
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => router.push('/driver/register')}
+                  className="btn-outline text-lg px-8 py-4"
+                >
+                  <TruckIcon className="w-5 h-5 mr-2" />
+                  Je suis Chauffeur
+                </Button>
               </div>
-              
-              <div className="bg-white/90 backdrop-blur rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-600">Prix estimé</span>
-                  <span className="text-2xl font-bold text-blue-600">35-45 TND</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>12 chauffeurs disponibles</span>
-                </div>
+
+              {/* Trust Indicators */}
+              <div className="flex flex-wrap gap-6 items-center">
+                {[
+                  { icon: <Shield className="w-5 h-5" />, text: '100% Sécurisé' },
+                  { icon: <Award className="w-5 h-5" />, text: 'Chauffeurs Certifiés' },
+                  { icon: <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />, text: '4.9/5 sur 1,200+ avis' }
+                ].map((item, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + i * 0.1 }}
+                    className="flex items-center gap-2 text-gray-700"
+                  >
+                    <div className="text-green-600">{item.icon}</div>
+                    <span className="font-medium text-sm">{item.text}</span>
+                  </motion.div>
+                ))}
               </div>
-            </div>
+            </motion.div>
+
+            {/* Right Visual - Modern Card Preview */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="relative hidden lg:block"
+            >
+              <div className="relative">
+                {/* Main Card */}
+                <div className="card-elevated p-8 bg-white">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <p className="text-sm text-gray-500 font-medium">Votre prochaine course</p>
+                      <h3 className="text-2xl font-bold text-gray-900">Tunis → Sfax</h3>
+                    </div>
+                    <div className="bg-gradient-success px-4 py-2 rounded-xl">
+                      <span className="text-white font-bold text-lg">150 DT</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-green-100 p-2 rounded-lg">
+                        <MapPin className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Départ</p>
+                        <p className="font-semibold">15 Avenue Habib Bourguiba</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="bg-red-100 p-2 rounded-lg">
+                        <MapPin className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Arrivée</p>
+                        <p className="font-semibold">Route de Tunis, Sfax</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">3 offres reçues</p>
+                    <div className="space-y-2">
+                      {[145, 150, 155].map((price, i) => (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 + i * 0.1 }}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500"></div>
+                            <div>
+                              <p className="font-semibold text-sm">Chauffeur {i + 1}</p>
+                              <div className="flex gap-0.5">
+                                {[...Array(5)].map((_, j) => (
+                                  <Star key={j} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="font-bold text-blue-600">{price} DT</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating Badge */}
+                <motion.div
+                  animate={{ y: [-5, 5, -5] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -top-4 -right-4 bg-gradient-warm px-6 py-3 rounded-2xl shadow-xl"
+                >
+                  <p className="text-white font-bold text-sm">-30% Premier Transport</p>
+                </motion.div>
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="bg-white py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Pourquoi choisir Truck4u ?
-            </h3>
-            <p className="text-xl text-gray-600">
-              La plateforme la plus complète pour vos besoins de transport
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-blue-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Chauffeurs Vérifiés</h4>
-              <p className="text-gray-600">
-                Vérification stricte : CIN, permis de conduire, carte grise, et attestations professionnelles.
-              </p>
-            </div>
-
-            <div className="bg-green-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-green-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <Clock className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Enchères en Temps Réel</h4>
-              <p className="text-gray-600">
-                Recevez plusieurs offres en quelques minutes. Comparez et choisissez le meilleur prix.
-              </p>
-            </div>
-
-            <div className="bg-purple-50 rounded-2xl p-8 hover:shadow-lg transition">
-              <div className="bg-purple-600 w-16 h-16 rounded-full flex items-center justify-center mb-6">
-                <MapPin className="w-8 h-8 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Suivi GPS en Direct</h4>
-              <p className="text-gray-600">
-                Suivez votre chauffeur en temps réel sur la carte, du ramassage à la livraison.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how-it-works" className="py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Comment ça marche ?
-            </h3>
-            <p className="text-xl text-gray-600">
-              Simple, rapide et efficace
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-8">
-            {[
-              { num: 1, title: 'Créez votre demande', desc: 'Indiquez votre itinéraire et le type de véhicule nécessaire' },
-              { num: 2, title: 'Recevez des offres', desc: 'Les chauffeurs proches vous envoient leurs tarifs' },
-              { num: 3, title: 'Choisissez le meilleur', desc: 'Comparez les prix et les notes, puis acceptez' },
-              { num: 4, title: 'Suivez en direct', desc: 'Tracking GPS et paiement sécurisé à la livraison' }
-            ].map((step, i) => (
-              <div key={i} className="relative">
-                <div className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-100 hover:border-blue-600 transition">
-                  <div className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mb-4">
-                    {step.num}
-                  </div>
-                  <h4 className="font-bold text-gray-900 mb-2">{step.title}</h4>
-                  <p className="text-gray-600 text-sm">{step.desc}</p>
+      {/* Stats Section */}
+      <section className="section bg-white border-y border-gray-100">
+        <div className="container-custom">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {stats.map((stat, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="text-center"
+              >
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
+                  <div className="text-blue-600">{stat.icon}</div>
                 </div>
-                {i < 3 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-blue-200" />
-                )}
-              </div>
+                <h3 className="text-4xl font-bold text-gradient-primary mb-2">{stat.value}</h3>
+                <p className="text-gray-600 font-medium">{stat.label}</p>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h3 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Prêt à commencer ?
-          </h3>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Rejoignez des milliers d'utilisateurs qui font confiance à Truck4u pour leurs besoins de transport
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => router.push('/customer/register')}
-              className="bg-white text-blue-600 hover:bg-gray-100"
-            >
-              Commander un transport
-            </Button>
+      {/* Features Section */}
+      <section className="section bg-gradient-mesh">
+        <div className="container-custom">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-5xl font-bold mb-4">
+              Pourquoi choisir <span className="text-gradient-primary">Truck4u</span> ?
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              La plateforme la plus avancée pour vos besoins de transport en Tunisie
+            </p>
+          </motion.div>
 
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => router.push('/driver/register')}
-              className="border-white text-white hover:bg-white/10"
-            >
-              Devenir chauffeur partenaire
-            </Button>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                whileHover={{ y: -8 }}
+                className="group"
+              >
+                <div className="card-elevated p-6 h-full hover:shadow-2xl transition-all duration-300">
+                  <div className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${feature.color} mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                    <div className="text-white">{feature.icon}</div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
+      {/* How It Works */}
+      <section className="section bg-white">
+        <div className="container-custom">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-5xl font-bold mb-4">Comment ça marche ?</h2>
+            <p className="text-xl text-gray-600">Simple comme 1, 2, 3</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connection Line */}
+            <div className="hidden md:block absolute top-1/3 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 opacity-20"></div>
+
+            {steps.map((step, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.2 }}
+                className="relative"
+              >
+                <div className="card-elevated p-8 text-center hover:shadow-2xl transition-all duration-300">
+                  <div className="relative inline-flex items-center justify-center w-20 h-20 bg-gradient-primary rounded-3xl mb-6 mx-auto">
+                    <div className="text-white">{step.icon}</div>
+                    <div className="absolute -top-2 -right-2 w-10 h-10 bg-white border-4 border-blue-500 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-bold text-sm">{step.number}</span>
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3">{step.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{step.description}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mt-12"
+          >
+            <Button
+              size="lg"
+              onClick={() => router.push('/customer/onboarding')}
+              className="btn-primary text-lg px-10 py-4 shadow-xl"
+            >
+              Commencer maintenant
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="section bg-gradient-primary text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+        <div className="container-custom relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center max-w-4xl mx-auto"
+          >
+            <h2 className="text-5xl font-bold mb-6">Prêt à commencer ?</h2>
+            <p className="text-xl mb-10 opacity-90">
+              Rejoignez des milliers d'utilisateurs satisfaits et simplifiez vos transports dès aujourd'hui
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button
+                size="lg"
+                variant="secondary"
+                onClick={() => router.push('/customer/onboarding')}
+                className="bg-white text-blue-600 hover:bg-gray-100 text-lg px-10 py-4 shadow-2xl"
+              >
+                Créer un compte gratuit
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => router.push('/driver/register')}
+                className="border-2 border-white text-white hover:bg-white/10 text-lg px-10 py-4"
+              >
+                Devenir chauffeur
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8">
+      <footer className="bg-gray-900 text-gray-300 py-16">
+        <div className="container-custom">
+          <div className="grid md:grid-cols-4 gap-8 mb-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <TruckIcon className="w-6 h-6" />
-                <span className="font-bold text-lg">Truck4u</span>
+                <div className="bg-gradient-primary p-2 rounded-xl">
+                  <TruckIcon className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold text-white">Truck4u</span>
               </div>
-              <p className="text-gray-400 text-sm">
-                Plateforme logistique on-demand #1 en Tunisie
+              <p className="text-sm leading-relaxed">
+                La plateforme de transport de marchandises la plus simple et rapide de Tunisie.
               </p>
             </div>
+
             <div>
-              <h5 className="font-bold mb-4">Entreprise</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">À propos</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Carrières</a></li>
+              <h4 className="font-bold text-white mb-4">Produit</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="hover:text-white transition">Fonctionnalités</a></li>
+                <li><a href="#" className="hover:text-white transition">Tarifs</a></li>
+                <li><a href="#" className="hover:text-white transition">FAQ</a></li>
               </ul>
             </div>
+
             <div>
-              <h5 className="font-bold mb-4">Support</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Centre d'aide</a></li>
-                <li><a href="#" className="hover:text-white">Sécurité</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
+              <h4 className="font-bold text-white mb-4">Entreprise</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="hover:text-white transition">À propos</a></li>
+                <li><a href="#" className="hover:text-white transition">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition">Carrières</a></li>
               </ul>
             </div>
+
             <div>
-              <h5 className="font-bold mb-4">Légal</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">CGU</a></li>
-                <li><a href="#" className="hover:text-white">Confidentialité</a></li>
-                <li><a href="#" className="hover:text-white">Cookies</a></li>
+              <h4 className="font-bold text-white mb-4">Contact</h4>
+              <ul className="space-y-3 text-sm">
+                <li className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  <span>+216 XX XXX XXX</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  <span>contact@truck4u.tn</span>
+                </li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-            © 2024 Truck4u. Tous droits réservés.
+
+          <div className="border-t border-gray-800 pt-8 text-center text-sm">
+            <p>© 2025 Truck4u. Tous droits réservés.</p>
           </div>
         </div>
       </footer>
