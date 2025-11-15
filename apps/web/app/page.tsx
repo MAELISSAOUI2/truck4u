@@ -121,21 +121,26 @@ export default function HomePage() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/customer/login">
-                <div className="group bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Je suis Client
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Link>
-              
-              <Link href="/driver/login">
-                <div className="group bg-white border-2 border-gray-200 hover:border-blue-600 text-gray-900 px-8 py-4 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-                  <Truck className="w-5 h-5 text-blue-600" />
-                  Je suis Chauffeur
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </Link>
+              <Button
+                size="lg"
+                onClick={() => router.push('/customer/register')}
+                icon={<Users className="w-5 h-5" />}
+                className="flex items-center gap-2"
+              >
+                Je suis Client
+                <ArrowRight className="w-5 h-5" />
+              </Button>
+
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => router.push('/driver/register')}
+                icon={<TruckIcon className="w-5 h-5" />}
+                className="flex items-center gap-2"
+              >
+                Je suis Chauffeur
+                <ArrowRight className="w-5 h-5" />
+              </Button>
             </div>
 
             <div className="mt-8 flex items-center gap-6 text-sm text-gray-600">
@@ -280,16 +285,23 @@ export default function HomePage() {
             Rejoignez des milliers d'utilisateurs qui font confiance à Truck4u pour leurs besoins de transport
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/customer/login">
-              <div className="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl">
-                Commander un transport
-              </div>
-            </Link>
-            <Link href="/driver/login">
-              <div className="bg-blue-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-blue-800 transition-all border-2 border-white/20">
-                Devenir chauffeur partenaire
-              </div>
-            </Link>
+            <Button
+              size="lg"
+              variant="secondary"
+              onClick={() => router.push('/customer/register')}
+              className="bg-white text-blue-600 hover:bg-gray-100"
+            >
+              Commander un transport
+            </Button>
+
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => router.push('/driver/register')}
+              className="border-white text-white hover:bg-white/10"
+            >
+              Devenir chauffeur partenaire
+            </Button>
           </div>
         </div>
       </section>
@@ -300,7 +312,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Truck className="w-6 h-6" />
+                <TruckIcon className="w-6 h-6" />
                 <span className="font-bold text-lg">Truck4u</span>
               </div>
               <p className="text-gray-400 text-sm">
