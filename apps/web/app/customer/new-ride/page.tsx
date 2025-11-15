@@ -51,10 +51,10 @@ import '@mantine/dropzone/styles.css';
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
 const VEHICLE_TYPES = [
-  { value: 'PICKUP', label: 'Pickup', icon: '🚙', capacity: '500kg', description: 'Parfait pour les petits colis' },
-  { value: 'VAN', label: 'Camionnette', icon: '🚐', capacity: '1 tonne', description: 'Idéal pour les charges moyennes' },
-  { value: 'SMALL_TRUCK', label: 'Petit Camion', icon: '🚚', capacity: '3 tonnes', description: 'Pour les grandes livraisons' },
-  { value: 'MEDIUM_TRUCK', label: 'Camion Moyen', icon: '🚛', capacity: '8 tonnes', description: 'Transport de marchandises lourdes' },
+  { value: 'PICKUP', label: 'Pickup', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
+  { value: 'VAN', label: 'Camionnette', icon: '🚐', basePrice: 35, capacity: '1 tonne', description: 'Idéal pour les charges moyennes' },
+  { value: 'SMALL_TRUCK', label: 'Petit Camion', icon: '🚚', basePrice: 60, capacity: '3 tonnes', description: 'Pour les grandes livraisons' },
+  { value: 'MEDIUM_TRUCK', label: 'Camion Moyen', icon: '🚛', basePrice: 100, capacity: '8 tonnes', description: 'Transport de marchandises lourdes' },
 ];
 
 interface AddressSuggestion {
@@ -310,6 +310,19 @@ export default function NewRidePage() {
     setActiveStep(prev => prev + 1);
   };
 
+  const calculatePrice = () => {
+    const vehicle = VEHICLE_TYPES.find(v => v.value === formData.vehicleType);
+    if (!vehicle) return 0;
+
+    let price = vehicle.basePrice;
+    price += distance * 1.5; // 1.5 DT per km
+    price += formData.numberOfHelpers * 15; // 15 DT per helper
+    price += (formData.numberOfTrips - 1) * 10; // 10 DT per additional trip
+    if (formData.isUrgent) price *= 1.2; // +20% for urgent
+
+    return Math.round(price);
+  };
+
   const handleSubmit = async () => {
     if (!formData.cargoDescription) {
       setError('Veuillez remplir tous les champs obligatoires');
@@ -326,6 +339,7 @@ export default function NewRidePage() {
 
       const response = await rideApi.create({
         ...formData,
+        estimatedPrice: calculatePrice(),
         estimatedDistance: distance,
         estimatedDuration: duration,
         photos: photoUrls,
@@ -739,18 +753,29 @@ export default function NewRidePage() {
                     )}
                   </div>
 
-                  <Button
-                    size="xl"
-                    radius="lg"
-                    color="dark"
-                    onClick={handleSubmit}
-                    loading={loading}
-                    disabled={!formData.cargoDescription}
-                    fullWidth
-                    leftSection={<IconCheck size={20} />}
-                  >
-                    Publier la course
-                  </Button>
+                  {/* Prix estimé */}
+                  <Paper p="xl" radius="lg" withBorder style={{ backgroundColor: '#f8f9fa' }}>
+                    <Group justify="space-between" align="center">
+                      <div>
+                        <Text size="sm" c="dimmed" mb={4}>Prix estimé</Text>
+                        <Title order={2} size="2rem">{calculatePrice()} DT</Title>
+                        <Text size="xs" c="dimmed" mt={4}>
+                          Le prix final sera confirmé par le transporteur
+                        </Text>
+                      </div>
+                      <Button
+                        size="xl"
+                        radius="xl"
+                        color="dark"
+                        onClick={handleSubmit}
+                        loading={loading}
+                        disabled={!formData.cargoDescription}
+                        leftSection={<IconCheck size={20} />}
+                      >
+                        Publier la course
+                      </Button>
+                    </Group>
+                  </Paper>
                 </Stack>
               </Stepper.Step>
             </Stepper>
