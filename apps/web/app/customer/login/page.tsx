@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Phone, User, Building2 } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
@@ -44,54 +46,55 @@ export default function CustomerLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Simple Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <button
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header - Uber style with back button */}
+      <div className="flex items-center px-4 py-4 border-b border-border">
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 text-gray-700"
+          className="rounded-full"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Retour</span>
-        </button>
+        </Button>
       </div>
 
-      {/* Main Content */}
-      <div className="px-4 py-8 max-w-md mx-auto">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+      {/* Main Content - Centered, generous padding */}
+      <div className="flex-1 flex flex-col px-6 py-8 max-w-md mx-auto w-full">
+        {/* Logo and Title - More space */}
+        <div className="mb-10">
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-6 shadow-sm">
             <span className="text-3xl">🚚</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {isLogin ? 'Connexion' : 'Inscription'}
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {isLogin ? 'Bienvenue' : 'Créer un compte'}
           </h1>
-          <p className="text-gray-600 mt-2">
-            {isLogin ? 'Content de vous revoir' : 'Créez votre compte'}
+          <p className="text-base text-muted-foreground">
+            {isLogin ? 'Connectez-vous pour continuer' : 'Commencez votre expérience Truck4u'}
           </p>
         </div>
 
-        {/* Error */}
+        {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-6">
+            <p className="text-sm text-destructive">{error}</p>
           </div>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Phone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Phone Number */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
               Numéro de téléphone
             </label>
             <div className="relative">
-              <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-12 h-12 text-base"
                 placeholder="+216 XX XXX XXX"
                 required
               />
@@ -101,36 +104,37 @@ export default function CustomerLoginPage() {
           {/* Register Fields */}
           {!isLogin && (
             <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              {/* Name */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
                   Nom complet
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                  <input
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="pl-12 h-12 text-base"
                     placeholder="Votre nom"
                     required
                   />
                 </div>
               </div>
 
-              {/* Account Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              {/* Account Type - Uber style selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-foreground">
                   Type de compte
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, accountType: 'INDIVIDUAL' })}
-                    className={`p-3 border-2 rounded-lg font-medium ${
+                    className={`h-14 rounded-lg border-2 font-medium text-sm transition-all ${
                       formData.accountType === 'INDIVIDUAL'
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 text-gray-700'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
                     }`}
                   >
                     Particulier
@@ -138,10 +142,10 @@ export default function CustomerLoginPage() {
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, accountType: 'BUSINESS' })}
-                    className={`p-3 border-2 rounded-lg font-medium ${
+                    className={`h-14 rounded-lg border-2 font-medium text-sm transition-all ${
                       formData.accountType === 'BUSINESS'
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 text-gray-700'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/50'
                     }`}
                   >
                     Entreprise
@@ -152,27 +156,27 @@ export default function CustomerLoginPage() {
               {/* Business Fields */}
               {formData.accountType === 'BUSINESS' && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
                       Nom de l'entreprise
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={formData.companyName}
                       onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="h-12 text-base"
                       placeholder="Nom de votre entreprise"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Matricule fiscale (optionnel)
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Matricule fiscale <span className="text-muted-foreground">(optionnel)</span>
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={formData.taxId}
                       onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="h-12 text-base"
                       placeholder="Matricule fiscale"
                     />
                   </div>
@@ -181,36 +185,40 @@ export default function CustomerLoginPage() {
             </>
           )}
 
-          {/* Submit Button */}
-          <button
+          {/* Submit Button - Uber style with proper height */}
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-12 text-base font-semibold mt-8"
+            size="lg"
           >
             {loading ? 'Chargement...' : isLogin ? 'Se connecter' : 'Créer mon compte'}
-          </button>
+          </Button>
         </form>
 
-        {/* Toggle */}
-        <div className="mt-6 text-center">
+        {/* Toggle Login/Register - Uber style */}
+        <div className="mt-8 text-center">
           <button
+            type="button"
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
             }}
-            className="text-blue-600 font-medium"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
           >
-            {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
+            {isLogin ? "Pas de compte ? Créer un compte" : 'Déjà un compte ? Se connecter'}
           </button>
         </div>
 
-        {/* Terms */}
-        <p className="mt-8 text-xs text-center text-gray-500">
-          En continuant, vous acceptez nos{' '}
-          <a href="#" className="text-blue-600">Conditions</a>
-          {' '}et{' '}
-          <a href="#" className="text-blue-600">Politique de confidentialité</a>
-        </p>
+        {/* Terms - Bottom */}
+        <div className="mt-auto pt-8">
+          <p className="text-xs text-center text-muted-foreground leading-relaxed">
+            En continuant, vous acceptez nos{' '}
+            <a href="#" className="text-primary hover:underline">Conditions d'utilisation</a>
+            {' '}et notre{' '}
+            <a href="#" className="text-primary hover:underline">Politique de confidentialité</a>
+          </p>
+        </div>
       </div>
     </div>
   );
