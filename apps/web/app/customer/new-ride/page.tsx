@@ -51,10 +51,10 @@ import '@mantine/dropzone/styles.css';
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
 const VEHICLE_TYPES = [
-  { value: 'PICKUP', label: 'Pickup', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
-  { value: 'VAN', label: 'Camionnette', icon: '🚐', basePrice: 35, capacity: '1 tonne', description: 'Idéal pour les charges moyennes' },
-  { value: 'SMALL_TRUCK', label: 'Petit Camion', icon: '🚚', basePrice: 60, capacity: '3 tonnes', description: 'Pour les grandes livraisons' },
-  { value: 'MEDIUM_TRUCK', label: 'Camion Moyen', icon: '🚛', basePrice: 100, capacity: '8 tonnes', description: 'Transport de marchandises lourdes' },
+  { value: 'CAMIONNETTE', label: 'Camionnette', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
+  { value: 'FOURGON', label: 'Fourgon', icon: '🚐', basePrice: 35, capacity: '1 tonne', description: 'Idéal pour les charges moyennes' },
+  { value: 'CAMION_3_5T', label: 'Camion 3.5T', icon: '🚚', basePrice: 60, capacity: '3.5 tonnes', description: 'Pour les grandes livraisons' },
+  { value: 'CAMION_LOURD', label: 'Camion Lourd', icon: '🚛', basePrice: 100, capacity: '8+ tonnes', description: 'Transport de marchandises lourdes' },
 ];
 
 interface AddressSuggestion {
@@ -94,7 +94,7 @@ export default function NewRidePage() {
     deliveryLng: 10.1658,
     schedulingType: 'immediate', // 'immediate' or 'scheduled'
     scheduledDate: null as Date | null,
-    vehicleType: 'VAN',
+    vehicleType: 'FOURGON',
     cargoDescription: '',
     cargoWeight: '',
     numberOfHelpers: 0,
@@ -337,13 +337,28 @@ export default function NewRidePage() {
       const photoUrls: string[] = [];
       // In a real app, you'd upload to a storage service here
 
-      const response = await rideApi.create({
-        ...formData,
-        estimatedPrice: calculatePrice(),
-        estimatedDistance: distance,
-        estimatedDuration: duration,
-        photos: photoUrls,
-      });
+      // Transform data to match API schema
+      const apiData = {
+        pickup: {
+          lat: formData.pickupLat,
+          lng: formData.pickupLng,
+          address: formData.pickupAddress,
+        },
+        dropoff: {
+          lat: formData.deliveryLat,
+          lng: formData.deliveryLng,
+          address: formData.deliveryAddress,
+        },
+        vehicleType: formData.vehicleType,
+        loadAssistance: formData.numberOfHelpers > 0,
+        numberOfTrips: formData.numberOfTrips,
+        itemPhotos: photoUrls,
+        description: formData.cargoDescription,
+        serviceType: formData.schedulingType === 'immediate' ? 'IMMEDIATE' : 'SCHEDULED',
+        scheduledFor: formData.scheduledDate ? formData.scheduledDate.toISOString() : undefined,
+      };
+
+      const response = await rideApi.create(apiData);
 
       // Success! Redirect to dashboard with success message
       router.push(`/customer/dashboard?success=ride_created`);
