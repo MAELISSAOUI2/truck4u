@@ -2,19 +2,36 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Stack,
+  Title,
+  Text,
+  TextInput,
+  Textarea,
+  Button,
+  Card,
+  Group,
+  ActionIcon,
+  Paper,
+  SimpleGrid,
+  Checkbox,
+  NumberInput,
+  Badge,
+} from '@mantine/core';
+import {
+  IconArrowLeft,
+  IconMapPin,
+  IconPackage,
+  IconClock,
+  IconNavigation,
+  IconMinus,
+  IconPlus,
+} from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import {
-  MapPin,
-  Package,
-  ArrowLeft,
-  X,
-  DollarSign,
-  Clock,
-  Navigation,
-} from 'lucide-react';
 
 // Configure Mapbox token
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
@@ -159,7 +176,7 @@ export default function NewRidePage() {
               'line-cap': 'round',
             },
             paint: {
-              'line-color': '#3B82F6',
+              'line-color': '#228BE6',
               'line-width': 5,
               'line-opacity': 0.75,
             },
@@ -247,215 +264,232 @@ export default function NewRidePage() {
   const estimatedPrice = calculatePrice();
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-        <button
-          onClick={() => router.push('/customer/dashboard')}
-          className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span>Retour</span>
-        </button>
-        <h1 className="text-lg font-bold text-gray-900">Nouvelle course</h1>
-        <div className="w-20"></div>
-      </header>
+      <Paper p="md" radius={0} withBorder>
+        <Container size="xl">
+          <Group justify="space-between">
+            <ActionIcon
+              size="lg"
+              variant="subtle"
+              color="dark"
+              onClick={() => router.push('/customer/dashboard')}
+            >
+              <IconArrowLeft size={24} />
+            </ActionIcon>
+            <Title order={2} size="1.25rem">Nouvelle course</Title>
+            <div style={{ width: 40 }} />
+          </Group>
+        </Container>
+      </Paper>
 
       {/* Main Content - Map + Form */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Map - Left side on desktop, top on mobile */}
-        <div className="lg:w-1/2 h-64 lg:h-full relative">
-          <div ref={mapContainer} className="absolute inset-0" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+        {/* Map - Left side */}
+        <div style={{ flex: 1, position: 'relative', minHeight: '300px' }}>
+          <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
 
           {/* Route Info Overlay */}
           {distance > 0 && (
-            <div className="absolute top-4 left-4 right-4 bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-xl">
-                  <Navigation className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Distance</p>
-                  <p className="text-xl font-bold text-gray-900">{distance} km</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-xl">
-                  <Clock className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Durée</p>
-                  <p className="text-xl font-bold text-gray-900">{duration} min</p>
-                </div>
-              </div>
-            </div>
+            <Paper
+              shadow="lg"
+              p="md"
+              radius="xl"
+              withBorder
+              style={{
+                position: 'absolute',
+                top: 16,
+                left: 16,
+                right: 16,
+                zIndex: 10
+              }}
+            >
+              <Group justify="space-between">
+                <Group gap="sm">
+                  <ActionIcon size="lg" radius="xl" variant="light" color="blue">
+                    <IconNavigation size={20} />
+                  </ActionIcon>
+                  <div>
+                    <Text size="xs" c="dimmed">Distance</Text>
+                    <Text size="lg" fw={700}>{distance} km</Text>
+                  </div>
+                </Group>
+                <Group gap="sm">
+                  <ActionIcon size="lg" radius="xl" variant="light" color="green">
+                    <IconClock size={20} />
+                  </ActionIcon>
+                  <div>
+                    <Text size="xs" c="dimmed">Durée</Text>
+                    <Text size="lg" fw={700}>{duration} min</Text>
+                  </div>
+                </Group>
+              </Group>
+            </Paper>
           )}
         </div>
 
-        {/* Form - Right side on desktop, bottom on mobile */}
-        <div className="lg:w-1/2 flex flex-col overflow-y-auto">
-          <div className="p-6 space-y-6">
-            {/* Error */}
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-                <p className="text-red-700 text-sm">{error}</p>
-              </div>
-            )}
+        {/* Form - Right side */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+          <Container size="md" py="xl">
+            <Stack gap="xl">
+              {/* Error */}
+              {error && (
+                <Paper p="md" radius="md" bg="red.0" withBorder>
+                  <Text c="red" size="sm">{error}</Text>
+                </Paper>
+              )}
 
-            {/* Addresses */}
-            <div className="space-y-4">
+              {/* Addresses */}
+              <Stack gap="md">
+                <TextInput
+                  label="Adresse de départ"
+                  placeholder="Ex: Avenue Habib Bourguiba, Tunis"
+                  size="lg"
+                  radius="lg"
+                  leftSection={<IconMapPin size={18} style={{ color: '#51cf66' }} />}
+                  value={formData.pickupAddress}
+                  onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
+                  required
+                />
+
+                <TextInput
+                  label="Adresse de livraison"
+                  placeholder="Ex: Zone Industrielle, Sousse"
+                  size="lg"
+                  radius="lg"
+                  leftSection={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
+                  value={formData.deliveryAddress}
+                  onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
+                  required
+                />
+              </Stack>
+
+              {/* Vehicle Type */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Adresse de départ
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-green-600" />
-                  <input
-                    type="text"
-                    value={formData.pickupAddress}
-                    onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
-                    placeholder="Ex: Avenue Habib Bourguiba, Tunis"
-                  />
-                </div>
+                <Text size="sm" fw={600} mb="md">Type de véhicule</Text>
+                <SimpleGrid cols={2} spacing="md">
+                  {VEHICLE_TYPES.map((vehicle) => (
+                    <Card
+                      key={vehicle.value}
+                      shadow="sm"
+                      padding="lg"
+                      radius="lg"
+                      withBorder
+                      style={{
+                        cursor: 'pointer',
+                        borderColor: formData.vehicleType === vehicle.value ? '#228BE6' : undefined,
+                        borderWidth: formData.vehicleType === vehicle.value ? 2 : 1,
+                        backgroundColor: formData.vehicleType === vehicle.value ? '#E7F5FF' : undefined,
+                      }}
+                      onClick={() => setFormData({ ...formData, vehicleType: vehicle.value })}
+                    >
+                      <Stack gap="xs">
+                        <div style={{ fontSize: '2rem' }}>{vehicle.icon}</div>
+                        <Text fw={700} size="sm">{vehicle.label}</Text>
+                        <Text size="xs" c="dimmed">{vehicle.capacity}</Text>
+                        <Badge color="blue" variant="light">{vehicle.basePrice} DT</Badge>
+                      </Stack>
+                    </Card>
+                  ))}
+                </SimpleGrid>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Adresse de livraison
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-red-600" />
-                  <input
-                    type="text"
-                    value={formData.deliveryAddress}
-                    onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
-                    placeholder="Ex: Zone Industrielle, Sousse"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Vehicle Type */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-3">
-                Type de véhicule
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {VEHICLE_TYPES.map((vehicle) => (
-                  <button
-                    key={vehicle.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, vehicleType: vehicle.value })}
-                    className={`p-4 border-2 rounded-xl transition text-left ${
-                      formData.vehicleType === vehicle.value
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="text-2xl mb-2">{vehicle.icon}</div>
-                    <div className="font-bold text-sm text-gray-900">{vehicle.label}</div>
-                    <div className="text-xs text-gray-600">{vehicle.capacity}</div>
-                    <div className="text-sm font-semibold text-blue-600 mt-1">
-                      {vehicle.basePrice} DT
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Cargo Description */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                <Package className="inline w-4 h-4 mr-1" />
-                Description de la marchandise
-              </label>
-              <textarea
+              {/* Cargo Description */}
+              <Textarea
+                label="Description de la marchandise"
+                placeholder="Ex: 20 cartons de produits alimentaires"
+                size="md"
+                radius="lg"
+                rows={3}
                 value={formData.cargoDescription}
                 onChange={(e) => setFormData({ ...formData, cargoDescription: e.target.value })}
-                rows={3}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition resize-none"
-                placeholder="Ex: 20 cartons de produits alimentaires"
+                required
               />
-            </div>
 
-            {/* Weight */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Poids estimé (kg)
-                </label>
-                <input
+              {/* Weight and Helpers */}
+              <SimpleGrid cols={2} spacing="md">
+                <TextInput
+                  label="Poids estimé (kg)"
+                  placeholder="500"
+                  size="md"
+                  radius="lg"
                   type="number"
                   value={formData.cargoWeight}
                   onChange={(e) => setFormData({ ...formData, cargoWeight: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
-                  placeholder="500"
                 />
-              </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Convoyeurs
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, numberOfHelpers: Math.max(0, formData.numberOfHelpers - 1) })}
-                    className="w-10 h-10 bg-gray-100 rounded-lg font-bold hover:bg-gray-200"
-                  >
-                    −
-                  </button>
-                  <div className="flex-1 text-center font-bold text-xl">{formData.numberOfHelpers}</div>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, numberOfHelpers: formData.numberOfHelpers + 1 })}
-                    className="w-10 h-10 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
-                  >
-                    +
-                  </button>
+                <div>
+                  <Text size="sm" fw={500} mb="xs">Convoyeurs</Text>
+                  <Group gap="xs">
+                    <ActionIcon
+                      size="lg"
+                      radius="lg"
+                      variant="light"
+                      color="gray"
+                      onClick={() => setFormData({ ...formData, numberOfHelpers: Math.max(0, formData.numberOfHelpers - 1) })}
+                    >
+                      <IconMinus size={18} />
+                    </ActionIcon>
+                    <Text size="xl" fw={700} style={{ flex: 1, textAlign: 'center' }}>
+                      {formData.numberOfHelpers}
+                    </Text>
+                    <ActionIcon
+                      size="lg"
+                      radius="lg"
+                      color="dark"
+                      onClick={() => setFormData({ ...formData, numberOfHelpers: formData.numberOfHelpers + 1 })}
+                    >
+                      <IconPlus size={18} />
+                    </ActionIcon>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {formData.numberOfHelpers * 15} DT
+                  </Text>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  {formData.numberOfHelpers * 15} DT
-                </p>
-              </div>
-            </div>
+              </SimpleGrid>
 
-            {/* Urgent Option */}
-            <label className="flex items-center p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-500 transition">
-              <input
-                type="checkbox"
-                checked={formData.isUrgent}
-                onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
-                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <div className="ml-3">
-                <span className="font-semibold text-gray-900">Course urgente</span>
-                <p className="text-sm text-gray-600">+20% sur le tarif</p>
-              </div>
-            </label>
-          </div>
+              {/* Urgent Option */}
+              <Paper p="md" radius="lg" withBorder style={{ cursor: 'pointer' }}>
+                <Checkbox
+                  label={
+                    <div>
+                      <Text fw={600}>Course urgente</Text>
+                      <Text size="sm" c="dimmed">+20% sur le tarif</Text>
+                    </div>
+                  }
+                  checked={formData.isUrgent}
+                  onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
+                  size="md"
+                />
+              </Paper>
+            </Stack>
+          </Container>
 
           {/* Bottom Bar with Price & Submit */}
-          <div className="mt-auto border-t border-gray-200 bg-white p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm text-gray-600">Prix estimé</p>
-                <p className="text-3xl font-bold text-gray-900">{estimatedPrice} DT</p>
-              </div>
-              <button
-                onClick={handleSubmit}
-                disabled={loading || !formData.pickupAddress || !formData.deliveryAddress || !formData.cargoDescription}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg"
-              >
-                {loading ? 'Création...' : 'Publier la course'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 text-center">
-              Le prix final sera confirmé par le transporteur
-            </p>
-          </div>
+          <Paper p="xl" radius={0} withBorder style={{ marginTop: 'auto' }}>
+            <Container size="md">
+              <Group justify="space-between" mb="md">
+                <div>
+                  <Text size="sm" c="dimmed">Prix estimé</Text>
+                  <Title order={2} size="2rem">{estimatedPrice} DT</Title>
+                </div>
+                <Button
+                  size="xl"
+                  radius="xl"
+                  color="dark"
+                  onClick={handleSubmit}
+                  loading={loading}
+                  disabled={!formData.pickupAddress || !formData.deliveryAddress || !formData.cargoDescription}
+                  rightSection={<IconPackage size={20} />}
+                >
+                  Publier la course
+                </Button>
+              </Group>
+              <Text size="xs" c="dimmed" ta="center">
+                Le prix final sera confirmé par le transporteur
+              </Text>
+            </Container>
+          </Paper>
         </div>
       </div>
     </div>
