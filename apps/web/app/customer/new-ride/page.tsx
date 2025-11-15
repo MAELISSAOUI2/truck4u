@@ -1,172 +1,227 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import {
   MapPin,
   Package,
-  Calendar,
-  Clock,
-  TruckIcon,
-  ArrowRight,
-  Upload,
+  ArrowLeft,
   X,
-  Users,
-  AlertCircle,
-  Check,
+  DollarSign,
+  Clock,
+  Navigation,
 } from 'lucide-react';
-import Image from 'next/image';
+
+// Configure Mapbox token
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
 const VEHICLE_TYPES = [
-  {
-    value: 'PICKUP',
-    label: 'Pickup',
-    capacity: '500 kg',
-    dimensions: '1.5m × 1.5m',
-    price: 15,
-    icon: '🚙',
-    description: 'Idéal pour petits colis et cartons',
-  },
-  {
-    value: 'VAN',
-    label: 'Camionnette',
-    capacity: '1 tonne',
-    dimensions: '2m × 1.8m × 1.8m',
-    price: 25,
-    icon: '🚐',
-    description: 'Parfait pour déménagements d\'appartement',
-  },
-  {
-    value: 'SMALL_TRUCK',
-    label: 'Petit Camion',
-    capacity: '3 tonnes',
-    dimensions: '4m × 2m × 2m',
-    price: 45,
-    icon: '🚚',
-    description: 'Pour grandes quantités de marchandises',
-  },
-  {
-    value: 'MEDIUM_TRUCK',
-    label: 'Camion Moyen',
-    capacity: '8 tonnes',
-    dimensions: '6m × 2.4m × 2.4m',
-    price: 85,
-    icon: '🚛',
-    description: 'Transport professionnel et industriel',
-  },
-  {
-    value: 'LARGE_TRUCK',
-    label: 'Grand Camion',
-    capacity: '20 tonnes',
-    dimensions: '8m × 2.4m × 2.6m',
-    price: 150,
-    icon: '🚚',
-    description: 'Gros volumes et charges lourdes',
-  },
+  { value: 'PICKUP', label: 'Pickup', icon: '🚙', basePrice: 20, capacity: '500kg' },
+  { value: 'VAN', label: 'Camionnette', icon: '🚐', basePrice: 35, capacity: '1 tonne' },
+  { value: 'SMALL_TRUCK', label: 'Petit Camion', icon: '🚚', basePrice: 60, capacity: '3 tonnes' },
+  { value: 'MEDIUM_TRUCK', label: 'Camion Moyen', icon: '🚛', basePrice: 100, capacity: '8 tonnes' },
 ];
 
 export default function NewRidePage() {
   const router = useRouter();
   const { token } = useAuthStore();
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const pickupMarker = useRef<mapboxgl.Marker | null>(null);
+  const deliveryMarker = useRef<mapboxgl.Marker | null>(null);
+
   const [loading, setLoading] = useState(false);
-  const [estimating, setEstimating] = useState(false);
-  const [estimate, setEstimate] = useState<any>(null);
   const [error, setError] = useState('');
-  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [distance, setDistance] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const [formData, setFormData] = useState({
     pickupAddress: '',
     pickupLat: 36.8065,
     pickupLng: 10.1815,
     deliveryAddress: '',
-    deliveryLat: 0,
-    deliveryLng: 0,
+    deliveryLat: 36.8188,
+    deliveryLng: 10.1658,
     vehicleType: 'VAN',
     cargoDescription: '',
     cargoWeight: '',
-    numberOfTrips: 1,
     numberOfHelpers: 0,
-    scheduledDate: '',
-    scheduledTime: '',
     isUrgent: false,
-    needsHelper: false,
   });
 
   useEffect(() => {
     if (!token) {
       router.push('/customer/login');
-    }
-  }, [token]);
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach((file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedPhotos((prev) => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
-  const removePhoto = (index: number) => {
-    setUploadedPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const calculateEstimate = () => {
-    const vehicle = VEHICLE_TYPES.find((v) => v.value === formData.vehicleType);
-    if (!vehicle) return null;
-
-    // Algorithme d'estimation réaliste
-    const basePrice = vehicle.price;
-    const distance = 15; // km (à remplacer par calcul réel avec l'API)
-    const distancePrice = distance * 1.5; // 1.5 DT/km
-    
-    // Facteurs multiplicateurs
-    const weightFactor = formData.cargoWeight ? Math.max(1, parseInt(formData.cargoWeight) / 100) : 1;
-    const tripsFactor = formData.numberOfTrips;
-    const helpersCost = formData.numberOfHelpers * 15; // 15 DT par helper
-    const urgentFactor = formData.isUrgent ? 1.2 : 1;
-    
-    const subtotal = (basePrice + distancePrice) * weightFactor * tripsFactor * urgentFactor;
-    const total = Math.round(subtotal + helpersCost);
-
-    return {
-      basePrice,
-      distancePrice: Math.round(distancePrice),
-      helpersCost,
-      urgentSurcharge: formData.isUrgent ? Math.round(subtotal * 0.2) : 0,
-      estimatedPrice: total,
-      distance,
-      duration: Math.round(distance * 3 + 15), // 3 min/km + 15 min chargement
-    };
-  };
-
-  const handleEstimate = () => {
-    if (!formData.pickupAddress || !formData.deliveryAddress || !formData.vehicleType) {
-      setError('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    setError('');
-    setEstimating(true);
+    // Initialize map
+    if (mapContainer.current && !map.current) {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [formData.pickupLng, formData.pickupLat],
+        zoom: 12,
+      });
 
-    setTimeout(() => {
-      const calc = calculateEstimate();
-      setEstimate(calc);
-      setEstimating(false);
-      setCurrentStep(3);
-    }, 1000);
+      // Add navigation controls
+      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+      // Create custom markers
+      const pickupEl = document.createElement('div');
+      pickupEl.className = 'custom-marker pickup-marker';
+      pickupEl.innerHTML = '📍';
+      pickupEl.style.fontSize = '32px';
+
+      const deliveryEl = document.createElement('div');
+      deliveryEl.className = 'custom-marker delivery-marker';
+      deliveryEl.innerHTML = '🏁';
+      deliveryEl.style.fontSize = '32px';
+
+      pickupMarker.current = new mapboxgl.Marker(pickupEl)
+        .setLngLat([formData.pickupLng, formData.pickupLat])
+        .addTo(map.current);
+
+      deliveryMarker.current = new mapboxgl.Marker(deliveryEl)
+        .setLngLat([formData.deliveryLng, formData.deliveryLat])
+        .addTo(map.current);
+
+      // Fit bounds to show both markers
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([formData.pickupLng, formData.pickupLat])
+        .extend([formData.deliveryLng, formData.deliveryLat]);
+
+      map.current.fitBounds(bounds, { padding: 80 });
+
+      // Draw route
+      drawRoute();
+    }
+
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, [token]);
+
+  // Update map when addresses change
+  useEffect(() => {
+    if (map.current && pickupMarker.current && deliveryMarker.current) {
+      pickupMarker.current.setLngLat([formData.pickupLng, formData.pickupLat]);
+      deliveryMarker.current.setLngLat([formData.deliveryLng, formData.deliveryLat]);
+
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([formData.pickupLng, formData.pickupLat])
+        .extend([formData.deliveryLng, formData.deliveryLat]);
+
+      map.current.fitBounds(bounds, { padding: 80, duration: 1000 });
+      drawRoute();
+    }
+  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
+
+  const drawRoute = async () => {
+    if (!map.current) return;
+
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${formData.pickupLng},${formData.pickupLat};${formData.deliveryLng},${formData.deliveryLat}?geometries=geojson&access_token=${mapboxgl.accessToken}`
+      );
+      const data = await response.json();
+
+      if (data.routes && data.routes[0]) {
+        const route = data.routes[0];
+        setDistance((route.distance / 1000).toFixed(1) as any);
+        setDuration(Math.round(route.duration / 60));
+
+        const geojson = {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: route.geometry,
+        };
+
+        if (map.current.getSource('route')) {
+          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData(geojson as any);
+        } else {
+          map.current.addLayer({
+            id: 'route',
+            type: 'line',
+            source: {
+              type: 'geojson',
+              data: geojson as any,
+            },
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': '#3B82F6',
+              'line-width': 5,
+              'line-opacity': 0.75,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching route:', err);
+    }
   };
 
-  const handleCreateRide = async () => {
-    if (!estimate) {
-      setError('Veuillez d\'abord obtenir une estimation');
+  const geocodeAddress = async (address: string, isPickup: boolean) => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&country=TN&limit=1`
+      );
+      const data = await response.json();
+
+      if (data.features && data.features[0]) {
+        const [lng, lat] = data.features[0].center;
+
+        if (isPickup) {
+          setFormData(prev => ({ ...prev, pickupLat: lat, pickupLng: lng }));
+        } else {
+          setFormData(prev => ({ ...prev, deliveryLat: lat, deliveryLng: lng }));
+        }
+      }
+    } catch (err) {
+      console.error('Geocoding error:', err);
+    }
+  };
+
+  // Debounced geocoding
+  useEffect(() => {
+    if (formData.pickupAddress.length > 5) {
+      const timeout = setTimeout(() => geocodeAddress(formData.pickupAddress, true), 800);
+      return () => clearTimeout(timeout);
+    }
+  }, [formData.pickupAddress]);
+
+  useEffect(() => {
+    if (formData.deliveryAddress.length > 5) {
+      const timeout = setTimeout(() => geocodeAddress(formData.deliveryAddress, false), 800);
+      return () => clearTimeout(timeout);
+    }
+  }, [formData.deliveryAddress]);
+
+  const calculatePrice = () => {
+    const vehicle = VEHICLE_TYPES.find(v => v.value === formData.vehicleType);
+    if (!vehicle) return 0;
+
+    let price = vehicle.basePrice;
+    price += distance * 1.5; // 1.5 DT per km
+    price += formData.numberOfHelpers * 15;
+    if (formData.isUrgent) price *= 1.2;
+
+    return Math.round(price);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.pickupAddress || !formData.deliveryAddress || !formData.cargoDescription) {
+      setError('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
@@ -176,468 +231,233 @@ export default function NewRidePage() {
     try {
       const response = await rideApi.create({
         ...formData,
-        deliveryLat: formData.deliveryLat || formData.pickupLat + 0.1,
-        deliveryLng: formData.deliveryLng || formData.pickupLng + 0.1,
-        estimatedPrice: estimate.estimatedPrice,
-        estimatedDistance: estimate.distance,
-        estimatedDuration: estimate.duration,
-        photos: uploadedPhotos,
+        estimatedPrice: calculatePrice(),
+        estimatedDistance: distance,
+        estimatedDuration: duration,
       });
 
       router.push(`/customer/rides/${response.data.id}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erreur lors de la création de la course');
+      setError(err.response?.data?.message || 'Erreur lors de la création');
     } finally {
       setLoading(false);
     }
   };
 
+  const estimatedPrice = calculatePrice();
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen flex flex-col bg-white">
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => router.push('/customer/dashboard')}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition"
-            >
-              <ArrowRight className="h-5 w-5 mr-2 rotate-180" />
-              <span className="font-medium">Retour</span>
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Nouvelle Course</h1>
-            <div className="w-24"></div>
-          </div>
-        </div>
+      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <button
+          onClick={() => router.push('/customer/dashboard')}
+          className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Retour</span>
+        </button>
+        <h1 className="text-lg font-bold text-gray-900">Nouvelle course</h1>
+        <div className="w-20"></div>
       </header>
 
-      {/* Progress Steps */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-center space-x-4">
-          {[
-            { num: 1, label: 'Adresses' },
-            { num: 2, label: 'Détails' },
-            { num: 3, label: 'Confirmation' },
-          ].map((step) => (
-            <div key={step.num} className="flex items-center">
-              <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold ${
-                  currentStep >= step.num
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-500'
-                }`}
-              >
-                {currentStep > step.num ? <Check className="h-5 w-5" /> : step.num}
-              </div>
-              <span
-                className={`ml-2 text-sm font-medium ${
-                  currentStep >= step.num ? 'text-gray-900' : 'text-gray-500'
-                }`}
-              >
-                {step.label}
-              </span>
-              {step.num < 3 && (
-                <div
-                  className={`w-12 h-1 mx-4 rounded ${
-                    currentStep > step.num ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                ></div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Main Content - Map + Form */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Map - Left side on desktop, top on mobile */}
+        <div className="lg:w-1/2 h-64 lg:h-full relative">
+          <div ref={mapContainer} className="absolute inset-0" />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start">
-            <AlertCircle className="h-5 w-5 text-red-600 mr-2 flex-shrink-0 mt-0.5" />
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Step 1: Addresses */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                {/* Map Placeholder */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">Carte interactive</h3>
-                  <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center border-2 border-dashed border-blue-300">
-                    <div className="text-center">
-                      <MapPin className="h-12 w-12 text-blue-600 mx-auto mb-2" />
-                      <p className="text-blue-600 font-medium">
-                        Carte interactive (Google Maps / Leaflet)
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Sélectionnez les points de départ et d'arrivée
-                      </p>
-                    </div>
-                  </div>
+          {/* Route Info Overlay */}
+          {distance > 0 && (
+            <div className="absolute top-4 left-4 right-4 bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-xl">
+                  <Navigation className="w-5 h-5 text-blue-600" />
                 </div>
+                <div>
+                  <p className="text-sm text-gray-600">Distance</p>
+                  <p className="text-xl font-bold text-gray-900">{distance} km</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 p-2 rounded-xl">
+                  <Clock className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Durée</p>
+                  <p className="text-xl font-bold text-gray-900">{duration} min</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
-                {/* Pickup Address */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    <MapPin className="inline h-5 w-5 mr-2 text-green-600" />
-                    Adresse de départ *
-                  </label>
+        {/* Form - Right side on desktop, bottom on mobile */}
+        <div className="lg:w-1/2 flex flex-col overflow-y-auto">
+          <div className="p-6 space-y-6">
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Addresses */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Adresse de départ
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-green-600" />
                   <input
                     type="text"
-                    required
                     value={formData.pickupAddress}
                     onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
                     placeholder="Ex: Avenue Habib Bourguiba, Tunis"
                   />
                 </div>
+              </div>
 
-                {/* Delivery Address */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    <MapPin className="inline h-5 w-5 mr-2 text-red-600" />
-                    Adresse de livraison *
-                  </label>
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Adresse de livraison
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3.5 w-5 h-5 text-red-600" />
                   <input
                     type="text"
-                    required
                     value={formData.deliveryAddress}
                     onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className="w-full pl-11 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
                     placeholder="Ex: Zone Industrielle, Sousse"
                   />
                 </div>
-
-                <button
-                  onClick={() => setCurrentStep(2)}
-                  disabled={!formData.pickupAddress || !formData.deliveryAddress}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50 shadow-lg"
-                >
-                  Continuer
-                </button>
-              </div>
-            )}
-
-            {/* Step 2: Details */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                {/* Vehicle Type */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">Type de véhicule *</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {VEHICLE_TYPES.map((vehicle) => (
-                      <button
-                        key={vehicle.value}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, vehicleType: vehicle.value })}
-                        className={`p-4 border-2 rounded-xl transition text-left ${
-                          formData.vehicleType === vehicle.value
-                            ? 'border-blue-600 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <span className="text-4xl">{vehicle.icon}</span>
-                          <div className="flex-1">
-                            <div className="font-bold text-gray-900">{vehicle.label}</div>
-                            <div className="text-xs text-gray-600 mt-1">{vehicle.capacity}</div>
-                            <div className="text-xs text-gray-500">{vehicle.dimensions}</div>
-                            <div className="text-sm text-blue-600 font-semibold mt-2">
-                              À partir de {vehicle.price} DT
-                            </div>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-3">{vehicle.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Cargo Details */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">
-                    <Package className="inline h-5 w-5 mr-2" />
-                    Détails de la marchandise
-                  </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description *
-                      </label>
-                      <textarea
-                        required
-                        value={formData.cargoDescription}
-                        onChange={(e) =>
-                          setFormData({ ...formData, cargoDescription: e.target.value })
-                        }
-                        rows={3}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                        placeholder="Ex: 20 cartons de produits alimentaires"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Poids (kg)
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.cargoWeight}
-                          onChange={(e) =>
-                            setFormData({ ...formData, cargoWeight: e.target.value })
-                          }
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                          placeholder="500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Nombre de voyages
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.numberOfTrips}
-                          onChange={(e) =>
-                            setFormData({ ...formData, numberOfTrips: parseInt(e.target.value) || 1 })
-                          }
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Photos Upload */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">
-                    <Upload className="inline h-5 w-5 mr-2" />
-                    Photos des articles (optionnel)
-                  </h3>
-                  <div className="space-y-4">
-                    <label className="block cursor-pointer">
-                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-500 transition">
-                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-600 font-medium">
-                          Cliquez pour ajouter des photos
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          PNG, JPG jusqu'à 10MB
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        className="hidden"
-                      />
-                    </label>
-
-                    {uploadedPhotos.length > 0 && (
-                      <div className="grid grid-cols-3 gap-4">
-                        {uploadedPhotos.map((photo, index) => (
-                          <div key={index} className="relative group">
-                            <img
-                              src={photo}
-                              alt={`Upload ${index + 1}`}
-                              className="w-full h-24 object-cover rounded-lg"
-                            />
-                            <button
-                              onClick={() => removePhoto(index)}
-                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Helpers */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">
-                    <Users className="inline h-5 w-5 mr-2" />
-                    Nombre de convoyeurs
-                  </h3>
-                  <div className="flex items-center space-x-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          numberOfHelpers: Math.max(0, formData.numberOfHelpers - 1),
-                        })
-                      }
-                      className="w-12 h-12 bg-gray-100 rounded-xl font-bold text-xl hover:bg-gray-200 transition"
-                    >
-                      −
-                    </button>
-                    <div className="flex-1 text-center">
-                      <p className="text-3xl font-bold text-gray-900">{formData.numberOfHelpers}</p>
-                      <p className="text-sm text-gray-600">convoyeur(s)</p>
-                      <p className="text-xs text-blue-600 font-medium mt-1">
-                        {formData.numberOfHelpers * 15} DT
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          numberOfHelpers: formData.numberOfHelpers + 1,
-                        })
-                      }
-                      className="w-12 h-12 bg-blue-600 text-white rounded-xl font-bold text-xl hover:bg-blue-700 transition"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Options */}
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold mb-4">Options</h3>
-                  <div className="space-y-3">
-                    <label className="flex items-start p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-500 transition">
-                      <input
-                        type="checkbox"
-                        checked={formData.isUrgent}
-                        onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
-                        className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <div className="ml-3 flex-1">
-                        <span className="font-medium text-gray-900">Course urgente</span>
-                        <p className="text-sm text-gray-600">+20% sur le tarif</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-200 transition"
-                  >
-                    Retour
-                  </button>
-                  <button
-                    onClick={handleEstimate}
-                    disabled={estimating || !formData.cargoDescription}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50 shadow-lg"
-                  >
-                    {estimating ? 'Calcul...' : 'Obtenir une estimation'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Confirmation */}
-            {currentStep === 3 && estimate && (
-              <div className="space-y-6">
-                {/* Estimate Details */}
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg p-8 text-white">
-                  <h3 className="text-2xl font-bold mb-6">Estimation de prix</h3>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between text-blue-100">
-                      <span>Prix de base</span>
-                      <span className="font-semibold">{estimate.basePrice} DT</span>
-                    </div>
-                    <div className="flex justify-between text-blue-100">
-                      <span>Distance ({estimate.distance} km)</span>
-                      <span className="font-semibold">{estimate.distancePrice} DT</span>
-                    </div>
-                    {estimate.helpersCost > 0 && (
-                      <div className="flex justify-between text-blue-100">
-                        <span>Convoyeurs ({formData.numberOfHelpers})</span>
-                        <span className="font-semibold">{estimate.helpersCost} DT</span>
-                      </div>
-                    )}
-                    {estimate.urgentSurcharge > 0 && (
-                      <div className="flex justify-between text-blue-100">
-                        <span>Course urgente</span>
-                        <span className="font-semibold">+{estimate.urgentSurcharge} DT</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-white/20 pt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xl">Prix total estimé</span>
-                      <span className="text-4xl font-bold">{estimate.estimatedPrice} DT</span>
-                    </div>
-                    <p className="text-sm text-blue-100 mt-2">
-                      Durée estimée: ~{estimate.duration} minutes
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-200 transition"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={handleCreateRide}
-                    disabled={loading}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition disabled:opacity-50 shadow-lg"
-                  >
-                    {loading ? 'Création...' : 'Publier la course'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200 sticky top-24">
-              <h3 className="text-lg font-semibold mb-4">Résumé</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Véhicule</span>
-                  <span className="font-medium">
-                    {VEHICLE_TYPES.find((v) => v.value === formData.vehicleType)?.label}
-                  </span>
-                </div>
-                {formData.numberOfTrips > 1 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Voyages</span>
-                    <span className="font-medium">{formData.numberOfTrips}</span>
-                  </div>
-                )}
-                {formData.numberOfHelpers > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Convoyeurs</span>
-                    <span className="font-medium">{formData.numberOfHelpers}</span>
-                  </div>
-                )}
-                {uploadedPhotos.length > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Photos</span>
-                    <span className="font-medium">{uploadedPhotos.length}</span>
-                  </div>
-                )}
-                {formData.isUrgent && (
-                  <div className="flex justify-between text-orange-600">
-                    <span>Urgente</span>
-                    <span className="font-medium">+20%</span>
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* Vehicle Type */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-3">
+                Type de véhicule
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {VEHICLE_TYPES.map((vehicle) => (
+                  <button
+                    key={vehicle.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, vehicleType: vehicle.value })}
+                    className={`p-4 border-2 rounded-xl transition text-left ${
+                      formData.vehicleType === vehicle.value
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">{vehicle.icon}</div>
+                    <div className="font-bold text-sm text-gray-900">{vehicle.label}</div>
+                    <div className="text-xs text-gray-600">{vehicle.capacity}</div>
+                    <div className="text-sm font-semibold text-blue-600 mt-1">
+                      {vehicle.basePrice} DT
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cargo Description */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <Package className="inline w-4 h-4 mr-1" />
+                Description de la marchandise
+              </label>
+              <textarea
+                value={formData.cargoDescription}
+                onChange={(e) => setFormData({ ...formData, cargoDescription: e.target.value })}
+                rows={3}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition resize-none"
+                placeholder="Ex: 20 cartons de produits alimentaires"
+              />
+            </div>
+
+            {/* Weight */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Poids estimé (kg)
+                </label>
+                <input
+                  type="number"
+                  value={formData.cargoWeight}
+                  onChange={(e) => setFormData({ ...formData, cargoWeight: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition"
+                  placeholder="500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Convoyeurs
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, numberOfHelpers: Math.max(0, formData.numberOfHelpers - 1) })}
+                    className="w-10 h-10 bg-gray-100 rounded-lg font-bold hover:bg-gray-200"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 text-center font-bold text-xl">{formData.numberOfHelpers}</div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, numberOfHelpers: formData.numberOfHelpers + 1 })}
+                    className="w-10 h-10 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  {formData.numberOfHelpers * 15} DT
+                </p>
+              </div>
+            </div>
+
+            {/* Urgent Option */}
+            <label className="flex items-center p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-blue-500 transition">
+              <input
+                type="checkbox"
+                checked={formData.isUrgent}
+                onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="font-semibold text-gray-900">Course urgente</span>
+                <p className="text-sm text-gray-600">+20% sur le tarif</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Bottom Bar with Price & Submit */}
+          <div className="mt-auto border-t border-gray-200 bg-white p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-600">Prix estimé</p>
+                <p className="text-3xl font-bold text-gray-900">{estimatedPrice} DT</p>
+              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !formData.pickupAddress || !formData.deliveryAddress || !formData.cargoDescription}
+                className="px-8 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg"
+              >
+                {loading ? 'Création...' : 'Publier la course'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              Le prix final sera confirmé par le transporteur
+            </p>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
