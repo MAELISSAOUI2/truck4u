@@ -345,9 +345,17 @@ export default function NewRidePage() {
         photos: photoUrls,
       });
 
-      router.push(`/customer/rides/${response.data.id}`);
+      // Success! Redirect to dashboard with success message
+      router.push(`/customer/dashboard?success=ride_created`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erreur lors de la création');
+      console.error('Erreur création course:', err);
+
+      // If API is not available, show helpful message
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('⚠️ API backend non disponible. Démarrez l\'API avec: cd apps/api && npm run dev');
+      } else {
+        setError(err.response?.data?.message || 'Erreur lors de la création');
+      }
     } finally {
       setLoading(false);
     }
