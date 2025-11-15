@@ -8,7 +8,7 @@ import { useAuthStore } from '@/lib/store';
 
 export default function CustomerRegisterPage() {
   const router = useRouter();
-  const login = useAuthStore((state) => state.login);
+  const setAuth = useAuthStore((state) => state.setAuth);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -33,7 +33,7 @@ export default function CustomerRegisterPage() {
       });
 
       if (response.data.token) {
-        login(response.data.user, response.data.token);
+        setAuth(response.data.token, response.data.user);
         router.push('/customer/dashboard');
       }
     } catch (err: any) {
