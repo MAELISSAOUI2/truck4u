@@ -2,221 +2,124 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Phone, User, Building2 } from 'lucide-react';
+import { Phone } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const [isLogin, setIsLogin] = useState(true);
+  const [phone, setPhone] = useState('+216');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const [formData, setFormData] = useState({
-    phone: '+216',
-    name: '',
-    accountType: 'INDIVIDUAL' as 'INDIVIDUAL' | 'BUSINESS',
-    companyName: '',
-    taxId: ''
-  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-      if (isLogin) {
-        const response = await authApi.login(formData.phone, 'customer');
-        login(response.data.user, response.data.token);
-        router.push('/customer/dashboard');
-      } else {
-        const response = await authApi.registerCustomer(formData);
-        login(response.data.user, response.data.token);
-        router.push('/customer/dashboard');
-      }
+      const response = await authApi.login(phone, 'customer');
+      login(response.data.user, response.data.token);
+      router.push('/customer/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Une erreur est survenue');
+      alert(err.response?.data?.error || 'Erreur de connexion');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header - Uber style with back button */}
-      <div className="flex items-center px-4 py-4 border-b border-border">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.push('/')}
-          className="rounded-full"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-      </div>
+    <div className="h-screen flex flex-col bg-black text-white">
+      {/* Hero Image Section - Like Uber */}
+      <div
+        className="flex-1 relative bg-cover bg-center"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=800&q=80')",
+          backgroundPosition: 'center'
+        }}
+      >
+        {/* Dark Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black"></div>
 
-      {/* Main Content - Centered, generous padding */}
-      <div className="flex-1 flex flex-col px-6 py-8 max-w-md mx-auto w-full">
-        {/* Logo and Title - More space */}
-        <div className="mb-10">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-6 shadow-sm">
-            <span className="text-3xl">🚚</span>
+        {/* Logo */}
+        <div className="relative z-10 p-6">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+              <span className="text-2xl">🚚</span>
+            </div>
+            <span className="text-2xl font-bold text-white">Truck4u</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            {isLogin ? 'Bienvenue' : 'Créer un compte'}
-          </h1>
-          <p className="text-base text-muted-foreground">
-            {isLogin ? 'Connectez-vous pour continuer' : 'Commencez votre expérience Truck4u'}
-          </p>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-6">
-            <p className="text-sm text-destructive">{error}</p>
-          </div>
-        )}
+        {/* Headline */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 p-8 pb-12">
+          <h1 className="text-4xl font-bold mb-3 leading-tight">
+            Transport de<br />marchandises<br />en Tunisie
+          </h1>
+          <p className="text-lg text-white/90">
+            Simple, rapide et fiable
+          </p>
+        </div>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Phone Number */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Numéro de téléphone
-            </label>
-            <div className="relative">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="pl-12 h-12 text-base"
-                placeholder="+216 XX XXX XXX"
-                required
-              />
+      {/* Login Form Section - Bottom */}
+      <div className="bg-white rounded-t-3xl -mt-6 relative z-20">
+        <div className="p-8 pb-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Entrez votre numéro
+          </h2>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Phone Input - Large like Uber */}
+            <div>
+              <div className="relative">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2">
+                  <Phone className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full h-16 pl-14 pr-6 text-lg bg-gray-100 rounded-xl border-0 focus:ring-2 focus:ring-black focus:bg-white transition-all outline-none text-gray-900"
+                  placeholder="+216 XX XXX XXX"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Continue Button - Large Uber style */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full h-14 bg-black text-white text-base font-semibold rounded-xl hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Connexion...' : 'Continuer'}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500">ou</span>
             </div>
           </div>
 
-          {/* Register Fields */}
-          {!isLogin && (
-            <>
-              {/* Name */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Nom complet
-                </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="pl-12 h-12 text-base"
-                    placeholder="Votre nom"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Account Type - Uber style selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-foreground">
-                  Type de compte
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, accountType: 'INDIVIDUAL' })}
-                    className={`h-14 rounded-lg border-2 font-medium text-sm transition-all ${
-                      formData.accountType === 'INDIVIDUAL'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/50'
-                    }`}
-                  >
-                    Particulier
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, accountType: 'BUSINESS' })}
-                    className={`h-14 rounded-lg border-2 font-medium text-sm transition-all ${
-                      formData.accountType === 'BUSINESS'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/50'
-                    }`}
-                  >
-                    Entreprise
-                  </button>
-                </div>
-              </div>
-
-              {/* Business Fields */}
-              {formData.accountType === 'BUSINESS' && (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Nom de l'entreprise
-                    </label>
-                    <Input
-                      type="text"
-                      value={formData.companyName}
-                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                      className="h-12 text-base"
-                      placeholder="Nom de votre entreprise"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
-                      Matricule fiscale <span className="text-muted-foreground">(optionnel)</span>
-                    </label>
-                    <Input
-                      type="text"
-                      value={formData.taxId}
-                      onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                      className="h-12 text-base"
-                      placeholder="Matricule fiscale"
-                    />
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {/* Submit Button - Uber style with proper height */}
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full h-12 text-base font-semibold mt-8"
-            size="lg"
-          >
-            {loading ? 'Chargement...' : isLogin ? 'Se connecter' : 'Créer mon compte'}
-          </Button>
-        </form>
-
-        {/* Toggle Login/Register - Uber style */}
-        <div className="mt-8 text-center">
+          {/* Register Link */}
           <button
-            type="button"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-            }}
-            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            onClick={() => router.push('/customer/register')}
+            className="w-full h-14 bg-white text-black text-base font-semibold rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-colors"
           >
-            {isLogin ? "Pas de compte ? Créer un compte" : 'Déjà un compte ? Se connecter'}
+            Créer un compte
           </button>
-        </div>
 
-        {/* Terms - Bottom */}
-        <div className="mt-auto pt-8">
-          <p className="text-xs text-center text-muted-foreground leading-relaxed">
-            En continuant, vous acceptez nos{' '}
-            <a href="#" className="text-primary hover:underline">Conditions d'utilisation</a>
-            {' '}et notre{' '}
-            <a href="#" className="text-primary hover:underline">Politique de confidentialité</a>
+          {/* Terms - Small text at bottom */}
+          <p className="text-xs text-center text-gray-500 mt-6 leading-relaxed">
+            En continuant, vous acceptez les{' '}
+            <a href="#" className="underline">Conditions d'utilisation</a>
+            {' '}et la{' '}
+            <a href="#" className="underline">Politique de confidentialité</a>
           </p>
         </div>
       </div>
