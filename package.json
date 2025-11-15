@@ -1,0 +1,22 @@
+{
+  "name": "truck4u-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=@truck4u/api",
+    "dev:web": "npm run dev --workspace=@truck4u/web",
+    "build": "npm run build --workspaces --if-present",
+    "db:generate": "npm run generate --workspace=@truck4u/database",
+    "db:push": "npm run push --workspace=@truck4u/database",
+    "db:migrate": "npm run migrate --workspace=@truck4u/database",
+    "db:studio": "npm run studio --workspace=@truck4u/database"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.0"
+  }
+}

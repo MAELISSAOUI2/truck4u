@@ -1,0 +1,261 @@
+import { Router } from 'express';
+import { prisma } from '@truck4u/database';
+import { verifyToken, requireCustomer, requireDriver, AuthRequest } from '../middleware/auth';
+import { z } from 'zod';
+import axios from 'axios';
+
+const router = Router();
+
+const initiatePaymentSchema = z.object({
+  rideId: z.string(),
+  method: z.enum(['CASH', 'CARD', 'FLOUCI'])
+});
+
+// Helper: Calculate platform fee
+function calculatePlatformFee(amount: number, isB2BCustomer: boolean): number {
+  const commission = isB2BCustomer ? 0.08 : 0.15;
+  return Math.round(amount * commission * 100) / 100;
+}
+
+// POST /api/payments/initiate - Initiate payment
+router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
+  try {
+    const { rideId, method } = initiatePaymentSchema.parse(req.body);
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: {
+        customer: true,
+        driver: true
+      }
+    });
+
+    if (!ride || ride.customerId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (ride.status !== 'COMPLETED') {
+      return res.status(400).json({ error: 'Ride not completed yet' });
+    }
+
+    if (!ride.finalPrice) {
+      return res.status(400).json({ error: 'Final price not set' });
+    }
+
+    // Check for existing payment
+    const existingPayment = await prisma.payment.findUnique({
+      where: { rideId }
+    });
+
+    if (existingPayment && existingPayment.status === 'COMPLETED') {
+      return res.status(400).json({ error: 'Payment already completed' });
+    }
+
+    const platformFee = calculatePlatformFee(ride.finalPrice, ride.customer.isB2BSubscriber);
+    const driverAmount = ride.finalPrice - platformFee;
+
+    if (method === 'CASH') {
+      // Create payment record for cash
+      const payment = await prisma.payment.create({
+        data: {
+          rideId,
+          method: 'CASH',
+          totalAmount: ride.finalPrice,
+          platformFee,
+          driverAmount,
+          status: 'PENDING'
+        }
+      });
+
+      return res.json({
+        paymentId: payment.id,
+        method: 'CASH',
+        totalAmount: ride.finalPrice,
+        message: 'Please pay cash to driver. Driver will confirm receipt.'
+      });
+    }
+
+    if (method === 'CARD') {
+      // Paymee integration
+      const paymeeResponse = await axios.post(
+        `${process.env.PAYMEE_API_URL}/payments`,
+        {
+          amount: ride.finalPrice * 1000, // Convert to millimes
+          note: `Truck4u Ride #${rideId.substring(0, 8)}`,
+          first_name: ride.customer.name.split(' ')[0],
+          last_name: ride.customer.name.split(' ')[1] || '',
+          phone: ride.customer.phone,
+          email: ride.customer.email || '',
+          return_url: `${process.env.FRONTEND_URL}/payment/success`,
+          cancel_url: `${process.env.FRONTEND_URL}/payment/cancel`,
+          webhook_url: `${process.env.API_URL}/webhooks/paymee`
+        },
+        {
+          headers: {
+            Authorization: `Token ${process.env.PAYMEE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const payment = await prisma.payment.create({
+        data: {
+          rideId,
+          method: 'CARD',
+          totalAmount: ride.finalPrice,
+          platformFee,
+          driverAmount,
+          status: 'PENDING',
+          transactionRef: paymeeResponse.data.payment_token,
+          metadata: {
+            paymee_payment_url: paymeeResponse.data.payment_url
+          }
+        }
+      });
+
+      return res.json({
+        paymentId: payment.id,
+        method: 'CARD',
+        paymentUrl: paymeeResponse.data.payment_url,
+        totalAmount: ride.finalPrice
+      });
+    }
+
+    if (method === 'FLOUCI') {
+      // Flouci integration
+      const flouciResponse = await axios.post(
+        `${process.env.FLOUCI_API_URL}/api/payment`,
+        {
+          amount: ride.finalPrice,
+          description: `Truck4u Ride #${rideId.substring(0, 8)}`,
+          accept_url: `${process.env.FRONTEND_URL}/payment/success`,
+          cancel_url: `${process.env.FRONTEND_URL}/payment/cancel`,
+          webhook_url: `${process.env.API_URL}/webhooks/flouci`,
+          developer_tracking_id: rideId
+        },
+        {
+          headers: {
+            'apppublic': process.env.FLOUCI_APP_PUBLIC!,
+            'appsecret': process.env.FLOUCI_APP_SECRET!
+          }
+        }
+      );
+
+      const payment = await prisma.payment.create({
+        data: {
+          rideId,
+          method: 'FLOUCI',
+          totalAmount: ride.finalPrice,
+          platformFee,
+          driverAmount,
+          status: 'PENDING',
+          transactionRef: flouciResponse.data.result.payment_id,
+          metadata: {
+            flouci_payment_url: flouciResponse.data.result.link
+          }
+        }
+      });
+
+      return res.json({
+        paymentId: payment.id,
+        method: 'FLOUCI',
+        paymentUrl: flouciResponse.data.result.link,
+        totalAmount: ride.finalPrice
+      });
+    }
+
+    res.status(400).json({ error: 'Invalid payment method' });
+  } catch (error) {
+    console.error('Payment initiation error:', error);
+    next(error);
+  }
+});
+
+// POST /api/payments/:id/confirm-cash - Driver confirms cash receipt
+router.post('/:id/confirm-cash', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.id },
+      include: {
+        ride: true
+      }
+    });
+
+    if (!payment || payment.ride.driverId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (payment.method !== 'CASH') {
+      return res.status(400).json({ error: 'Not a cash payment' });
+    }
+
+    // Update payment status
+    await prisma.payment.update({
+      where: { id: req.params.id },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date()
+      }
+    });
+
+    // Record driver earnings
+    await prisma.driverEarnings.create({
+      data: {
+        driverId: req.userId!,
+        rideId: payment.rideId,
+        grossAmount: payment.totalAmount,
+        platformFee: payment.platformFee,
+        netEarnings: payment.driverAmount
+      }
+    });
+
+    // Update driver total earnings
+    await prisma.driver.update({
+      where: { id: req.userId },
+      data: {
+        totalEarnings: {
+          increment: payment.driverAmount
+        },
+        totalRides: {
+          increment: 1
+        }
+      }
+    });
+
+    res.json({ message: 'Cash payment confirmed' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/payments/:rideId - Get payment status
+router.get('/:rideId', verifyToken, async (req: AuthRequest, res, next) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { rideId: req.params.rideId },
+      include: {
+        ride: {
+          select: {
+            customerId: true,
+            driverId: true
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    // Check authorization
+    if (payment.ride.customerId !== req.userId && payment.ride.driverId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json(payment);
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

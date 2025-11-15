@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: truck4u-postgres
+    environment:
+      POSTGRES_USER: truck4u
+      POSTGRES_PASSWORD: truck4u_dev_password
+      POSTGRES_DB: truck4u
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U truck4u"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: truck4u-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment to run the backend in Docker
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/api/Dockerfile
+  #   container_name: truck4u-api
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://truck4u:truck4u_dev_password@postgres:5432/truck4u
+  #     REDIS_URL: redis://redis:6379
+  #     JWT_SECRET: dev-secret-key
+  #     PORT: 4000
+  #     NODE_ENV: development
+  #   ports:
+  #     - "4000:4000"
+  #   volumes:
+  #     - ./apps/api:/app/apps/api
+  #     - /app/node_modules
+  #   command: yarn dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: truck4u-network
