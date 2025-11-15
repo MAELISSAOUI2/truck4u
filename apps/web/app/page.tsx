@@ -11,241 +11,247 @@ import {
   ArrowRight,
   CheckCircle,
   Package,
-  DollarSign
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 export default function HomePage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Simple Header - like Uber */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-background">
+      {/* Header - Uber style */}
+      <header className="bg-white border-b border-border sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <TruckIcon className="w-6 h-6 text-white" />
+              <div className="bg-primary p-2 rounded-xl">
+                <TruckIcon className="w-6 h-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold text-gray-900">Truck4u</span>
+              <span className="text-xl font-bold text-foreground">Truck4u</span>
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => router.push('/customer/login')}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
               >
                 Se connecter
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => router.push('/customer/register')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                size="lg"
               >
                 Commencer
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero Section - Clean, no gradients */}
+      {/* Hero Section - Clean Uber style */}
       <section className="bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-7xl mx-auto px-6 py-20 lg:py-28">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left - Content */}
-            <div>
-              <h1 className="text-5xl font-bold text-gray-900 mb-6">
-                Transport de marchandises simple et rapide
-              </h1>
-              <p className="text-xl text-gray-600 mb-8">
-                Connectez-vous avec des transporteurs vérifiés en Tunisie. Obtenez des devis en moins de 3 minutes.
-              </p>
-              <div className="flex gap-4">
-                <button
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+                  Transport de marchandises simple et rapide
+                </h1>
+                <p className="text-xl text-muted-foreground">
+                  Connectez-vous avec des transporteurs vérifiés en Tunisie. Obtenez des devis en moins de 3 minutes.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button
                   onClick={() => router.push('/customer/register')}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-lg font-semibold transition-colors"
+                  size="lg"
+                  className="text-lg h-14 px-8"
                 >
                   Demander un transport
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => router.push('/driver/register')}
-                  className="px-8 py-4 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 text-lg rounded-lg font-semibold transition-colors"
+                  variant="outline"
+                  size="lg"
+                  className="text-lg h-14 px-8"
                 >
                   Devenir transporteur
-                </button>
+                </Button>
               </div>
             </div>
 
-            {/* Right - Simple Image/Illustration */}
-            <div className="bg-gray-100 rounded-2xl p-12 text-center">
-              <TruckIcon className="w-48 h-48 mx-auto text-blue-600" />
+            {/* Right - Simple Illustration */}
+            <div className="bg-primary/5 rounded-2xl p-12 text-center">
+              <TruckIcon className="w-48 h-48 mx-auto text-primary" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats - Simple, clean */}
-      <section className="bg-gray-50 border-y border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      {/* Stats - Uber style */}
+      <section className="bg-gray-50 border-y border-border">
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">5,000+</div>
-              <div className="text-gray-600">Courses réalisées</div>
+              <div className="text-4xl font-bold text-foreground mb-2">5,000+</div>
+              <div className="text-muted-foreground font-medium">Courses réalisées</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">500+</div>
-              <div className="text-gray-600">Transporteurs actifs</div>
+              <div className="text-4xl font-bold text-foreground mb-2">500+</div>
+              <div className="text-muted-foreground font-medium">Transporteurs actifs</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">4.9/5</div>
-              <div className="text-gray-600">Note moyenne</div>
+              <div className="text-4xl font-bold text-foreground mb-2">4.9/5</div>
+              <div className="text-muted-foreground font-medium">Note moyenne</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-gray-900 mb-2">&lt; 3min</div>
-              <div className="text-gray-600">Temps de réponse</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works - Simple 3 steps */}
-      <section className="bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Comment ça marche</h2>
-            <p className="text-xl text-gray-600">Trois étapes simples pour votre transport</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                1
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">Créez votre demande</h3>
-              <p className="text-gray-600">Indiquez vos adresses, type de véhicule et détails de marchandise</p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                2
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">Recevez les offres</h3>
-              <p className="text-gray-600">Les transporteurs disponibles vous envoient leurs devis</p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6">
-                3
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">Choisissez et suivez</h3>
-              <p className="text-gray-600">Acceptez la meilleure offre et suivez votre livraison en temps réel</p>
+              <div className="text-4xl font-bold text-foreground mb-2">24/7</div>
+              <div className="text-muted-foreground font-medium">Support client</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features - Clean cards */}
-      <section className="bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <section className="bg-white">
+        <div className="max-w-7xl mx-auto px-6 py-20">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Pourquoi Truck4u</h2>
+            <h2 className="text-4xl font-bold text-foreground mb-4">
+              Pourquoi choisir Truck4u ?
+            </h2>
+            <p className="text-xl text-muted-foreground">
+              Une plateforme moderne pour tous vos besoins de transport
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <Clock className="w-6 h-6 text-blue-600" />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mb-6">
+                <Clock className="w-7 h-7 text-blue-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Rapide</h3>
-              <p className="text-gray-600 text-sm">Réponse en moins de 3 minutes</p>
-            </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Rapide et simple</h3>
+              <p className="text-muted-foreground">
+                Créez votre demande en quelques clics et recevez des offres en moins de 3 minutes.
+              </p>
+            </Card>
 
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <Shield className="w-6 h-6 text-green-600" />
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center mb-6">
+                <Shield className="w-7 h-7 text-green-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Sécurisé</h3>
-              <p className="text-gray-600 text-sm">Transporteurs vérifiés et assurés</p>
-            </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Transporteurs vérifiés</h3>
+              <p className="text-muted-foreground">
+                Tous nos transporteurs sont vérifiés et notés par la communauté.
+              </p>
+            </Card>
 
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                <DollarSign className="w-6 h-6 text-orange-600" />
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center mb-6">
+                <Package className="w-7 h-7 text-purple-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Transparent</h3>
-              <p className="text-gray-600 text-sm">Prix clairs, sans surprise</p>
-            </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Suivi en temps réel</h3>
+              <p className="text-muted-foreground">
+                Suivez votre colis en temps réel avec notre système de tracking GPS.
+              </p>
+            </Card>
 
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <MapPin className="w-6 h-6 text-purple-600" />
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center mb-6">
+                <Star className="w-7 h-7 text-orange-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Suivi GPS</h3>
-              <p className="text-gray-600 text-sm">Suivez votre livraison en direct</p>
-            </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Meilleur prix</h3>
+              <p className="text-muted-foreground">
+                Comparez les offres et choisissez le meilleur rapport qualité-prix.
+              </p>
+            </Card>
+
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center mb-6">
+                <MapPin className="w-7 h-7 text-red-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Partout en Tunisie</h3>
+              <p className="text-muted-foreground">
+                Service disponible dans toute la Tunisie, des grandes villes aux zones rurales.
+              </p>
+            </Card>
+
+            <Card className="p-8 border-border shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center mb-6">
+                <Users className="w-7 h-7 text-indigo-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-3">Support 24/7</h3>
+              <p className="text-muted-foreground">
+                Notre équipe est disponible pour vous aider à tout moment.
+              </p>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* CTA Section - Simple */}
-      <section className="bg-blue-600">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
-          <h2 className="text-4xl font-bold text-white mb-6">Prêt à commencer ?</h2>
-          <p className="text-xl text-blue-100 mb-8">
-            Créez votre compte gratuitement en 2 minutes
+      {/* CTA Section - Uber style */}
+      <section className="bg-primary text-primary-foreground">
+        <div className="max-w-4xl mx-auto px-6 py-20 text-center">
+          <h2 className="text-4xl font-bold mb-4">
+            Prêt à démarrer ?
+          </h2>
+          <p className="text-xl text-primary-foreground/80 mb-8">
+            Rejoignez des milliers d'utilisateurs qui font confiance à Truck4u
           </p>
-          <button
+          <Button
             onClick={() => router.push('/customer/register')}
-            className="px-8 py-4 bg-white text-blue-600 text-lg rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+            size="lg"
+            variant="secondary"
+            className="text-lg h-14 px-8"
           >
-            Créer un compte gratuit
-          </button>
+            Commencer maintenant
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
         </div>
       </section>
 
-      {/* Footer - Simple */}
-      <footer className="bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Footer */}
+      <footer className="bg-white border-t border-border">
+        <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <TruckIcon className="w-6 h-6" />
-                <span className="text-lg font-bold">Truck4u</span>
+                <div className="bg-primary p-2 rounded-lg">
+                  <TruckIcon className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <span className="text-lg font-bold text-foreground">Truck4u</span>
               </div>
-              <p className="text-gray-400 text-sm">
-                La plateforme de transport de marchandises en Tunisie
+              <p className="text-sm text-muted-foreground">
+                La plateforme #1 de transport de marchandises en Tunisie
               </p>
             </div>
-
             <div>
-              <h3 className="font-semibold mb-4">Produit</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Fonctionnalités</a></li>
-                <li><a href="#" className="hover:text-white">Tarifs</a></li>
-                <li><a href="#" className="hover:text-white">Sécurité</a></li>
+              <h4 className="font-semibold text-foreground mb-4">Entreprise</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground transition-colors">À propos</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Carrières</a></li>
               </ul>
             </div>
-
             <div>
-              <h3 className="font-semibold mb-4">Entreprise</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">À propos</a></li>
-                <li><a href="#" className="hover:text-white">Blog</a></li>
-                <li><a href="#" className="hover:text-white">Carrières</a></li>
+              <h4 className="font-semibold text-foreground mb-4">Support</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground transition-colors">Centre d'aide</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Contact</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">FAQ</a></li>
               </ul>
             </div>
-
             <div>
-              <h3 className="font-semibold mb-4">Support</h3>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Centre d'aide</a></li>
-                <li><a href="#" className="hover:text-white">Contact</a></li>
-                <li><a href="#" className="hover:text-white">CGU</a></li>
+              <h4 className="font-semibold text-foreground mb-4">Légal</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground transition-colors">Conditions d'utilisation</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Politique de confidentialité</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Mentions légales</a></li>
               </ul>
             </div>
           </div>
-
-          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm text-gray-400">
-            © 2024 Truck4u. Tous droits réservés.
+          <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
+            © 2025 Truck4u. Tous droits réservés.
           </div>
         </div>
       </footer>
