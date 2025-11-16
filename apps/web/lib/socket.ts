@@ -16,27 +16,39 @@ export const getSocket = (token?: string): Socket => {
 
 export const connectSocket = (userId: string, userType: 'customer' | 'driver', token: string) => {
   const socket = getSocket(token);
-  
+
   if (!socket.connected) {
     socket.connect();
-    
-    socket.on('connect', () => {
-      console.log('Socket connected:', socket.id);
-      
-      if (userType === 'customer') {
-        socket.emit('customer_connect', { customerId: userId });
-      } else if (userType === 'driver') {
-        // Driver will emit driver_online with location separately
-      }
-    });
+  }
 
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected');
-    });
+  // Setup event listeners once
+  socket.off('connect'); // Remove old listeners to avoid duplicates
+  socket.on('connect', () => {
+    console.log('✅ Socket connected:', socket.id);
 
-    socket.on('error', (error) => {
-      console.error('Socket error:', error);
-    });
+    // Always emit user connection when socket connects
+    if (userType === 'customer') {
+      console.log('📤 Emitting customer_connect for:', userId);
+      socket.emit('customer_connect', { customerId: userId });
+    }
+  });
+
+  socket.off('disconnect');
+  socket.on('disconnect', () => {
+    console.log('❌ Socket disconnected');
+  });
+
+  socket.off('error');
+  socket.on('error', (error) => {
+    console.error('🔴 Socket error:', error);
+  });
+
+  // If already connected, emit the connection event immediately
+  if (socket.connected) {
+    if (userType === 'customer') {
+      console.log('📤 Socket already connected, emitting customer_connect for:', userId);
+      socket.emit('customer_connect', { customerId: userId });
+    }
   }
 
   return socket;

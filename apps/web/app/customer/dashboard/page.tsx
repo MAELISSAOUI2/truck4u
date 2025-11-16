@@ -28,6 +28,7 @@ import {
   IconUser,
   IconTruck,
   IconMapPin,
+  IconLogout,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
@@ -35,9 +36,14 @@ import { connectSocket, onNewBid } from '@/lib/socket';
 
 export default function CustomerDashboard() {
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
   useEffect(() => {
     if (!token) {
@@ -147,15 +153,28 @@ export default function CustomerDashboard() {
               <Text size="sm" c="dimmed" mb={4}>Bonjour,</Text>
               <Title order={1} size="2rem">{user?.name?.split(' ')[0] || 'Client'}</Title>
             </div>
-            <ActionIcon 
-              size="xl" 
-              radius="xl" 
-              variant="light"
-              color="dark"
-              onClick={() => router.push('/customer/profile')}
-            >
-              <IconUser size={24} />
-            </ActionIcon>
+            <Group gap="sm">
+              <ActionIcon
+                size="xl"
+                radius="xl"
+                variant="light"
+                color="dark"
+                onClick={() => router.push('/customer/profile')}
+                title="Profil"
+              >
+                <IconUser size={24} />
+              </ActionIcon>
+              <ActionIcon
+                size="xl"
+                radius="xl"
+                variant="light"
+                color="red"
+                onClick={handleLogout}
+                title="Déconnexion"
+              >
+                <IconLogout size={24} />
+              </ActionIcon>
+            </Group>
           </Group>
 
           {/* Stats */}

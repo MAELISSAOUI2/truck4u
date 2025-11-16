@@ -31,8 +31,9 @@ import {
   IconChevronRight,
   IconBell,
   IconSettings,
+  IconLogout,
 } from '@tabler/icons-react';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
 import { connectSocket, driverOnline, driverOffline } from '@/lib/socket';
 
@@ -47,9 +48,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DriverDashboard() {
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
+  const { isOnline, setIsOnline } = useDriverStore();
   const [loading, setLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(false);
   const [stats, setStats] = useState({
     totalRides: 0,
     activeRides: 0,
@@ -178,6 +179,16 @@ export default function DriverDashboard() {
     }
   };
 
+  const handleLogout = () => {
+    // Disconnect driver if online
+    if (isOnline && user) {
+      driverOffline(user.id);
+    }
+    setIsOnline(false);
+    logout();
+    router.push('/');
+  };
+
   if (loading) {
     return (
       <Center style={{ minHeight: '100vh' }}>
@@ -217,6 +228,14 @@ export default function DriverDashboard() {
                 onClick={() => router.push('/driver/profile')}
               >
                 Profil
+              </Button>
+              <Button
+                variant="outline"
+                color="red"
+                leftSection={<IconLogout size={18} />}
+                onClick={handleLogout}
+              >
+                Déconnexion
               </Button>
               <Paper p="md" radius="md" withBorder>
                 <Group gap="sm">

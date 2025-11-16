@@ -81,3 +81,20 @@ export const useLocationStore = create<LocationState>((set) => ({
   currentLocation: null,
   setCurrentLocation: (location) => set({ currentLocation: location }),
 }));
+
+interface DriverState {
+  isOnline: boolean;
+  setIsOnline: (isOnline: boolean) => void;
+}
+
+export const useDriverStore = create<DriverState>()(
+  persist(
+    (set) => ({
+      isOnline: false,
+      setIsOnline: (isOnline) => set({ isOnline }),
+    }),
+    {
+      name: 'truck4u-driver',
+    }
+  )
+);
