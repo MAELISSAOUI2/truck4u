@@ -133,11 +133,25 @@ export default function DriverDashboard() {
             connectSocket(user.id, 'driver', token!);
             driverOnline(user.id, location);
 
-            await driverApi.updateAvailability(true);
+            // Update availability with location
+            await driverApi.updateAvailability(true, location);
             setIsOnline(true);
+
+            notifications.show({
+              title: 'En ligne',
+              message: 'Vous êtes maintenant en ligne et visible aux clients',
+              color: 'green',
+            });
+
+            // Reload data to show available rides
+            loadDashboardData();
           },
           (error) => {
-            alert('Veuillez activer la géolocalisation pour vous mettre en ligne');
+            notifications.show({
+              title: 'Géolocalisation requise',
+              message: 'Veuillez activer la géolocalisation pour vous mettre en ligne',
+              color: 'red',
+            });
             console.error('Geolocation error:', error);
           }
         );
@@ -146,8 +160,19 @@ export default function DriverDashboard() {
         driverOffline(user.id);
         await driverApi.updateAvailability(false);
         setIsOnline(false);
+
+        notifications.show({
+          title: 'Hors ligne',
+          message: 'Vous êtes maintenant hors ligne',
+          color: 'gray',
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Impossible de changer le statut',
+        color: 'red',
+      });
       console.error('Error toggling availability:', error);
     }
   };

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@truck4u/database';
-import { verifyToken, requireCustomer, requireDriver, AuthRequest } from '../middleware/auth';
+import { verifyToken, requireCustomer, requireDriver, requireDriverAuth, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import Redis from 'ioredis';
 import { Server } from 'socket.io';
@@ -345,7 +345,7 @@ router.get('/:id/bids', verifyToken, requireCustomer, async (req: AuthRequest, r
 });
 
 // POST /api/rides/:id/bid - Submit a bid (driver)
-router.post('/:id/bid', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+router.post('/:id/bid', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const data = bidSchema.parse(req.body);
     const ride = await prisma.ride.findUnique({ where: { id: req.params.id } });
@@ -389,15 +389,17 @@ router.post('/:id/bid', verifyToken, requireDriver, async (req: AuthRequest, res
       }
     });
 
-    // Update ride status
-    await prisma.ride.update({
-      where: { id: req.params.id },
-      data: { status: 'BID_ACCEPTED' }
-    });
-
-    // Notify customer via Socket.io
+    // Notify customer via Socket.io - ride remains in PENDING_BIDS until customer accepts
     const io = req.app.get('io') as Server;
-    io.to(`customer:${ride.customerId}`).emit('new_bid', bid);
+    io.to(`customer:${ride.customerId}`).emit('new_bid', {
+      bidId: bid.id,
+      rideId: ride.id,
+      driver: bid.driver,
+      proposedPrice: bid.proposedPrice,
+      estimatedArrival: bid.estimatedArrival,
+      message: bid.message,
+      createdAt: bid.createdAt
+    });
 
     res.status(201).json(bid);
   } catch (error) {

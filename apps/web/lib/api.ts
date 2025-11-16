@@ -62,8 +62,8 @@ export const driverApi = {
   getVerificationStatus: () =>
     api.get('/drivers/verification-status'),
   
-  updateAvailability: (isAvailable: boolean) =>
-    api.patch('/drivers/availability', { isAvailable }),
+  updateAvailability: (isAvailable: boolean, location?: { lat: number; lng: number }) =>
+    api.patch('/drivers/availability', { isAvailable, location }),
   
   getAvailableRides: () =>
     api.get('/drivers/available-rides'),

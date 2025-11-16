@@ -121,21 +121,49 @@ router.get('/verification-status', verifyToken, requireDriverAuth, async (req: A
   }
 });
 
+// Haversine formula to calculate distance between two coordinates
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // PATCH /api/drivers/availability - Toggle availability
 router.patch('/availability', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
-    const { isAvailable } = z.object({
-      isAvailable: z.boolean()
+    const { isAvailable, location } = z.object({
+      isAvailable: z.boolean(),
+      location: z.object({
+        lat: z.number(),
+        lng: z.number()
+      }).optional()
     }).parse(req.body);
+
+    // Update availability and location if provided
+    const updateData: any = { isAvailable };
+    if (isAvailable && location) {
+      updateData.currentLocation = {
+        lat: location.lat,
+        lng: location.lng,
+        timestamp: new Date().toISOString()
+      };
+    }
 
     const driver = await prisma.driver.update({
       where: { id: req.userId },
-      data: { isAvailable }
+      data: updateData
     });
 
     res.json({
       id: driver.id,
-      isAvailable: driver.isAvailable
+      isAvailable: driver.isAvailable,
+      currentLocation: driver.currentLocation
     });
   } catch (error) {
     next(error);
@@ -143,18 +171,24 @@ router.patch('/availability', verifyToken, requireDriverAuth, async (req: AuthRe
 });
 
 // GET /api/drivers/available-rides - Get rides in proximity
-router.get('/available-rides', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+router.get('/available-rides', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const driver = await prisma.driver.findUnique({
       where: { id: req.userId }
     });
 
-    if (!driver || !driver.isAvailable) {
+    if (!driver) {
       return res.json({ rides: [] });
     }
 
-    // Get pending rides matching driver's vehicle type
-    const rides = await prisma.ride.findMany({
+    // Get driver's current location
+    const driverLocation = driver.currentLocation as any;
+
+    // Maximum distance in km (configurable)
+    const MAX_DISTANCE_KM = parseInt(process.env.MAX_RIDE_DISTANCE_KM || '100');
+
+    // Get all pending rides matching driver's vehicle type
+    const allRides = await prisma.ride.findMany({
       where: {
         status: 'PENDING_BIDS',
         vehicleType: driver.vehicleType
@@ -163,29 +197,78 @@ router.get('/available-rides', verifyToken, requireDriver, async (req: AuthReque
         customer: {
           select: {
             name: true,
-            accountType: true
+            accountType: true,
+            phone: true
           }
         },
-        bids: {
-          where: {
-            driverId: req.userId
+        _count: {
+          select: {
+            bids: true
           }
         }
       },
       orderBy: {
         createdAt: 'desc'
-      },
-      take: 20
+      }
     });
 
-    res.json({ rides });
+    // Filter by proximity if driver has location
+    let rides = allRides;
+    if (driverLocation && driverLocation.lat && driverLocation.lng) {
+      rides = allRides.filter(ride => {
+        const pickup = ride.pickup as any;
+        if (!pickup || !pickup.lat || !pickup.lng) return false;
+
+        const distance = calculateDistance(
+          driverLocation.lat,
+          driverLocation.lng,
+          pickup.lat,
+          pickup.lng
+        );
+
+        return distance <= MAX_DISTANCE_KM;
+      });
+    }
+
+    // Add distance to each ride for sorting/display
+    const ridesWithDistance = rides.map(ride => {
+      const pickup = ride.pickup as any;
+      let distanceToPickup = null;
+
+      if (driverLocation && pickup && pickup.lat && pickup.lng) {
+        distanceToPickup = Math.round(calculateDistance(
+          driverLocation.lat,
+          driverLocation.lng,
+          pickup.lat,
+          pickup.lng
+        ));
+      }
+
+      return {
+        ...ride,
+        distanceToPickup
+      };
+    });
+
+    // Sort by distance (closest first)
+    ridesWithDistance.sort((a, b) => {
+      if (a.distanceToPickup === null) return 1;
+      if (b.distanceToPickup === null) return -1;
+      return a.distanceToPickup - b.distanceToPickup;
+    });
+
+    res.json({
+      rides: ridesWithDistance.slice(0, 20), // Limit to 20 closest rides
+      maxDistance: MAX_DISTANCE_KM,
+      driverHasLocation: !!driverLocation
+    });
   } catch (error) {
     next(error);
   }
 });
 
 // GET /api/drivers/earnings/history
-router.get('/earnings/history', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+router.get('/earnings/history', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const { period } = req.query;
     
