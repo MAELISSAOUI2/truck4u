@@ -1,65 +1,118 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import {
+  Container,
+  Stack,
+  Title,
+  Text,
+  Button,
+  Card,
+  Group,
+  ActionIcon,
+  Paper,
+  Badge,
+  Timeline,
+  Modal,
+  Rating,
+  Textarea,
+  Stepper,
+  Avatar,
+  Divider,
+} from '@mantine/core';
+import {
+  IconArrowLeft,
+  IconMapPin,
+  IconPackage,
+  IconClock,
+  IconPhone,
+  IconMessageCircle,
+  IconX,
+  IconCheck,
+  IconTruck,
+  IconAlertCircle,
+} from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { MapPin, Clock, TruckIcon, ArrowRight, Filter, Search, Package, DollarSign } from 'lucide-react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; dotColor: string }> = {
-  PENDING: { 
-    label: 'En attente d\'offres', 
-    color: 'text-amber-700', 
-    bgColor: 'bg-amber-50', 
-    dotColor: 'bg-amber-500' 
+// Configure Mapbox
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
+
+const STATUS_CONFIG = {
+  PENDING_BIDS: {
+    label: 'En attente d\'offres',
+    color: 'blue',
+    step: 0,
+    description: 'Les transporteurs reçoivent votre demande',
   },
-  BIDDING: { 
-    label: 'Enchères en cours', 
-    color: 'text-blue-700', 
-    bgColor: 'bg-blue-50', 
-    dotColor: 'bg-blue-500' 
+  BID_ACCEPTED: {
+    label: 'Offre acceptée',
+    color: 'green',
+    step: 1,
+    description: 'Paiement en attente de confirmation',
   },
-  ACCEPTED: { 
-    label: 'Chauffeur assigné', 
-    color: 'text-green-700', 
-    bgColor: 'bg-green-50', 
-    dotColor: 'bg-green-500' 
+  DRIVER_ARRIVING: {
+    label: 'Transporteur en route',
+    color: 'orange',
+    step: 2,
+    description: 'Le transporteur arrive au point de départ',
   },
-  IN_PROGRESS: { 
-    label: 'En cours de livraison', 
-    color: 'text-indigo-700', 
-    bgColor: 'bg-indigo-50', 
-    dotColor: 'bg-indigo-500' 
+  PICKUP_ARRIVED: {
+    label: 'Arrivé au départ',
+    color: 'cyan',
+    step: 3,
+    description: 'Chargement en préparation',
   },
-  COMPLETED: { 
-    label: 'Terminée', 
-    color: 'text-gray-700', 
-    bgColor: 'bg-gray-50', 
-    dotColor: 'bg-gray-500' 
+  LOADING: {
+    label: 'Chargement',
+    color: 'violet',
+    step: 4,
+    description: 'Chargement de la marchandise',
   },
-  CANCELLED: { 
-    label: 'Annulée', 
-    color: 'text-red-700', 
-    bgColor: 'bg-red-50', 
-    dotColor: 'bg-red-500' 
+  IN_TRANSIT: {
+    label: 'En transit',
+    color: 'grape',
+    step: 5,
+    description: 'Transport en cours vers la destination',
+  },
+  DROPOFF_ARRIVED: {
+    label: 'Arrivé à destination',
+    color: 'lime',
+    step: 6,
+    description: 'Déchargement en cours',
+  },
+  COMPLETED: {
+    label: 'Terminée',
+    color: 'teal',
+    step: 7,
+    description: 'Course terminée avec succès',
+  },
+  CANCELLED: {
+    label: 'Annulée',
+    color: 'red',
+    step: -1,
+    description: 'Course annulée',
   },
 };
 
-const VEHICLE_ICONS: Record<string, string> = {
-  PICKUP: '🚙',
-  VAN: '🚐',
-  SMALL_TRUCK: '🚚',
-  MEDIUM_TRUCK: '🚛',
-  LARGE_TRUCK: '🚚',
-};
-
-export default function CustomerRidesPage() {
+export default function RideDetailsPage() {
   const router = useRouter();
+  const params = useParams();
   const { token } = useAuthStore();
-  const [rides, setRides] = useState<any[]>([]);
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const driverMarker = useRef<mapboxgl.Marker | null>(null);
+
+  const [ride, setRide] = useState<any>(null);
+  const [bids, setBids] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [review, setReview] = useState('');
 
   useEffect(() => {
     if (!token) {
@@ -67,292 +120,393 @@ export default function CustomerRidesPage() {
       return;
     }
 
-    loadRides();
-  }, [token]);
+    loadRideDetails();
 
-  const loadRides = async () => {
+    // Poll for updates every 5 seconds
+    const interval = setInterval(loadRideDetails, 5000);
+    return () => clearInterval(interval);
+  }, [params.id, token]);
+
+  useEffect(() => {
+    if (ride && mapContainer.current && !map.current) {
+      initializeMap();
+    }
+  }, [ride]);
+
+  const loadRideDetails = async () => {
     try {
-      const response = await rideApi.getHistory();
-      setRides(response.data);
+      const response = await rideApi.getById(params.id as string);
+      setRide(response.data);
+
+      // Load bids if pending
+      if (response.data.status === 'PENDING_BIDS') {
+        const bidsResponse = await rideApi.getBids(params.id as string);
+        setBids(bidsResponse.data || []);
+      }
+
+      // Update driver position on map if in transit
+      if (response.data.driver && ['DRIVER_ARRIVING', 'IN_TRANSIT'].includes(response.data.status)) {
+        updateDriverPosition(response.data.driver.currentLocation);
+      }
     } catch (error) {
-      console.error('Failed to load rides:', error);
+      console.error('Error loading ride:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredRides = rides.filter((ride) => {
-    const matchesFilter = filter === 'ALL' || ride.status === filter;
-    const matchesSearch = 
-      ride.pickupAddress?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.deliveryAddress?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.cargoDescription?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  const initializeMap = () => {
+    if (!ride || !mapContainer.current) return;
 
-  const stats = {
-    total: rides.length,
-    pending: rides.filter((r) => r.status === 'PENDING' || r.status === 'BIDDING').length,
-    active: rides.filter((r) => r.status === 'ACCEPTED' || r.status === 'IN_PROGRESS').length,
-    completed: rides.filter((r) => r.status === 'COMPLETED').length,
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [ride.pickup.lng, ride.pickup.lat],
+      zoom: 12,
+    });
+
+    // Add pickup marker
+    const pickupEl = document.createElement('div');
+    pickupEl.innerHTML = '📍';
+    pickupEl.style.fontSize = '32px';
+    new mapboxgl.Marker(pickupEl)
+      .setLngLat([ride.pickup.lng, ride.pickup.lat])
+      .addTo(map.current);
+
+    // Add dropoff marker
+    const dropoffEl = document.createElement('div');
+    dropoffEl.innerHTML = '🏁';
+    dropoffEl.style.fontSize = '32px';
+    new mapboxgl.Marker(dropoffEl)
+      .setLngLat([ride.dropoff.lng, ride.dropoff.lat])
+      .addTo(map.current);
+
+    // Fit bounds
+    const bounds = new mapboxgl.LngLatBounds()
+      .extend([ride.pickup.lng, ride.pickup.lat])
+      .extend([ride.dropoff.lng, ride.dropoff.lat]);
+    map.current.fitBounds(bounds, { padding: 80 });
+
+    // Draw route
+    drawRoute();
+  };
+
+  const drawRoute = async () => {
+    if (!map.current || !ride) return;
+
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${ride.pickup.lng},${ride.pickup.lat};${ride.dropoff.lng},${ride.dropoff.lat}?geometries=geojson&access_token=${mapboxgl.accessToken}`
+      );
+      const data = await response.json();
+
+      if (data.routes && data.routes[0]) {
+        const geojson = {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: data.routes[0].geometry,
+        };
+
+        if (map.current.getSource('route')) {
+          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData(geojson as any);
+        } else {
+          map.current.addLayer({
+            id: 'route',
+            type: 'line',
+            source: { type: 'geojson', data: geojson as any },
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: { 'line-color': '#000', 'line-width': 4, 'line-opacity': 0.8 },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error drawing route:', error);
+    }
+  };
+
+  const updateDriverPosition = (location: any) => {
+    if (!map.current || !location) return;
+
+    if (driverMarker.current) {
+      driverMarker.current.setLngLat([location.lng, location.lat]);
+    } else {
+      const el = document.createElement('div');
+      el.innerHTML = '🚚';
+      el.style.fontSize = '32px';
+      driverMarker.current = new mapboxgl.Marker(el)
+        .setLngLat([location.lng, location.lat])
+        .addTo(map.current);
+    }
+  };
+
+  const handleAcceptBid = async (bidId: string) => {
+    try {
+      await rideApi.acceptBid(params.id as string, bidId);
+      // Redirect to payment
+      router.push(`/customer/payment/${params.id}?bidId=${bidId}`);
+    } catch (error: any) {
+      console.error('Error accepting bid:', error);
+      alert(error.response?.data?.message || 'Erreur lors de l\'acceptation');
+    }
+  };
+
+  const handleCancelRide = async () => {
+    try {
+      await rideApi.cancel(params.id as string);
+      setCancelModalOpen(false);
+      router.push('/customer/dashboard');
+    } catch (error: any) {
+      console.error('Error cancelling ride:', error);
+      alert(error.response?.data?.message || 'Erreur lors de l\'annulation');
+    }
+  };
+
+  const handleSubmitRating = async () => {
+    try {
+      await rideApi.rate(params.id as string, { rating, review });
+      setRatingModalOpen(false);
+      loadRideDetails();
+    } catch (error: any) {
+      console.error('Error submitting rating:', error);
+      alert(error.response?.data?.message || 'Erreur lors de l\'évaluation');
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Chargement de vos courses...</p>
-        </div>
-      </div>
+      <Container size="lg" py="xl">
+        <Text>Chargement...</Text>
+      </Container>
     );
   }
 
+  if (!ride) {
+    return (
+      <Container size="lg" py="xl">
+        <Text>Course introuvable</Text>
+      </Container>
+    );
+  }
+
+  const statusConfig = STATUS_CONFIG[ride.status as keyof typeof STATUS_CONFIG];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
+      <Paper p="md" radius={0} withBorder>
+        <Container size="xl">
+          <Group justify="space-between">
+            <ActionIcon
+              size="lg"
+              variant="subtle"
+              color="dark"
               onClick={() => router.push('/customer/dashboard')}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition"
             >
-              <ArrowRight className="h-5 w-5 mr-2 rotate-180" />
-              <span className="font-medium">Retour</span>
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Mes Courses</h1>
-            <button
-              onClick={() => router.push('/customer/new-ride')}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-lg font-medium"
-            >
-              + Nouvelle course
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Total</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
-              </div>
-              <div className="bg-gray-100 p-3 rounded-xl">
-                <Package className="h-6 w-6 text-gray-600" />
-              </div>
+              <IconArrowLeft size={24} />
+            </ActionIcon>
+            <div style={{ textAlign: 'center' }}>
+              <Text size="sm" c="dimmed">Course #{ride.id.slice(0, 8)}</Text>
+              <Badge color={statusConfig.color} size="lg" mt={4}>
+                {statusConfig.label}
+              </Badge>
             </div>
+            <div style={{ width: 40 }} />
+          </Group>
+        </Container>
+      </Paper>
+
+      <Container size="xl" py="xl">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          {/* Left: Map */}
+          <div>
+            <Paper shadow="sm" radius="lg" withBorder style={{ height: '600px', overflow: 'hidden' }}>
+              <div ref={mapContainer} style={{ height: '100%' }} />
+            </Paper>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">En attente</p>
-                <p className="text-3xl font-bold text-amber-600 mt-1">{stats.pending}</p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-xl">
-                <Clock className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
+          {/* Right: Details */}
+          <div>
+            <Stack gap="lg">
+              {/* Status Stepper */}
+              <Card shadow="sm" padding="xl" radius="lg" withBorder>
+                <Title order={3} size="1.25rem" mb="md">Progression</Title>
+                <Stepper active={statusConfig.step} orientation="vertical" size="sm">
+                  <Stepper.Step label="En attente" description="Recherche de transporteurs" />
+                  <Stepper.Step label="Offre acceptée" description="Paiement confirmé" />
+                  <Stepper.Step label="En route" description="Vers point de départ" />
+                  <Stepper.Step label="Chargement" description="Préparation" />
+                  <Stepper.Step label="Transport" description="En cours" />
+                  <Stepper.Step label="Livraison" description="Déchargement" />
+                  <Stepper.Step label="Terminé" description="Course complétée" />
+                </Stepper>
+              </Card>
 
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">En cours</p>
-                <p className="text-3xl font-bold text-blue-600 mt-1">{stats.active}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-xl">
-                <TruckIcon className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Terminées</p>
-                <p className="text-3xl font-bold text-green-600 mt-1">{stats.completed}</p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-xl">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher par adresse ou description..."
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
-
-            {/* Filters */}
-            <div className="flex items-center space-x-2 overflow-x-auto">
-              {[
-                { value: 'ALL', label: 'Toutes', icon: Package },
-                { value: 'PENDING', label: 'En attente', icon: Clock },
-                { value: 'IN_PROGRESS', label: 'En cours', icon: TruckIcon },
-                { value: 'COMPLETED', label: 'Terminées', icon: DollarSign },
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  onClick={() => setFilter(item.value)}
-                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl whitespace-nowrap transition font-medium ${
-                    filter === item.value
-                      ? 'bg-blue-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Rides List */}
-        {filteredRides.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm p-16 text-center border border-gray-200">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
-              <TruckIcon className="h-10 w-10 text-gray-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">
-              Aucune course trouvée
-            </h3>
-            <p className="text-gray-600 mb-8 max-w-md mx-auto">
-              {filter === 'ALL'
-                ? 'Vous n\'avez pas encore créé de course. Commencez dès maintenant !'
-                : `Aucune course avec le statut "${STATUS_CONFIG[filter]?.label}"`}
-            </p>
-            <button
-              onClick={() => router.push('/customer/new-ride')}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-lg font-semibold text-lg"
-            >
-              Créer ma première course
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredRides.map((ride) => {
-              const status = STATUS_CONFIG[ride.status];
-              const vehicleIcon = VEHICLE_ICONS[ride.vehicleType] || '🚚';
-
-              return (
-                <div
-                  key={ride.id}
-                  onClick={() => router.push(`/customer/rides/${ride.id}`)}
-                  className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition cursor-pointer border border-gray-200 overflow-hidden group"
-                >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <span
-                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${status.color} ${status.bgColor}`}
-                          >
-                            <span className={`w-2 h-2 rounded-full ${status.dotColor} mr-2`}></span>
-                            {status.label}
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            {new Date(ride.createdAt).toLocaleDateString('fr-FR', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-3 mb-3">
-                          <span className="text-3xl">{vehicleIcon}</span>
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-900">
-                              {ride.vehicleType.replace('_', ' ')}
-                            </h3>
-                            {ride.cargoDescription && (
-                              <p className="text-sm text-gray-600">{ride.cargoDescription}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-3xl font-bold text-gray-900">
-                          {ride.finalPrice || ride.estimatedPrice}
-                          <span className="text-lg text-gray-600"> DT</span>
-                        </p>
-                        {ride.bidsCount > 0 && (
-                          <p className="text-sm text-blue-600 font-medium mt-1">
-                            {ride.bidsCount} offre{ride.bidsCount > 1 ? 's' : ''}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-start space-x-3">
-                        <div className="bg-green-100 p-2 rounded-lg">
-                          <MapPin className="h-4 w-4 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                            Départ
-                          </p>
-                          <p className="text-sm font-medium text-gray-900">{ride.pickupAddress}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start space-x-3">
-                        <div className="bg-red-100 p-2 rounded-lg">
-                          <MapPin className="h-4 w-4 text-red-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                            Arrivée
-                          </p>
-                          <p className="text-sm font-medium text-gray-900">{ride.deliveryAddress}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {ride.estimatedDistance && (
-                      <div className="flex items-center space-x-4 text-xs text-gray-600 pt-4 border-t border-gray-100">
-                        <span className="flex items-center">
-                          <MapPin className="h-3.5 w-3.5 mr-1" />
-                          {ride.estimatedDistance.toFixed(1)} km
-                        </span>
-                        {ride.estimatedDuration && (
-                          <span className="flex items-center">
-                            <Clock className="h-3.5 w-3.5 mr-1" />
-                            {ride.estimatedDuration} min
-                          </span>
-                        )}
-                      </div>
-                    )}
+              {/* Addresses */}
+              <Card shadow="sm" padding="xl" radius="lg" withBorder>
+                <Stack gap="md">
+                  <div>
+                    <Group gap="xs" mb={4}>
+                      <IconMapPin size={18} color="#51cf66" />
+                      <Text size="sm" fw={600}>Départ</Text>
+                    </Group>
+                    <Text size="sm" pl={26}>{ride.pickup.address}</Text>
                   </div>
+                  <Divider />
+                  <div>
+                    <Group gap="xs" mb={4}>
+                      <IconMapPin size={18} color="#ff6b6b" />
+                      <Text size="sm" fw={600}>Arrivée</Text>
+                    </Group>
+                    <Text size="sm" pl={26}>{ride.dropoff.address}</Text>
+                  </div>
+                </Stack>
+              </Card>
 
-                  {/* Hover effect bar */}
-                  <div className="h-1 bg-gradient-to-r from-blue-600 to-indigo-600 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
-                </div>
-              );
-            })}
+              {/* Driver Info (if assigned) */}
+              {ride.driver && (
+                <Card shadow="sm" padding="xl" radius="lg" withBorder>
+                  <Group justify="space-between" mb="md">
+                    <Group gap="md">
+                      <Avatar size="lg" radius="xl" color="dark">
+                        <IconTruck size={24} />
+                      </Avatar>
+                      <div>
+                        <Text fw={700}>{ride.driver.name}</Text>
+                        <Group gap="xs">
+                          <Rating value={ride.driver.rating || 5} readOnly size="sm" />
+                          <Text size="sm" c="dimmed">({ride.driver.totalRides || 0} courses)</Text>
+                        </Group>
+                      </div>
+                    </Group>
+                    <Group gap="xs">
+                      <ActionIcon size="lg" radius="xl" color="green" variant="light">
+                        <IconPhone size={20} />
+                      </ActionIcon>
+                      <ActionIcon size="lg" radius="xl" color="blue" variant="light">
+                        <IconMessageCircle size={20} />
+                      </ActionIcon>
+                    </Group>
+                  </Group>
+                  <Text size="sm" c="dimmed">
+                    {ride.vehicleType} • {ride.driver.vehicleNumber}
+                  </Text>
+                </Card>
+              )}
+
+              {/* Bids (if pending) */}
+              {ride.status === 'PENDING_BIDS' && bids.length > 0 && (
+                <Card shadow="sm" padding="xl" radius="lg" withBorder>
+                  <Title order={3} size="1.25rem" mb="md">Offres reçues ({bids.length})</Title>
+                  <Stack gap="md">
+                    {bids.map((bid) => (
+                      <Paper key={bid.id} p="md" radius="md" withBorder>
+                        <Group justify="space-between" align="flex-start">
+                          <div>
+                            <Text fw={700}>{bid.driver.name}</Text>
+                            <Group gap="xs" mt={4}>
+                              <Rating value={bid.driver.rating || 5} readOnly size="xs" />
+                              <Text size="xs" c="dimmed">({bid.driver.totalRides || 0})</Text>
+                            </Group>
+                            <Text size="xs" c="dimmed" mt={4}>
+                              ETA: {bid.estimatedDuration} min
+                            </Text>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <Title order={3} size="1.5rem">{bid.amount} DT</Title>
+                            <Button
+                              size="sm"
+                              radius="xl"
+                              color="dark"
+                              mt="xs"
+                              onClick={() => handleAcceptBid(bid.id)}
+                            >
+                              Accepter
+                            </Button>
+                          </div>
+                        </Group>
+                      </Paper>
+                    ))}
+                  </Stack>
+                </Card>
+              )}
+
+              {/* Actions */}
+              <Card shadow="sm" padding="xl" radius="lg" withBorder>
+                <Stack gap="md">
+                  {ride.status === 'PENDING_BIDS' && (
+                    <Button
+                      variant="light"
+                      color="red"
+                      fullWidth
+                      radius="xl"
+                      leftSection={<IconX size={18} />}
+                      onClick={() => setCancelModalOpen(true)}
+                    >
+                      Annuler la course
+                    </Button>
+                  )}
+
+                  {ride.status === 'COMPLETED' && !ride.rating && (
+                    <Button
+                      fullWidth
+                      radius="xl"
+                      color="dark"
+                      onClick={() => setRatingModalOpen(true)}
+                    >
+                      Évaluer la course
+                    </Button>
+                  )}
+                </Stack>
+              </Card>
+            </Stack>
           </div>
-        )}
-      </main>
+        </div>
+      </Container>
+
+      {/* Cancel Modal */}
+      <Modal
+        opened={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title="Annuler la course"
+        centered
+      >
+        <Stack gap="md">
+          <Text>Êtes-vous sûr de vouloir annuler cette course ?</Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={() => setCancelModalOpen(false)}>
+              Non, garder
+            </Button>
+            <Button color="red" onClick={handleCancelRide}>
+              Oui, annuler
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Rating Modal */}
+      <Modal
+        opened={ratingModalOpen}
+        onClose={() => setRatingModalOpen(false)}
+        title="Évaluer la course"
+        centered
+      >
+        <Stack gap="md">
+          <div>
+            <Text size="sm" fw={500} mb="xs">Note</Text>
+            <Rating value={rating} onChange={setRating} size="xl" />
+          </div>
+          <Textarea
+            label="Commentaire (optionnel)"
+            placeholder="Partagez votre expérience..."
+            rows={4}
+            value={review}
+            onChange={(e) => setReview(e.target.value)}
+          />
+          <Button fullWidth color="dark" onClick={handleSubmitRating}>
+            Envoyer l'évaluation
+          </Button>
+        </Stack>
+      </Modal>
     </div>
   );
 }
