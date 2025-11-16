@@ -58,7 +58,8 @@ export default function CustomerDashboard() {
 
   const stats = {
     total: rides.length,
-    pending: rides.filter(r => r.status === 'PENDING' || r.status === 'IN_PROGRESS').length,
+    pending: rides.filter(r => ['PENDING_BIDS', 'BID_ACCEPTED'].includes(r.status)).length,
+    inProgress: rides.filter(r => ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
     completed: rides.filter(r => r.status === 'COMPLETED').length,
   };
 
@@ -92,7 +93,7 @@ export default function CustomerDashboard() {
           </Group>
 
           {/* Stats */}
-          <SimpleGrid cols={3} spacing="md">
+          <SimpleGrid cols={4} spacing="md">
             <Paper p="md" radius="md" withBorder>
               <Stack gap="xs" align="center">
                 <IconPackage size={32} stroke={1.5} />
@@ -102,14 +103,21 @@ export default function CustomerDashboard() {
             </Paper>
             <Paper p="md" radius="md" withBorder>
               <Stack gap="xs" align="center">
-                <IconClock size={32} stroke={1.5} style={{ color: 'orange' }} />
-                <Title order={2} size="1.75rem" c="orange">{stats.pending}</Title>
+                <IconClock size={32} stroke={1.5} style={{ color: '#fab005' }} />
+                <Title order={2} size="1.75rem" c="yellow">{stats.pending}</Title>
+                <Text size="xs" c="dimmed">En attente</Text>
+              </Stack>
+            </Paper>
+            <Paper p="md" radius="md" withBorder>
+              <Stack gap="xs" align="center">
+                <IconTruck size={32} stroke={1.5} style={{ color: '#228be6' }} />
+                <Title order={2} size="1.75rem" c="blue">{stats.inProgress}</Title>
                 <Text size="xs" c="dimmed">En cours</Text>
               </Stack>
             </Paper>
             <Paper p="md" radius="md" withBorder>
               <Stack gap="xs" align="center">
-                <IconCheck size={32} stroke={1.5} style={{ color: 'green' }} />
+                <IconCheck size={32} stroke={1.5} style={{ color: '#51cf66' }} />
                 <Title order={2} size="1.75rem" c="green">{stats.completed}</Title>
                 <Text size="xs" c="dimmed">Terminées</Text>
               </Stack>
@@ -190,27 +198,42 @@ export default function CustomerDashboard() {
             ) : (
               <Stack gap="md">
                 {rides.slice(0, 5).map((ride: any) => (
-                  <Card 
-                    key={ride.id} 
-                    shadow="sm" 
-                    padding="lg" 
+                  <Card
+                    key={ride.id}
+                    shadow="sm"
+                    padding="lg"
                     radius="lg"
                     withBorder
                     style={{ cursor: 'pointer' }}
                     onClick={() => router.push(`/customer/rides/${ride.id}`)}
                   >
                     <Group justify="space-between" mb="md">
-                      <Badge 
-                        size="lg" 
-                        variant="light"
-                        color={
-                          ride.status === 'COMPLETED' ? 'green' :
-                          ride.status === 'IN_PROGRESS' ? 'blue' : 'orange'
-                        }
-                      >
-                        {ride.status === 'COMPLETED' ? 'Terminée' :
-                         ride.status === 'IN_PROGRESS' ? 'En cours' : 'En attente'}
-                      </Badge>
+                      <Group gap="xs">
+                        <Badge
+                          size="lg"
+                          variant="light"
+                          color={
+                            ride.status === 'COMPLETED' ? 'green' :
+                            ride.status === 'CANCELLED' ? 'red' :
+                            ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(ride.status) ? 'blue' :
+                            ride.status === 'BID_ACCEPTED' ? 'cyan' :
+                            'yellow'
+                          }
+                        >
+                          {ride.status === 'COMPLETED' ? 'Terminée' :
+                           ride.status === 'CANCELLED' ? 'Annulée' :
+                           ride.status === 'PENDING_BIDS' ? 'En attente d\'offres' :
+                           ride.status === 'BID_ACCEPTED' ? 'Offre acceptée' :
+                           ['DRIVER_ARRIVING', 'PICKUP_ARRIVED'].includes(ride.status) ? 'En route' :
+                           ['LOADING', 'IN_TRANSIT'].includes(ride.status) ? 'En cours' :
+                           ride.status === 'DROPOFF_ARRIVED' ? 'Livraison' : 'En attente'}
+                        </Badge>
+                        {ride.status === 'PENDING_BIDS' && ride.bidsCount > 0 && (
+                          <Badge size="sm" color="blue" variant="filled">
+                            {ride.bidsCount} offre{ride.bidsCount > 1 ? 's' : ''}
+                          </Badge>
+                        )}
+                      </Group>
                       <IconChevronRight size={20} color="#adb5bd" />
                     </Group>
 
