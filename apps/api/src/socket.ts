@@ -233,7 +233,8 @@ export function setupSocketHandlers(io: Server) {
     // Join customer room for notifications
     socket.on('customer_connect', (data: { customerId: string }) => {
       socket.join(`customer:${data.customerId}`);
-      console.log(`Customer ${data.customerId} connected`);
+      console.log(`✅ Customer ${data.customerId} joined room: customer:${data.customerId}`);
+      console.log(`📡 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
     });
 
     socket.on('disconnect', () => {

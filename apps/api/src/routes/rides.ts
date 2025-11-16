@@ -395,7 +395,7 @@ router.post('/:id/bid', verifyToken, requireDriverAuth, async (req: AuthRequest,
 
     // Notify customer via Socket.io - ride remains in PENDING_BIDS until customer accepts
     const io = req.app.get('io') as Server;
-    io.to(`customer:${ride.customerId}`).emit('new_bid', {
+    const bidData = {
       bidId: bid.id,
       rideId: ride.id,
       driver: bid.driver,
@@ -403,7 +403,10 @@ router.post('/:id/bid', verifyToken, requireDriverAuth, async (req: AuthRequest,
       estimatedArrival: bid.estimatedArrival,
       message: bid.message,
       createdAt: bid.createdAt
-    });
+    };
+
+    console.log(`📢 Emitting new_bid to customer:${ride.customerId}`, bidData);
+    io.to(`customer:${ride.customerId}`).emit('new_bid', bidData);
 
     res.status(201).json(bid);
   } catch (error) {

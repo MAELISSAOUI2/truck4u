@@ -18,6 +18,7 @@ import {
   ActionIcon,
   Paper,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconPackage,
   IconClock,
@@ -30,6 +31,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
+import { connectSocket, onNewBid } from '@/lib/socket';
 
 export default function CustomerDashboard() {
   const router = useRouter();
@@ -43,7 +45,42 @@ export default function CustomerDashboard() {
       return;
     }
     loadData();
-  }, [token]);
+
+    // Connect to Socket.io for real-time notifications
+    if (user) {
+      console.log('🔌 Connecting customer to socket:', user.id);
+      connectSocket(user.id, 'customer', token);
+    }
+  }, [token, user]);
+
+  // Listen for new bids
+  useEffect(() => {
+    if (!user) return;
+
+    const handleNewBid = (bidData: any) => {
+      console.log('🎯 New bid received on dashboard:', bidData);
+
+      notifications.show({
+        title: '🎉 Nouvelle offre reçue !',
+        message: `${bidData.driver?.name || 'Un transporteur'} vous propose ${bidData.proposedPrice} DT`,
+        color: 'green',
+        autoClose: 8000,
+        onClick: () => {
+          router.push(`/customer/rides/${bidData.rideId}`);
+        },
+        style: { cursor: 'pointer' },
+      });
+
+      // Reload rides to update badge count
+      loadData();
+    };
+
+    const unsubscribe = onNewBid(handleNewBid);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user]);
 
   const loadData = async () => {
     try {
