@@ -91,7 +91,16 @@ export const rideApi = {
   
   acceptBid: (id: string, bidId: string) =>
     api.post(`/rides/${id}/accept-bid`, { bidId }),
-  
+
+  rejectBid: (id: string, bidId: string) =>
+    api.post(`/rides/${id}/reject-bid`, { bidId }),
+
+  confirmCompletionDriver: (id: string) =>
+    api.post(`/rides/${id}/confirm-completion-driver`),
+
+  confirmCompletionCustomer: (id: string) =>
+    api.post(`/rides/${id}/confirm-completion-customer`),
+
   updateStatus: (id: string, status: string) =>
     api.patch(`/rides/${id}/status`, { status }),
   

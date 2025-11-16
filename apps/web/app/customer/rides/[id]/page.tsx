@@ -37,7 +37,7 @@ import {
   IconBell,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
-import { rideApi } from '@/lib/api';
+import { rideApi, paymentApi } from '@/lib/api';
 import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -118,6 +118,9 @@ export default function RideDetailsPage() {
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedBidForPayment, setSelectedBidForPayment] = useState<any>(null);
+  const [confirmDeliveryModalOpen, setConfirmDeliveryModalOpen] = useState(false);
   const { user } = useAuthStore();
 
   // Connect to socket and setup real-time listeners
@@ -351,12 +354,107 @@ export default function RideDetailsPage() {
 
   const handleAcceptBid = async (bidId: string) => {
     try {
-      await rideApi.acceptBid(params.id as string, bidId);
-      // Redirect to payment
-      router.push(`/customer/payment/${params.id}?bidId=${bidId}`);
+      const response = await rideApi.acceptBid(params.id as string, bidId);
+
+      notifications.show({
+        title: 'Offre acceptée !',
+        message: 'Le conducteur a été notifié. Procédez au paiement pour démarrer la course.',
+        color: 'green',
+      });
+
+      // Find the accepted bid
+      const acceptedBid = bids.find(b => b.id === bidId);
+      setSelectedBidForPayment(acceptedBid);
+      setPaymentModalOpen(true);
+
+      // Reload ride details
+      loadRideDetails();
     } catch (error: any) {
       console.error('Error accepting bid:', error);
-      alert(error.response?.data?.message || 'Erreur lors de l\'acceptation');
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Erreur lors de l\'acceptation',
+        color: 'red',
+      });
+    }
+  };
+
+  const handleRejectBid = async (bidId: string) => {
+    try {
+      await rideApi.rejectBid(params.id as string, bidId);
+
+      // Remove from bids list and new bids
+      setBids(prev => prev.filter(b => b.id !== bidId));
+      setNewBidIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bidId);
+        return newSet;
+      });
+
+      notifications.show({
+        title: 'Offre refusée',
+        message: 'Le conducteur a été notifié',
+        color: 'orange',
+      });
+    } catch (error: any) {
+      console.error('Error rejecting bid:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Erreur lors du rejet',
+        color: 'red',
+      });
+    }
+  };
+
+  const handlePayment = async (method: 'CASH' | 'CARD' | 'FLOUCI') => {
+    try {
+      const response = await paymentApi.initiate(params.id as string, method);
+
+      if (method === 'CASH') {
+        notifications.show({
+          title: 'Paiement en espèces confirmé',
+          message: 'Le conducteur confirmera la réception du paiement à la fin de la course.',
+          color: 'green',
+        });
+        setPaymentModalOpen(false);
+        loadRideDetails();
+      } else if (response.data.paymentUrl) {
+        // Redirect to payment gateway
+        window.location.href = response.data.paymentUrl;
+      }
+    } catch (error: any) {
+      console.error('Error processing payment:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Erreur lors du paiement',
+        color: 'red',
+      });
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    try {
+      await rideApi.confirmCompletionCustomer(params.id as string);
+
+      notifications.show({
+        title: 'Livraison confirmée !',
+        message: 'Le paiement a été traité. Vous pouvez maintenant noter le conducteur.',
+        color: 'green',
+        autoClose: 5000,
+      });
+
+      setConfirmDeliveryModalOpen(false);
+      loadRideDetails();
+
+      // Open rating modal after a short delay
+      setTimeout(() => setRatingModalOpen(true), 1000);
+    } catch (error: any) {
+      console.error('Error confirming delivery:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Erreur lors de la confirmation',
+        color: 'red',
+      });
     }
   };
 
@@ -582,18 +680,9 @@ export default function RideDetailsPage() {
                                     size="sm"
                                     variant="light"
                                     color="red"
-                                    onClick={() => {
-                                      // Remove from new bids
-                                      setNewBidIds((prev) => {
-                                        const newSet = new Set(prev);
-                                        newSet.delete(bid.id);
-                                        return newSet;
-                                      });
-                                      notifications.show({
-                                        title: 'Offre refusée',
-                                        message: 'L\'offre a été refusée',
-                                        color: 'red',
-                                      });
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRejectBid(bid.id);
                                     }}
                                   >
                                     Refuser
@@ -602,7 +691,8 @@ export default function RideDetailsPage() {
                                     size="sm"
                                     radius="md"
                                     color="dark"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleAcceptBid(bid.id);
                                       // Remove from new bids
                                       setNewBidIds((prev) => {
@@ -641,7 +731,52 @@ export default function RideDetailsPage() {
                     </Button>
                   )}
 
-                  {ride.status === 'COMPLETED' && !ride.rating && (
+                  {ride.status === 'BID_ACCEPTED' && ride.payment?.status === 'PENDING' && (
+                    <Button
+                      fullWidth
+                      radius="xl"
+                      color="green"
+                      onClick={() => setPaymentModalOpen(true)}
+                    >
+                      Effectuer le paiement
+                    </Button>
+                  )}
+
+                  {ride.status === 'DROPOFF_ARRIVED' && (
+                    <>
+                      {ride.proofPhotos?.driverConfirmedCompletion ? (
+                        <Paper p="md" withBorder style={{ background: '#f1f3f5' }}>
+                          <Group gap="xs" mb="xs">
+                            <IconCheck size={20} color="green" />
+                            <Text size="sm" fw={600}>Le conducteur a confirmé la livraison</Text>
+                          </Group>
+                          <Text size="xs" c="dimmed">Veuillez confirmer la réception de votre marchandise</Text>
+                        </Paper>
+                      ) : (
+                        <Paper p="md" withBorder style={{ background: '#fff3cd' }}>
+                          <Group gap="xs" mb="xs">
+                            <IconClock size={20} color="orange" />
+                            <Text size="sm" fw={600}>En attente de confirmation du conducteur</Text>
+                          </Group>
+                          <Text size="xs" c="dimmed">Le conducteur doit d'abord confirmer la livraison</Text>
+                        </Paper>
+                      )}
+                      {ride.proofPhotos?.driverConfirmedCompletion && (
+                        <Button
+                          fullWidth
+                          radius="xl"
+                          color="green"
+                          size="lg"
+                          leftSection={<IconCheck size={20} />}
+                          onClick={() => setConfirmDeliveryModalOpen(true)}
+                        >
+                          Confirmer la livraison
+                        </Button>
+                      )}
+                    </>
+                  )}
+
+                  {ride.status === 'COMPLETED' && !ride.customerRating && (
                     <Button
                       fullWidth
                       radius="xl"
@@ -673,6 +808,112 @@ export default function RideDetailsPage() {
             </Button>
             <Button color="red" onClick={handleCancelRide}>
               Oui, annuler
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Payment Modal */}
+      <Modal
+        opened={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        title="Paiement de la course"
+        centered
+        size="lg"
+      >
+        <Stack gap="lg">
+          <Paper p="md" withBorder style={{ background: '#f8f9fa' }}>
+            <Text size="sm" c="dimmed" mb={4}>Montant à payer</Text>
+            <Title order={2}>{ride?.finalPrice || selectedBidForPayment?.amount || 0} DT</Title>
+          </Paper>
+
+          {ride?.driver && (
+            <Paper p="md" withBorder>
+              <Text size="sm" fw={600} mb="xs">Conducteur</Text>
+              <Group gap="md">
+                <Avatar size="lg" radius="xl" color="dark">
+                  <IconTruck size={24} />
+                </Avatar>
+                <div>
+                  <Text fw={600}>{ride.driver.name}</Text>
+                  <Group gap="xs">
+                    <Rating value={ride.driver.rating || 5} readOnly size="xs" />
+                    <Text size="xs" c="dimmed">({ride.driver.totalRides || 0} courses)</Text>
+                  </Group>
+                </div>
+              </Group>
+            </Paper>
+          )}
+
+          <Text size="sm" c="dimmed">
+            Le paiement sera gardé en attente jusqu'à la confirmation de livraison par vous et le conducteur.
+          </Text>
+
+          <Stack gap="sm">
+            <Button
+              fullWidth
+              size="lg"
+              color="dark"
+              leftSection={<IconPackage size={20} />}
+              onClick={() => handlePayment('CARD')}
+            >
+              Payer par carte
+            </Button>
+            <Button
+              fullWidth
+              size="lg"
+              variant="light"
+              color="blue"
+              onClick={() => handlePayment('FLOUCI')}
+            >
+              Payer avec Flouci
+            </Button>
+            <Button
+              fullWidth
+              size="lg"
+              variant="outline"
+              color="gray"
+              onClick={() => handlePayment('CASH')}
+            >
+              Payer en espèces
+            </Button>
+          </Stack>
+
+          <Text size="xs" c="dimmed" ta="center">
+            💳 Paiement sécurisé • 🔒 Montant protégé
+          </Text>
+        </Stack>
+      </Modal>
+
+      {/* Confirm Delivery Modal */}
+      <Modal
+        opened={confirmDeliveryModalOpen}
+        onClose={() => setConfirmDeliveryModalOpen(false)}
+        title="Confirmer la livraison"
+        centered
+      >
+        <Stack gap="md">
+          <Paper p="md" withBorder style={{ background: '#e7f5ff' }}>
+            <Group gap="xs" mb="xs">
+              <IconAlertCircle size={20} color="#1971c2" />
+              <Text size="sm" fw={600}>Attention</Text>
+            </Group>
+            <Text size="sm">
+              En confirmant, vous attestez avoir reçu votre marchandise en bon état.
+              Le paiement de {ride?.finalPrice} DT sera alors traité.
+            </Text>
+          </Paper>
+
+          <Text size="sm" c="dimmed">
+            Avez-vous bien reçu votre marchandise ?
+          </Text>
+
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" onClick={() => setConfirmDeliveryModalOpen(false)}>
+              Annuler
+            </Button>
+            <Button color="green" leftSection={<IconCheck size={18} />} onClick={handleConfirmDelivery}>
+              Oui, confirmer
             </Button>
           </Group>
         </Stack>

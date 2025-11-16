@@ -466,8 +466,8 @@ router.post('/:id/bid', verifyToken, requireDriverAuth, async (req: AuthRequest,
   }
 });
 
-// POST /api/rides/:id/accept-bid - Accept a bid (customer)
-router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
+// POST /api/rides/:id/reject-bid - Reject a bid (customer)
+router.post('/:id/reject-bid', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
   try {
     const { bidId } = z.object({ bidId: z.string() }).parse(req.body);
 
@@ -480,7 +480,48 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Update bid and ride
+    if (bid.status !== 'ACTIVE') {
+      return res.status(400).json({ error: 'Bid is not active' });
+    }
+
+    // Update bid status
+    await prisma.bid.update({
+      where: { id: bidId },
+      data: { status: 'REJECTED' }
+    });
+
+    // Notify driver via Socket.io
+    const io = req.app.get('io') as Server;
+    io.to(`driver:${bid.driverId}`).emit('bid_rejected', { rideId: bid.rideId, bidId });
+
+    res.json({ message: 'Bid rejected successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/rides/:id/accept-bid - Accept a bid (customer)
+router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
+  try {
+    const { bidId } = z.object({ bidId: z.string() }).parse(req.body);
+
+    const bid = await prisma.bid.findUnique({
+      where: { id: bidId },
+      include: { ride: true, driver: true }
+    });
+
+    if (!bid || bid.ride.customerId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Calculate platform fee
+    const customer = await prisma.customer.findUnique({ where: { id: req.userId! } });
+    const platformFee = customer?.isB2BSubscriber
+      ? Math.round(bid.proposedPrice * 0.08 * 100) / 100
+      : Math.round(bid.proposedPrice * 0.15 * 100) / 100;
+    const driverAmount = bid.proposedPrice - platformFee;
+
+    // Update bid, ride, create pending payment, and set driver as unavailable
     await prisma.$transaction([
       prisma.bid.update({
         where: { id: bidId },
@@ -502,13 +543,39 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
           status: 'ACTIVE'
         },
         data: { status: 'REJECTED' }
+      }),
+      // Set driver as unavailable (busy)
+      prisma.driver.update({
+        where: { id: bid.driverId },
+        data: { isAvailable: false }
+      }),
+      // Create pending payment
+      prisma.payment.create({
+        data: {
+          rideId: bid.rideId,
+          method: 'CARD', // Will be updated when customer pays
+          totalAmount: bid.proposedPrice,
+          platformFee,
+          driverAmount,
+          status: 'PENDING'
+        }
       })
     ]);
 
+    // Remove driver from available drivers in Redis
+    await redis.zrem('drivers:available', bid.driverId);
+
     // Notify all involved parties via Socket.io
     const io = req.app.get('io') as Server;
-    io.to(`driver:${bid.driverId}`).emit('bid_accepted', { rideId: bid.rideId, bidId });
-    
+    io.to(`driver:${bid.driverId}`).emit('bid_accepted', {
+      rideId: bid.rideId,
+      bidId,
+      ride: await prisma.ride.findUnique({
+        where: { id: bid.rideId },
+        include: { customer: { select: { name: true, phone: true } } }
+      })
+    });
+
     // Notify rejected drivers
     const rejectedBids = await prisma.bid.findMany({
       where: { rideId: bid.rideId, status: 'REJECTED' }
@@ -517,7 +584,17 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
       io.to(`driver:${rb.driverId}`).emit('bid_rejected', { rideId: bid.rideId });
     });
 
-    res.json({ message: 'Bid accepted successfully' });
+    res.json({
+      message: 'Bid accepted successfully',
+      paymentRequired: true,
+      ride: await prisma.ride.findUnique({
+        where: { id: bid.rideId },
+        include: {
+          driver: { select: { id: true, name: true, phone: true, rating: true, vehiclePlate: true } },
+          payment: true
+        }
+      })
+    });
   } catch (error) {
     next(error);
   }
@@ -588,6 +665,148 @@ router.post('/:id/proof-photo/:type', verifyToken, requireDriver, async (req: Au
     });
 
     res.json({ message: 'Photo uploaded successfully', proofPhotos });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/rides/:id/confirm-completion-driver - Driver confirms ride completion
+router.post('/:id/confirm-completion-driver', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+  try {
+    const ride = await prisma.ride.findUnique({
+      where: { id: req.params.id },
+      include: { driver: true }
+    });
+
+    if (!ride || ride.driverId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (ride.status !== 'DROPOFF_ARRIVED') {
+      return res.status(400).json({ error: 'Ride must be at DROPOFF_ARRIVED status' });
+    }
+
+    // Update ride metadata to track driver confirmation
+    const metadata = (ride.proofPhotos as any) || {};
+    metadata.driverConfirmedCompletion = true;
+    metadata.driverConfirmedAt = new Date().toISOString();
+
+    await prisma.ride.update({
+      where: { id: req.params.id },
+      data: {
+        proofPhotos: metadata,
+        // Don't set to COMPLETED yet - wait for customer confirmation
+      }
+    });
+
+    // Notify customer
+    const io = req.app.get('io') as Server;
+    io.to(`customer:${ride.customerId}`).emit('driver_confirmed_completion', {
+      rideId: ride.id,
+      driverName: ride.driver?.name
+    });
+
+    res.json({
+      message: 'Driver confirmation recorded. Waiting for customer confirmation.',
+      waitingForCustomer: true
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/rides/:id/confirm-completion-customer - Customer confirms ride completion
+router.post('/:id/confirm-completion-customer', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
+  try {
+    const ride = await prisma.ride.findUnique({
+      where: { id: req.params.id },
+      include: {
+        driver: true,
+        payment: true
+      }
+    });
+
+    if (!ride || ride.customerId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (ride.status !== 'DROPOFF_ARRIVED') {
+      return res.status(400).json({ error: 'Ride must be at DROPOFF_ARRIVED status' });
+    }
+
+    // Check if driver has confirmed
+    const metadata = (ride.proofPhotos as any) || {};
+    const driverConfirmed = metadata.driverConfirmedCompletion === true;
+
+    if (!driverConfirmed) {
+      return res.status(400).json({ error: 'Driver must confirm completion first' });
+    }
+
+    // Both parties confirmed - complete the ride and process payment
+    await prisma.$transaction([
+      // Mark ride as completed
+      prisma.ride.update({
+        where: { id: req.params.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        }
+      }),
+      // Complete the payment
+      prisma.payment.update({
+        where: { rideId: req.params.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        }
+      }),
+      // Record driver earnings
+      prisma.driverEarnings.create({
+        data: {
+          driverId: ride.driverId!,
+          rideId: req.params.id,
+          grossAmount: ride.payment!.totalAmount,
+          platformFee: ride.payment!.platformFee,
+          netEarnings: ride.payment!.driverAmount
+        }
+      }),
+      // Update driver stats and set as available again
+      prisma.driver.update({
+        where: { id: ride.driverId! },
+        data: {
+          totalEarnings: {
+            increment: ride.payment!.driverAmount
+          },
+          totalRides: {
+            increment: 1
+          },
+          isAvailable: true // Driver is now available for new rides
+        }
+      })
+    ]);
+
+    // Add driver back to available drivers in Redis (if they have a current location)
+    if (ride.driver?.currentLocation) {
+      const location = ride.driver.currentLocation as any;
+      await redis.geoadd(
+        'drivers:available',
+        location.lng,
+        location.lat,
+        ride.driverId!
+      );
+    }
+
+    // Notify driver
+    const io = req.app.get('io') as Server;
+    io.to(`driver:${ride.driverId}`).emit('ride_completed', {
+      rideId: ride.id,
+      earnings: ride.payment!.driverAmount
+    });
+
+    res.json({
+      message: 'Ride completed successfully',
+      payment: await prisma.payment.findUnique({ where: { rideId: req.params.id } })
+    });
   } catch (error) {
     next(error);
   }

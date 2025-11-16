@@ -17,7 +17,7 @@ function calculatePlatformFee(amount: number, isB2BCustomer: boolean): number {
   return Math.round(amount * commission * 100) / 100;
 }
 
-// POST /api/payments/initiate - Initiate payment
+// POST /api/payments/initiate - Initiate payment (can be done at BID_ACCEPTED or COMPLETED)
 router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
   try {
     const { rideId, method } = initiatePaymentSchema.parse(req.body);
@@ -26,7 +26,8 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
       where: { id: rideId },
       include: {
         customer: true,
-        driver: true
+        driver: true,
+        payment: true
       }
     });
 
@@ -34,8 +35,9 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    if (ride.status !== 'COMPLETED') {
-      return res.status(400).json({ error: 'Ride not completed yet' });
+    // Allow payment at BID_ACCEPTED or later stages
+    if (!['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED', 'COMPLETED'].includes(ride.status)) {
+      return res.status(400).json({ error: 'Cannot process payment at this stage' });
     }
 
     if (!ride.finalPrice) {
@@ -43,9 +45,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
     }
 
     // Check for existing payment
-    const existingPayment = await prisma.payment.findUnique({
-      where: { rideId }
-    });
+    const existingPayment = ride.payment;
 
     if (existingPayment && existingPayment.status === 'COMPLETED') {
       return res.status(400).json({ error: 'Payment already completed' });
@@ -55,17 +55,22 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
     const driverAmount = ride.finalPrice - platformFee;
 
     if (method === 'CASH') {
-      // Create payment record for cash
-      const payment = await prisma.payment.create({
-        data: {
-          rideId,
-          method: 'CASH',
-          totalAmount: ride.finalPrice,
-          platformFee,
-          driverAmount,
-          status: 'PENDING'
-        }
-      });
+      // Update or create payment record for cash
+      const payment = existingPayment
+        ? await prisma.payment.update({
+            where: { id: existingPayment.id },
+            data: { method: 'CASH' }
+          })
+        : await prisma.payment.create({
+            data: {
+              rideId,
+              method: 'CASH',
+              totalAmount: ride.finalPrice,
+              platformFee,
+              driverAmount,
+              status: 'PENDING'
+            }
+          });
 
       return res.json({
         paymentId: payment.id,
@@ -86,8 +91,8 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
           last_name: ride.customer.name.split(' ')[1] || '',
           phone: ride.customer.phone,
           email: ride.customer.email || '',
-          return_url: `${process.env.FRONTEND_URL}/payment/success`,
-          cancel_url: `${process.env.FRONTEND_URL}/payment/cancel`,
+          return_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
+          cancel_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
           webhook_url: `${process.env.API_URL}/webhooks/paymee`
         },
         {
@@ -98,20 +103,31 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         }
       );
 
-      const payment = await prisma.payment.create({
-        data: {
-          rideId,
-          method: 'CARD',
-          totalAmount: ride.finalPrice,
-          platformFee,
-          driverAmount,
-          status: 'PENDING',
-          transactionRef: paymeeResponse.data.payment_token,
-          metadata: {
-            paymee_payment_url: paymeeResponse.data.payment_url
-          }
-        }
-      });
+      const payment = existingPayment
+        ? await prisma.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              method: 'CARD',
+              transactionRef: paymeeResponse.data.payment_token,
+              metadata: {
+                paymee_payment_url: paymeeResponse.data.payment_url
+              }
+            }
+          })
+        : await prisma.payment.create({
+            data: {
+              rideId,
+              method: 'CARD',
+              totalAmount: ride.finalPrice,
+              platformFee,
+              driverAmount,
+              status: 'PENDING',
+              transactionRef: paymeeResponse.data.payment_token,
+              metadata: {
+                paymee_payment_url: paymeeResponse.data.payment_url
+              }
+            }
+          });
 
       return res.json({
         paymentId: payment.id,
@@ -128,8 +144,8 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         {
           amount: ride.finalPrice,
           description: `Truck4u Ride #${rideId.substring(0, 8)}`,
-          accept_url: `${process.env.FRONTEND_URL}/payment/success`,
-          cancel_url: `${process.env.FRONTEND_URL}/payment/cancel`,
+          accept_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
+          cancel_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
           webhook_url: `${process.env.API_URL}/webhooks/flouci`,
           developer_tracking_id: rideId
         },
@@ -141,20 +157,31 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         }
       );
 
-      const payment = await prisma.payment.create({
-        data: {
-          rideId,
-          method: 'FLOUCI',
-          totalAmount: ride.finalPrice,
-          platformFee,
-          driverAmount,
-          status: 'PENDING',
-          transactionRef: flouciResponse.data.result.payment_id,
-          metadata: {
-            flouci_payment_url: flouciResponse.data.result.link
-          }
-        }
-      });
+      const payment = existingPayment
+        ? await prisma.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              method: 'FLOUCI',
+              transactionRef: flouciResponse.data.result.payment_id,
+              metadata: {
+                flouci_payment_url: flouciResponse.data.result.link
+              }
+            }
+          })
+        : await prisma.payment.create({
+            data: {
+              rideId,
+              method: 'FLOUCI',
+              totalAmount: ride.finalPrice,
+              platformFee,
+              driverAmount,
+              status: 'PENDING',
+              transactionRef: flouciResponse.data.result.payment_id,
+              metadata: {
+                flouci_payment_url: flouciResponse.data.result.link
+              }
+            }
+          });
 
       return res.json({
         paymentId: payment.id,
