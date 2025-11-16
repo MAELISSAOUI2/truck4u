@@ -6,6 +6,13 @@ interface User {
   name: string;
   phone: string;
   userType: 'customer' | 'driver';
+  email?: string;
+  // Driver-specific fields
+  rating?: number;
+  totalRides?: number;
+  vehicleType?: string;
+  vehiclePlate?: string;
+  acceptanceRate?: number;
 }
 
 interface AuthState {
