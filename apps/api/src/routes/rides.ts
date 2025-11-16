@@ -245,6 +245,35 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
   }
 });
 
+// GET /api/rides/history - Get user's ride history
+router.get('/history', verifyToken, async (req: AuthRequest, res, next) => {
+  try {
+    const where: any = {};
+    if (req.userType === 'customer') {
+      where.customerId = req.userId;
+    } else if (req.userType === 'driver') {
+      where.driverId = req.userId;
+    }
+
+    const rides = await prisma.ride.findMany({
+      where,
+      include: {
+        customer: { select: { name: true } },
+        driver: { select: { name: true, rating: true } },
+        payment: true,
+        acceptedBid: {
+          include: {
+            driver: { select: { name: true, rating: true } }
+          }
+        },
+        _count: {
+          select: { bids: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
 // GET /api/rides/:id - Get ride details
 router.get('/:id', verifyToken, async (req: AuthRequest, res, next) => {
   try {
@@ -557,34 +586,6 @@ router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, 
   }
 });
 
-// GET /api/rides/history - Get user's ride history
-router.get('/history', verifyToken, async (req: AuthRequest, res, next) => {
-  try {
-    const where: any = {};
-    if (req.userType === 'customer') {
-      where.customerId = req.userId;
-    } else if (req.userType === 'driver') {
-      where.driverId = req.userId;
-    }
-
-    const rides = await prisma.ride.findMany({
-      where,
-      include: {
-        customer: { select: { name: true } },
-        driver: { select: { name: true, rating: true } },
-        payment: true,
-        acceptedBid: {
-          include: {
-            driver: { select: { name: true, rating: true } }
-          }
-        },
-        _count: {
-          select: { bids: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
 
     res.json({ rides });
   } catch (error) {
