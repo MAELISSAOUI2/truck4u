@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Container,
@@ -20,7 +20,9 @@ import {
   Stepper,
   Avatar,
   Divider,
+  Indicator,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconArrowLeft,
   IconMapPin,
@@ -32,9 +34,11 @@ import {
   IconCheck,
   IconTruck,
   IconAlertCircle,
+  IconBell,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
+import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -108,24 +112,130 @@ export default function RideDetailsPage() {
 
   const [ride, setRide] = useState<any>(null);
   const [bids, setBids] = useState<any[]>([]);
+  const [newBidIds, setNewBidIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
+  const { user } = useAuthStore();
 
+  // Connect to socket and setup real-time listeners
   useEffect(() => {
-    if (!token) {
+    if (!token || !user) {
       router.push('/customer/login');
       return;
     }
 
+    // Connect socket
+    const socket = connectSocket(user.id, 'customer', token);
+
+    // Track this ride for real-time updates
+    if (params.id) {
+      trackRide(params.id as string, user.id);
+    }
+
     loadRideDetails();
 
-    // Poll for updates every 5 seconds
-    const interval = setInterval(loadRideDetails, 5000);
-    return () => clearInterval(interval);
-  }, [params.id, token]);
+    // Cleanup
+    return () => {
+      if (params.id) {
+        stopTracking(params.id as string);
+      }
+    };
+  }, [params.id, token, user]);
+
+  // Listen for new bids
+  useEffect(() => {
+    if (!params.id) return;
+
+    const unsubscribe = onNewBid((bidData: any) => {
+      console.log('🎯 New bid received:', bidData);
+
+      // Add to bids list
+      setBids((prev) => {
+        const exists = prev.find(b => b.id === bidData.bidId);
+        if (exists) return prev;
+
+        return [...prev, {
+          id: bidData.bidId,
+          rideId: bidData.rideId,
+          driver: bidData.driver,
+          amount: bidData.proposedPrice,
+          estimatedDuration: bidData.estimatedArrival,
+          message: bidData.message,
+          createdAt: bidData.createdAt,
+        }];
+      });
+
+      // Mark as new
+      setNewBidIds((prev) => new Set(prev).add(bidData.bidId));
+
+      // Show notification
+      notifications.show({
+        title: '🎉 Nouvelle offre reçue !',
+        message: `${bidData.driver?.name} vous propose ${bidData.proposedPrice} DT`,
+        color: 'green',
+        icon: <IconBell />,
+        autoClose: 5000,
+      });
+
+      // Play sound (optional)
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.play().catch(() => {});
+      } catch (error) {
+        // Ignore sound errors
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id]);
+
+  // Listen for driver location updates
+  useEffect(() => {
+    if (!params.id) return;
+
+    const unsubscribe = onDriverMoved((locationData: any) => {
+      console.log('📍 Driver location updated:', locationData);
+      updateDriverPosition({ lat: locationData.lat, lng: locationData.lng });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id]);
+
+  // Listen for ride status changes
+  useEffect(() => {
+    if (!params.id) return;
+
+    const unsubscribe = onRideStatusChanged((statusData: any) => {
+      console.log('📦 Ride status changed:', statusData);
+
+      setRide((prev: any) => ({
+        ...prev,
+        status: statusData.status,
+      }));
+
+      // Show notification
+      const statusInfo = STATUS_CONFIG[statusData.status as keyof typeof STATUS_CONFIG];
+      if (statusInfo) {
+        notifications.show({
+          title: `Statut mis à jour`,
+          message: statusInfo.description,
+          color: statusInfo.color,
+          autoClose: 4000,
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id]);
 
   useEffect(() => {
     if (ride && mapContainer.current && !map.current) {
@@ -396,36 +506,121 @@ export default function RideDetailsPage() {
               {/* Bids (if pending) */}
               {ride.status === 'PENDING_BIDS' && bids.length > 0 && (
                 <Card shadow="sm" padding="xl" radius="lg" withBorder>
-                  <Title order={3} size="1.25rem" mb="md">Offres reçues ({bids.length})</Title>
+                  <Group justify="space-between" mb="md">
+                    <Title order={3} size="1.25rem">Offres reçues</Title>
+                    <Badge size="lg" variant="filled" color="blue" circle>
+                      {bids.length}
+                    </Badge>
+                  </Group>
                   <Stack gap="md">
-                    {bids.map((bid) => (
-                      <Paper key={bid.id} p="md" radius="md" withBorder>
-                        <Group justify="space-between" align="flex-start">
-                          <div>
-                            <Text fw={700}>{bid.driver.name}</Text>
-                            <Group gap="xs" mt={4}>
-                              <Rating value={bid.driver.rating || 5} readOnly size="xs" />
-                              <Text size="xs" c="dimmed">({bid.driver.totalRides || 0})</Text>
+                    {bids.map((bid) => {
+                      const isNew = newBidIds.has(bid.id);
+                      return (
+                        <Indicator
+                          key={bid.id}
+                          label="NOUVEAU!"
+                          color="green"
+                          size={16}
+                          disabled={!isNew}
+                          position="top-end"
+                          offset={10}
+                        >
+                          <Paper
+                            p="md"
+                            radius="md"
+                            withBorder
+                            style={{
+                              borderColor: isNew ? '#40c057' : undefined,
+                              borderWidth: isNew ? 2 : 1,
+                              transition: 'all 0.3s ease',
+                            }}
+                          >
+                            <Group justify="space-between" align="flex-start">
+                              <div>
+                                <Group gap="xs">
+                                  <Text fw={700}>{bid.driver?.name || 'Driver'}</Text>
+                                  {bid.driver?.verified && (
+                                    <Badge size="xs" color="blue" variant="dot">
+                                      Vérifié
+                                    </Badge>
+                                  )}
+                                </Group>
+                                <Group gap="xs" mt={4}>
+                                  <Rating value={bid.driver?.rating || 5} readOnly size="xs" />
+                                  <Text size="xs" c="dimmed">
+                                    ({bid.driver?.totalRides || 0} courses)
+                                  </Text>
+                                </Group>
+                                <Group gap="md" mt="sm">
+                                  <Group gap={4}>
+                                    <IconClock size={14} />
+                                    <Text size="xs" c="dimmed">
+                                      ETA: {bid.estimatedDuration || 'N/A'} min
+                                    </Text>
+                                  </Group>
+                                  {bid.driver?.vehicleType && (
+                                    <Group gap={4}>
+                                      <IconTruck size={14} />
+                                      <Text size="xs" c="dimmed">
+                                        {bid.driver.vehicleType}
+                                      </Text>
+                                    </Group>
+                                  )}
+                                </Group>
+                                {bid.message && (
+                                  <Text size="sm" c="dimmed" mt="sm" style={{ fontStyle: 'italic' }}>
+                                    "{bid.message}"
+                                  </Text>
+                                )}
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <Title order={3} size="1.5rem" c="dark">
+                                  {bid.amount} DT
+                                </Title>
+                                <Group gap="xs" mt="xs">
+                                  <Button
+                                    size="sm"
+                                    variant="light"
+                                    color="red"
+                                    onClick={() => {
+                                      // Remove from new bids
+                                      setNewBidIds((prev) => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(bid.id);
+                                        return newSet;
+                                      });
+                                      notifications.show({
+                                        title: 'Offre refusée',
+                                        message: 'L\'offre a été refusée',
+                                        color: 'red',
+                                      });
+                                    }}
+                                  >
+                                    Refuser
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    radius="md"
+                                    color="dark"
+                                    onClick={() => {
+                                      handleAcceptBid(bid.id);
+                                      // Remove from new bids
+                                      setNewBidIds((prev) => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(bid.id);
+                                        return newSet;
+                                      });
+                                    }}
+                                  >
+                                    Accepter
+                                  </Button>
+                                </Group>
+                              </div>
                             </Group>
-                            <Text size="xs" c="dimmed" mt={4}>
-                              ETA: {bid.estimatedDuration} min
-                            </Text>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <Title order={3} size="1.5rem">{bid.amount} DT</Title>
-                            <Button
-                              size="sm"
-                              radius="xl"
-                              color="dark"
-                              mt="xs"
-                              onClick={() => handleAcceptBid(bid.id)}
-                            >
-                              Accepter
-                            </Button>
-                          </div>
-                        </Group>
-                      </Paper>
-                    ))}
+                          </Paper>
+                        </Indicator>
+                      );
+                    })}
                   </Stack>
                 </Card>
               )}
