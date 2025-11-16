@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '@truck4u/database';
-import { verifyToken, requireDriver, AuthRequest } from '../middleware/auth';
+import { verifyToken, requireDriver, requireDriverAuth, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import multer from 'multer';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -49,7 +49,7 @@ const uploadToS3 = async (file: Express.Multer.File, folder: string): Promise<st
 router.post(
   '/documents/upload',
   verifyToken,
-  requireDriver,
+  requireDriverAuth,
   upload.fields([
     { name: 'cin_front', maxCount: 1 },
     { name: 'cin_back', maxCount: 1 },
@@ -102,7 +102,7 @@ router.post(
 );
 
 // GET /api/drivers/verification-status
-router.get('/verification-status', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+router.get('/verification-status', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const driver = await prisma.driver.findUnique({
       where: { id: req.userId },
@@ -122,7 +122,7 @@ router.get('/verification-status', verifyToken, requireDriver, async (req: AuthR
 });
 
 // PATCH /api/drivers/availability - Toggle availability
-router.patch('/availability', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+router.patch('/availability', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const { isAvailable } = z.object({
       isAvailable: z.boolean()

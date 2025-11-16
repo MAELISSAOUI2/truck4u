@@ -36,7 +36,7 @@ export default function HomePage() {
             <Title order={1} size="1.75rem">Truck4u</Title>
           </Group>
           <Group gap="md">
-            <Button variant="subtle" color="dark" onClick={() => router.push('/customer/login')}>
+            <Button variant="subtle" color="dark" onClick={() => router.push('/login')}>
               Se connecter
             </Button>
             <Button color="dark" radius="xl" onClick={() => router.push('/customer/register')}>

@@ -1,227 +1,260 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Truck, ArrowLeft, Phone, User } from 'lucide-react';
+import {
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  Button,
+  Stack,
+  Group,
+  Anchor,
+  Tabs,
+} from '@mantine/core';
+import {
+  IconTruck,
+  IconPhone,
+  IconUser,
+  IconMail,
+  IconFileText,
+  IconArrowLeft,
+  IconLogin,
+  IconUserPlus,
+} from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
 export default function DriverLoginPage() {
   const router = useRouter();
   const { login } = useAuthStore();
-  const [isLogin, setIsLogin] = useState(true);
+  const [activeTab, setActiveTab] = useState<string | null>('login');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const [formData, setFormData] = useState({
+  // Login form
+  const [loginPhone, setLoginPhone] = useState('+216');
+
+  // Register form
+  const [registerData, setRegisterData] = useState({
     phone: '+216',
     name: '',
-    vehicleType: 'CAMIONNETTE' as 'CAMIONNETTE' | 'FOURGON' | 'CAMION_3_5T' | 'CAMION_LOURD',
+    vehicleType: 'CAMIONNETTE',
     vehiclePlate: '',
-    email: ''
+    email: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-      if (isLogin) {
-        // Login
-        const response = await authApi.login(formData.phone, 'driver');
-        login(response.data.user, response.data.token);
-        router.push('/driver/dashboard');
-      } else {
-        // Register
-        const response = await authApi.registerDriver(formData);
-        login(response.data.user, response.data.token);
-        router.push('/driver/onboarding');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Une erreur est survenue');
+      const response = await authApi.login(loginPhone, 'driver');
+      login(response.data.user, response.data.token);
+
+      notifications.show({
+        title: 'Connexion réussie',
+        message: 'Bienvenue !',
+        color: 'green',
+      });
+
+      router.push('/driver/dashboard');
+    } catch (error: any) {
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Impossible de se connecter',
+        color: 'red',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await authApi.registerDriver(registerData);
+      login(response.data.user, response.data.token);
+
+      notifications.show({
+        title: 'Bienvenue !',
+        message: 'Votre compte a été créé avec succès',
+        color: 'green',
+      });
+
+      router.push('/driver/dashboard');
+    } catch (error: any) {
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || "Impossible de créer le compte",
+        color: 'red',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', paddingTop: '2rem', paddingBottom: '2rem' }}>
+      <Container size="sm">
         {/* Back button */}
-        <Link href="/" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition">
-          <ArrowLeft className="w-5 h-5" />
-          Retour à l'accueil
-        </Link>
+        <Group mb="xl">
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={20} />}
+            onClick={() => router.push('/')}
+          >
+            Retour à l'accueil
+          </Button>
+        </Group>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <Paper shadow="md" p="xl" radius="lg">
           {/* Icon */}
-          <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Truck className="w-8 h-8 text-green-600" />
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            backgroundColor: '#e7f5ff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+          }}>
+            <IconTruck size={40} color="#1971c2" />
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl font-bold text-center text-gray-900 mb-2">
-            {isLogin ? 'Connexion Chauffeur' : 'Devenir Partenaire'}
-          </h1>
-          <p className="text-center text-gray-600 mb-8">
-            {isLogin ? 'Connectez-vous pour gérer vos courses' : 'Gagnez de l\'argent en proposant vos services'}
-          </p>
+          <Title order={1} ta="center" size="2rem" mb="xs">
+            Espace Transporteur
+          </Title>
+          <Text ta="center" c="dimmed" size="lg" mb="xl">
+            Connectez-vous ou créez votre compte
+          </Text>
 
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
+          {/* Tabs */}
+          <Tabs value={activeTab} onChange={setActiveTab}>
+            <Tabs.List grow mb="xl">
+              <Tabs.Tab value="login" leftSection={<IconLogin size={20} />}>
+                Connexion
+              </Tabs.Tab>
+              <Tabs.Tab value="register" leftSection={<IconUserPlus size={20} />}>
+                Inscription
+              </Tabs.Tab>
+            </Tabs.List>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Numéro de téléphone
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+216 XX XXX XXX"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Register fields */}
-            {!isLogin && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom complet
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Votre nom"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Vehicle Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type de véhicule
-                  </label>
-                  <select
-                    value={formData.vehicleType}
-                    onChange={(e) => setFormData({ ...formData, vehicleType: e.target.value as any })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            {/* Login Tab */}
+            <Tabs.Panel value="login">
+              <form onSubmit={handleLogin}>
+                <Stack gap="md">
+                  <TextInput
+                    label="Numéro de téléphone"
+                    placeholder="+216 XX XXX XXX"
+                    leftSection={<IconPhone size={20} />}
+                    value={loginPhone}
+                    onChange={(e) => setLoginPhone(e.target.value)}
                     required
+                    size="md"
+                  />
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    fullWidth
+                    loading={loading}
+                    leftSection={<IconLogin size={20} />}
                   >
-                    <option value="CAMIONNETTE">Camionnette</option>
-                    <option value="FOURGON">Fourgon</option>
-                    <option value="CAMION_3_5T">Camion 3.5T</option>
-                    <option value="CAMION_LOURD">Camion Lourd</option>
-                  </select>
-                </div>
+                    Se connecter
+                  </Button>
+                </Stack>
+              </form>
+            </Tabs.Panel>
 
-                {/* Vehicle Plate */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Immatriculation (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.vehiclePlate}
-                    onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value })}
+            {/* Register Tab */}
+            <Tabs.Panel value="register">
+              <form onSubmit={handleRegister}>
+                <Stack gap="md">
+                  <TextInput
+                    label="Numéro de téléphone"
+                    placeholder="+216 XX XXX XXX"
+                    leftSection={<IconPhone size={20} />}
+                    value={registerData.phone}
+                    onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
+                    required
+                    size="md"
+                  />
+
+                  <TextInput
+                    label="Nom complet"
+                    placeholder="Votre nom"
+                    leftSection={<IconUser size={20} />}
+                    value={registerData.name}
+                    onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+                    required
+                    size="md"
+                  />
+
+                  <TextInput
+                    label="Immatriculation"
                     placeholder="TUN 1234"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    leftSection={<IconFileText size={20} />}
+                    value={registerData.vehiclePlate}
+                    onChange={(e) => setRegisterData({ ...registerData, vehiclePlate: e.target.value })}
+                    description="Optionnel"
+                    size="md"
                   />
-                </div>
 
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email (optionnel)
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  <TextInput
+                    label="Email"
                     placeholder="votre@email.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    leftSection={<IconMail size={20} />}
+                    type="email"
+                    value={registerData.email}
+                    onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                    description="Optionnel"
+                    size="md"
                   />
-                </div>
 
-                {/* Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
-                    📄 Après l'inscription, vous devrez télécharger vos documents pour vérification :
-                  </p>
-                  <ul className="text-xs text-blue-700 mt-2 space-y-1 ml-4 list-disc">
-                    <li>CIN (recto/verso)</li>
-                    <li>Permis de conduire</li>
-                    <li>Carte grise du véhicule</li>
-                    <li>Photos du véhicule</li>
-                  </ul>
-                </div>
-              </>
-            )}
+                  <Button
+                    type="submit"
+                    size="lg"
+                    fullWidth
+                    loading={loading}
+                    leftSection={<IconUserPlus size={20} />}
+                  >
+                    Créer mon compte
+                  </Button>
+                </Stack>
+              </form>
+            </Tabs.Panel>
+          </Tabs>
 
-            {/* Submit button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Chargement...' : isLogin ? 'Se connecter' : 'Créer mon compte'}
-            </button>
-          </form>
-
-          {/* Toggle login/register */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-              className="text-green-600 hover:text-green-700 font-medium"
-            >
-              {isLogin ? "Pas encore de compte ? S'inscrire" : 'Déjà un compte ? Se connecter'}
-            </button>
-          </div>
-
-          {/* Note */}
-          <p className="mt-6 text-xs text-center text-gray-500">
+          {/* Terms */}
+          <Text ta="center" mt="xl" size="xs" c="dimmed">
             En continuant, vous acceptez nos{' '}
-            <a href="#" className="text-green-600 hover:underline">
+            <Anchor href="#" size="xs">
               Conditions d'utilisation
-            </a>{' '}
+            </Anchor>{' '}
             et notre{' '}
-            <a href="#" className="text-green-600 hover:underline">
+            <Anchor href="#" size="xs">
               Politique de confidentialité
-            </a>
-          </p>
-        </div>
+            </Anchor>
+          </Text>
+        </Paper>
 
-        {/* Demo credentials */}
-        <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm text-yellow-800 font-medium mb-2">💡 Mode Démo</p>
-          <p className="text-xs text-yellow-700">
+        {/* Demo note */}
+        <Paper shadow="sm" p="md" mt="lg" style={{ background: '#FFF9DB', border: '1px solid #FFE066' }}>
+          <Group gap="xs">
+            <Text size="sm" fw={500}>💡 Mode Démo</Text>
+          </Group>
+          <Text size="sm" c="dimmed" mt="xs">
             Pour tester rapidement : utilisez n'importe quel numéro au format +216XXXXXXXX
-          </p>
-        </div>
-      </div>
+          </Text>
+        </Paper>
+      </Container>
     </div>
   );
 }

@@ -35,6 +35,19 @@ export const verifyToken = async (
   }
 };
 
+// Middleware for basic driver authentication (doesn't require approval)
+export const requireDriverAuth = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.userType !== 'driver') {
+    return res.status(403).json({ error: 'Driver access required' });
+  }
+  next();
+};
+
+// Middleware for driver routes requiring full approval
 export const requireDriver = async (
   req: AuthRequest,
   res: Response,

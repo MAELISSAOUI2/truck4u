@@ -18,7 +18,7 @@ const registerCustomerSchema = z.object({
   accountType: z.enum(['INDIVIDUAL', 'BUSINESS']).default('INDIVIDUAL'),
   companyName: z.string().optional(),
   taxId: z.string().optional(),
-  email: z.string().email().optional()
+  email: z.string().email().or(z.literal('')).optional()
 });
 
 const registerDriverSchema = z.object({
@@ -26,7 +26,7 @@ const registerDriverSchema = z.object({
   name: z.string().min(2),
   vehicleType: z.enum(['CAMIONNETTE', 'FOURGON', 'CAMION_3_5T', 'CAMION_LOURD']),
   vehiclePlate: z.string().optional(),
-  email: z.string().email().optional()
+  email: z.string().email().or(z.literal('')).optional()
 });
 
 // POST /api/auth/login - Simple login (in production, use OTP)
