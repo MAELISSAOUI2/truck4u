@@ -303,7 +303,11 @@ router.get('/:id', verifyToken, async (req: AuthRequest, res, next) => {
     }
 
     // Check authorization
-    if (ride.customerId !== req.userId && ride.driverId !== req.userId) {
+    const isCustomer = ride.customerId === req.userId;
+    const isAssignedDriver = ride.driverId === req.userId;
+    const isDriverViewingAvailableRide = req.userType === 'driver' && ride.status === 'PENDING_BIDS';
+
+    if (!isCustomer && !isAssignedDriver && !isDriverViewingAvailableRide) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
