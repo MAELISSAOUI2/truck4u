@@ -4,56 +4,63 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Container,
-  Stack,
   Title,
   Text,
   Card,
   Group,
+  Stack,
   Badge,
   Button,
-  Paper,
-  ActionIcon,
   TextInput,
-  SimpleGrid,
   Loader,
-  Center,
+  Paper,
+  Grid,
+  ActionIcon,
 } from '@mantine/core';
 import {
-  IconArrowLeft,
   IconSearch,
   IconMapPin,
   IconClock,
   IconTruck,
-  IconCheck,
+  IconChevronRight,
+  IconFilter,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  PENDING_BIDS: { label: 'En attente d\'offres', color: 'yellow' },
-  BID_ACCEPTED: { label: 'Offre acceptée', color: 'cyan' },
-  DRIVER_ARRIVING: { label: 'En route', color: 'blue' },
-  PICKUP_ARRIVED: { label: 'Arrivé', color: 'indigo' },
+const STATUS_CONFIG: any = {
+  PENDING_BIDS: { label: 'En attente', color: 'blue' },
+  BID_ACCEPTED: { label: 'Offre acceptee', color: 'green' },
+  DRIVER_ARRIVING: { label: 'En route', color: 'orange' },
+  PICKUP_ARRIVED: { label: 'Arrive au depart', color: 'cyan' },
   LOADING: { label: 'Chargement', color: 'violet' },
-  IN_TRANSIT: { label: 'En cours', color: 'grape' },
-  DROPOFF_ARRIVED: { label: 'Livraison', color: 'lime' },
-  COMPLETED: { label: 'Terminée', color: 'green' },
-  CANCELLED: { label: 'Annulée', color: 'red' },
+  IN_TRANSIT: { label: 'En transit', color: 'grape' },
+  DROPOFF_ARRIVED: { label: 'Arrive a destination', color: 'lime' },
+  COMPLETED: { label: 'Terminee', color: 'teal' },
+  CANCELLED: { label: 'Annulee', color: 'red' },
 };
 
-export default function RidesListPage() {
+const VEHICLE_LABELS: any = {
+  CAMIONNETTE: 'Camionnette',
+  FOURGON: 'Fourgon',
+  CAMION_3_5T: 'Camion 3.5T',
+  CAMION_LOURD: 'Camion Lourd',
+};
+
+export default function RidesPage() {
   const router = useRouter();
   const { token } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('ALL');
 
   useEffect(() => {
     if (!token) {
       router.push('/customer/login');
       return;
     }
+
     loadRides();
   }, [token]);
 
@@ -62,227 +69,198 @@ export default function RidesListPage() {
       const response = await rideApi.getHistory();
       setRides(response.data || []);
     } catch (error) {
-      console.error('Failed to load rides:', error);
+      console.error('Error loading rides:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const filteredRides = rides.filter((ride) => {
-    const matchesFilter = filter === 'ALL' || ride.status === filter;
     const matchesSearch =
-      ride.pickup?.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.dropoff?.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
+      ride.pickup?.address?.toLowerCase().includes(search.toLowerCase()) ||
+      ride.dropoff?.address?.toLowerCase().includes(search.toLowerCase());
+
+    const matchesFilter =
+      filter === 'ALL' ||
+      ride.status === filter ||
+      (filter === 'IN_PROGRESS' && ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(ride.status));
+
+    return matchesSearch && matchesFilter;
   });
 
   const stats = {
     total: rides.length,
-    pending: rides.filter((r) => r.status === 'PENDING_BIDS').length,
-    active: rides.filter((r) =>
-      ['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)
-    ).length,
+    pending: rides.filter((r) => ['PENDING_BIDS', 'BID_ACCEPTED'].includes(r.status)).length,
+    inProgress: rides.filter((r) => ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
     completed: rides.filter((r) => r.status === 'COMPLETED').length,
   };
 
   if (loading) {
     return (
-      <Center style={{ minHeight: '100vh' }}>
-        <Loader size="lg" color="dark" />
-      </Center>
+      <Container size="lg" py="xl">
+        <Group justify="center">
+          <Loader size="lg" />
+          <Text>Chargement...</Text>
+        </Group>
+      </Container>
     );
   }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
-      {/* Header */}
-      <Paper p="md" radius={0} withBorder>
+      <Paper p="xl" radius={0} withBorder>
         <Container size="lg">
-          <Group justify="space-between">
-            <Group gap="md">
-              <ActionIcon
-                size="lg"
-                variant="subtle"
-                color="dark"
-                onClick={() => router.push('/customer/dashboard')}
-              >
-                <IconArrowLeft size={24} />
-              </ActionIcon>
-              <div>
-                <Title order={2} size="1.5rem">Mes Courses</Title>
-                <Text size="sm" c="dimmed">{rides.length} course{rides.length > 1 ? 's' : ''}</Text>
-              </div>
-            </Group>
-            <Button
-              color="dark"
-              radius="xl"
-              onClick={() => router.push('/customer/new-ride')}
-            >
-              Nouvelle course
-            </Button>
-          </Group>
+          <Title order={1} size="2rem" mb="md">
+            Mes Courses
+          </Title>
+          <Text c="dimmed">
+            Consultez l'historique de toutes vos courses
+          </Text>
         </Container>
       </Paper>
 
       <Container size="lg" py="xl">
         <Stack gap="xl">
-          {/* Stats */}
-          <SimpleGrid cols={4} spacing="md">
-            <Paper p="md" radius="md" withBorder>
-              <Stack gap="xs" align="center">
-                <IconTruck size={28} />
-                <Title order={3} size="1.5rem">{stats.total}</Title>
-                <Text size="xs" c="dimmed">Total</Text>
-              </Stack>
-            </Paper>
-            <Paper p="md" radius="md" withBorder>
-              <Stack gap="xs" align="center">
-                <IconClock size={28} style={{ color: '#fab005' }} />
-                <Title order={3} size="1.5rem" c="yellow">{stats.pending}</Title>
-                <Text size="xs" c="dimmed">En attente</Text>
-              </Stack>
-            </Paper>
-            <Paper p="md" radius="md" withBorder>
-              <Stack gap="xs" align="center">
-                <IconTruck size={28} style={{ color: '#228be6' }} />
-                <Title order={3} size="1.5rem" c="blue">{stats.active}</Title>
-                <Text size="xs" c="dimmed">En cours</Text>
-              </Stack>
-            </Paper>
-            <Paper p="md" radius="md" withBorder>
-              <Stack gap="xs" align="center">
-                <IconCheck size={28} style={{ color: '#51cf66' }} />
-                <Title order={3} size="1.5rem" c="green">{stats.completed}</Title>
-                <Text size="xs" c="dimmed">Terminées</Text>
-              </Stack>
-            </Paper>
-          </SimpleGrid>
+          <Grid>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Text size="sm" c="dimmed" mb={4}>Total</Text>
+                <Text size="2rem" fw={700}>{stats.total}</Text>
+              </Card>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Text size="sm" c="dimmed" mb={4}>En attente</Text>
+                <Text size="2rem" fw={700} c="blue">{stats.pending}</Text>
+              </Card>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Text size="sm" c="dimmed" mb={4}>En cours</Text>
+                <Text size="2rem" fw={700} c="orange">{stats.inProgress}</Text>
+              </Card>
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+              <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Text size="sm" c="dimmed" mb={4}>Terminees</Text>
+                <Text size="2rem" fw={700} c="green">{stats.completed}</Text>
+              </Card>
+            </Grid.Col>
+          </Grid>
 
-          {/* Search & Filters */}
-          <Group gap="md">
-            <TextInput
-              placeholder="Rechercher une course..."
-              leftSection={<IconSearch size={16} />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              radius="xl"
-              style={{ flex: 1 }}
-            />
-            <Group gap="xs">
-              {['ALL', 'PENDING_BIDS', 'IN_TRANSIT', 'COMPLETED'].map((status) => (
+          <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Group justify="space-between" mb="md">
+              <TextInput
+                placeholder="Rechercher par adresse..."
+                leftSection={<IconSearch size={16} />}
+                style={{ flex: 1, maxWidth: 400 }}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Group gap="xs">
                 <Button
-                  key={status}
-                  variant={filter === status ? 'filled' : 'light'}
-                  color={filter === status ? 'dark' : 'gray'}
-                  radius="xl"
+                  variant={filter === 'ALL' ? 'filled' : 'light'}
+                  onClick={() => setFilter('ALL')}
                   size="sm"
-                  onClick={() => setFilter(status)}
                 >
-                  {status === 'ALL' ? 'Toutes' :
-                   status === 'PENDING_BIDS' ? 'En attente' :
-                   status === 'IN_TRANSIT' ? 'En cours' : 'Terminées'}
+                  Toutes
                 </Button>
-              ))}
-            </Group>
-          </Group>
-
-          {/* Rides List */}
-          {filteredRides.length === 0 ? (
-            <Card shadow="sm" padding="xl" radius="lg">
-              <Stack gap="md" align="center">
-                <div style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: '50%',
-                  background: '#f1f3f5',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <IconTruck size={40} color="#adb5bd" />
-                </div>
-                <Title order={3}>Aucune course trouvée</Title>
-                <Text c="dimmed" ta="center">
-                  {filter === 'ALL'
-                    ? 'Vous n\'avez pas encore créé de course'
-                    : 'Aucune course avec ce statut'}
-                </Text>
                 <Button
-                  size="md"
-                  radius="xl"
-                  color="dark"
-                  onClick={() => router.push('/customer/new-ride')}
+                  variant={filter === 'PENDING_BIDS' ? 'filled' : 'light'}
+                  onClick={() => setFilter('PENDING_BIDS')}
+                  size="sm"
+                  color="blue"
                 >
-                  Créer une course
+                  En attente
                 </Button>
-              </Stack>
-            </Card>
-          ) : (
-            <Stack gap="md">
-              {filteredRides.map((ride: any) => {
-                const status = STATUS_CONFIG[ride.status] || { label: ride.status, color: 'gray' };
+                <Button
+                  variant={filter === 'IN_PROGRESS' ? 'filled' : 'light'}
+                  onClick={() => setFilter('IN_PROGRESS')}
+                  size="sm"
+                  color="orange"
+                >
+                  En cours
+                </Button>
+                <Button
+                  variant={filter === 'COMPLETED' ? 'filled' : 'light'}
+                  onClick={() => setFilter('COMPLETED')}
+                  size="sm"
+                  color="green"
+                >
+                  Terminees
+                </Button>
+              </Group>
+            </Group>
 
-                return (
+            <Stack gap="md">
+              {filteredRides.length === 0 ? (
+                <Text c="dimmed" ta="center" py="xl">
+                  Aucune course trouvee
+                </Text>
+              ) : (
+                filteredRides.map((ride) => (
                   <Card
                     key={ride.id}
-                    shadow="sm"
+                    shadow="xs"
                     padding="lg"
-                    radius="lg"
+                    radius="md"
                     withBorder
                     style={{ cursor: 'pointer' }}
                     onClick={() => router.push(`/customer/rides/${ride.id}`)}
                   >
-                    <Group justify="space-between" mb="md">
-                      <Group gap="xs">
-                        <Badge size="lg" variant="light" color={status.color}>
-                          {status.label}
-                        </Badge>
-                        {ride.status === 'PENDING_BIDS' && ride.bidsCount > 0 && (
-                          <Badge size="sm" color="blue" variant="filled">
-                            {ride.bidsCount} offre{ride.bidsCount > 1 ? 's' : ''}
+                    <Group justify="space-between" wrap="nowrap">
+                      <Stack gap="xs" style={{ flex: 1 }}>
+                        <Group gap="xs">
+                          <Badge color={STATUS_CONFIG[ride.status]?.color || 'gray'}>
+                            {STATUS_CONFIG[ride.status]?.label || ride.status}
                           </Badge>
-                        )}
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {new Date(ride.createdAt).toLocaleDateString('fr-FR', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </Text>
-                    </Group>
+                          <Badge variant="light" color="blue">
+                            {VEHICLE_LABELS[ride.vehicleType] || ride.vehicleType}
+                          </Badge>
+                          {ride._count?.bids > 0 && (
+                            <Badge variant="light" color="green">
+                              {ride._count.bids} offre{ride._count.bids > 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </Group>
 
-                    <Stack gap="sm">
-                      <Group gap="sm" wrap="nowrap">
-                        <IconMapPin size={16} color="#51cf66" />
-                        <Text size="sm" fw={500} style={{ flex: 1 }}>
-                          {ride.pickup?.address || 'Adresse de départ'}
-                        </Text>
-                      </Group>
-                      <Group gap="sm" wrap="nowrap">
-                        <IconMapPin size={16} color="#ff6b6b" />
-                        <Text size="sm" fw={500} style={{ flex: 1 }}>
-                          {ride.dropoff?.address || 'Adresse d\'arrivée'}
-                        </Text>
-                      </Group>
-                    </Stack>
+                        <Group gap="xs">
+                          <IconMapPin size={16} />
+                          <Text size="sm" lineClamp={1}>{ride.pickup?.address || 'Adresse de depart'}</Text>
+                        </Group>
 
-                    <Group justify="space-between" mt="md" pt="md" style={{ borderTop: '1px solid #e9ecef' }}>
-                      <Text size="sm" c="dimmed">
-                        {ride.vehicleType?.replace('_', ' ') || 'Véhicule'}
-                      </Text>
-                      {ride.estimatedMinPrice && (
-                        <Text size="md" fw={700}>
-                          {ride.estimatedMinPrice} - {ride.estimatedMaxPrice} DT
-                        </Text>
-                      )}
+                        <Group gap="xs">
+                          <IconMapPin size={16} color="#228BE6" />
+                          <Text size="sm" lineClamp={1}>{ride.dropoff?.address || 'Adresse de destination'}</Text>
+                        </Group>
+
+                        <Group gap="md">
+                          <Group gap={4}>
+                            <IconClock size={14} />
+                            <Text size="xs" c="dimmed">
+                              {new Date(ride.createdAt).toLocaleDateString('fr-FR')}
+                            </Text>
+                          </Group>
+                          {ride.acceptedBid && (
+                            <Group gap={4}>
+                              <IconTruck size={14} />
+                              <Text size="xs" c="dimmed">
+                                {ride.acceptedBid.driver?.name || 'Driver'}
+                              </Text>
+                            </Group>
+                          )}
+                        </Group>
+                      </Stack>
+
+                      <ActionIcon variant="subtle" color="gray">
+                        <IconChevronRight size={20} />
+                      </ActionIcon>
                     </Group>
                   </Card>
-                );
-              })}
+                ))
+              )}
             </Stack>
-          )}
+          </Card>
         </Stack>
       </Container>
     </div>

@@ -13,7 +13,8 @@ import {
   Check,
   Sparkles
 } from 'lucide-react';
-import { Button, Input, Card, ProgressSteps, AnimatedPage } from '@/components/ui';
+import { Input, Card, ProgressSteps, AnimatedPage } from '@/components/ui';
+import { Button } from '@mantine/core';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
@@ -418,10 +419,10 @@ export default function CustomerOnboardingPage() {
             {/* Navigation buttons */}
             <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
               <Button
-                variant="ghost"
+                variant="subtle"
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                icon={<ArrowLeft className="w-5 h-5" />}
+                leftSection={<ArrowLeft className="w-5 h-5" />}
               >
                 Retour
               </Button>
@@ -436,7 +437,7 @@ export default function CustomerOnboardingPage() {
                 onClick={handleNext}
                 loading={loading}
                 disabled={!validateStep(currentStep)}
-                icon={currentStep === 4 ? <Check className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
+                rightSection={currentStep === 4 ? <Check className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}
               >
                 {currentStep === 4 ? 'Créer mon compte' : 'Continuer'}
               </Button>

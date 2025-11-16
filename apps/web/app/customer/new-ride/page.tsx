@@ -475,7 +475,7 @@ export default function NewRidePage() {
                       size="lg"
                       radius="lg"
                       value={formData.scheduledDate}
-                      onChange={(value) => setFormData({ ...formData, scheduledDate: value })}
+                      onChange={(value) => setFormData({ ...formData, scheduledDate: value as any })}
                       minDate={new Date()}
                       leftSection={<IconCalendar size={18} />}
                     />

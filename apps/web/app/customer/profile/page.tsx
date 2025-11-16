@@ -38,7 +38,7 @@ import { customerApi } from '@/lib/api';
 
 export default function CustomerProfilePage() {
   const router = useRouter();
-  const { token, user, setAuth, logout } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -84,10 +84,6 @@ export default function CustomerProfilePage() {
       const response = await customerApi.updateProfile(formData);
       setProfile(response.data);
       setEditing(false);
-
-      if (formData.name !== user?.name) {
-        setAuth(token!, { ...user, name: formData.name });
-      }
     } catch (error) {
       console.error('Failed to update profile:', error);
       alert('Erreur lors de la mise à jour');

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { TruckIcon } from 'lucide-react';
-import { Button } from '@/components/ui';
+import { Button } from '@mantine/core';
 
 export default function TestPage() {
   return (

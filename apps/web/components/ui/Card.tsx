@@ -31,7 +31,7 @@ export function Card({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      whileHover={hover ? { y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' } : {}}
+      whileHover={hover ? { y: -4, boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' } : {}}
       className={clsx(
         'bg-white rounded-2xl transition-all',
         !noBorder && 'border border-gray-200',
@@ -40,7 +40,7 @@ export function Card({
         paddingStyles[padding],
         className
       )}
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.div>

@@ -14,7 +14,8 @@ import {
   Check,
   X
 } from 'lucide-react';
-import { Button, Card, AnimatedPage } from '@/components/ui';
+import { Card, AnimatedPage } from '@/components/ui';
+import { Button } from '@mantine/core';
 import { useAuthStore } from '@/lib/store';
 
 interface TourStep {
@@ -100,7 +101,7 @@ export default function WelcomePage() {
             animate={{ opacity: 1 }}
             className="flex justify-end mb-4"
           >
-            <Button variant="ghost" onClick={handleSkipTour} icon={<X className="w-4 h-4" />}>
+            <Button variant="subtle" onClick={handleSkipTour} leftSection={<X className="w-4 h-4" />}>
               Passer le tour
             </Button>
           </motion.div>
@@ -326,14 +327,14 @@ export default function WelcomePage() {
                     {currentTourStep === tourSteps.length - 1 ? (
                       <Button
                         onClick={handleStartFirstRide}
-                        icon={<TruckIcon className="w-5 h-5" />}
+                        leftSection={<TruckIcon className="w-5 h-5" />}
                       >
                         Créer ma première course
                       </Button>
                     ) : (
                       <Button
                         onClick={handleNextStep}
-                        icon={<ArrowRight className="w-5 h-5" />}
+                        rightSection={<ArrowRight className="w-5 h-5" />}
                       >
                         Suivant
                       </Button>

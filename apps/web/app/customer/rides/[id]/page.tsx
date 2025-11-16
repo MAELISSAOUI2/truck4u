@@ -263,7 +263,7 @@ export default function RideDetailsPage() {
 
   const handleSubmitRating = async () => {
     try {
-      await rideApi.rate(params.id as string, { rating, review });
+      await rideApi.rate(params.id as string, rating, review);
       setRatingModalOpen(false);
       loadRideDetails();
     } catch (error: any) {

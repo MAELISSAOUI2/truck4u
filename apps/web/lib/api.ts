@@ -100,9 +100,15 @@ export const rideApi = {
   
   rate: (id: string, rating: number, review?: string) =>
     api.post(`/rides/${id}/rate`, { rating, review }),
-  
+
   getHistory: () =>
     api.get('/rides/history'),
+
+  createPayment: (id: string, data: any) =>
+    api.post(`/rides/${id}/payment`, data),
+
+  cancel: (id: string) =>
+    api.post(`/rides/${id}/cancel`),
 };
 
 // Payment APIs
