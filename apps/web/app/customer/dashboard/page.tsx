@@ -47,10 +47,29 @@ export default function CustomerDashboard() {
 
   const loadData = async () => {
     try {
+      console.log('🔍 Loading rides data...');
+      console.log('🔑 Token:', token ? 'Present' : 'Missing');
+      console.log('👤 User:', user);
+
       const ridesRes = await rideApi.getHistory();
-      setRides(ridesRes.data);
-    } catch (error) {
-      console.error('Failed to load:', error);
+
+      console.log('📦 API Response:', ridesRes);
+      console.log('📊 Rides data:', ridesRes.data);
+
+      // L'API retourne { rides: [...] }
+      const ridesArray = ridesRes.data.rides || ridesRes.data || [];
+      console.log('🔢 Number of rides:', ridesArray.length);
+
+      if (ridesArray.length > 0) {
+        console.log('🎯 First ride example:', ridesArray[0]);
+        console.log('📋 All ride statuses:', ridesArray.map((r: any) => r.status));
+      }
+
+      setRides(ridesArray);
+    } catch (error: any) {
+      console.error('❌ Failed to load rides:', error);
+      console.error('📄 Error details:', error.response?.data);
+      console.error('🔴 Error status:', error.response?.status);
     } finally {
       setLoading(false);
     }
@@ -62,6 +81,16 @@ export default function CustomerDashboard() {
     inProgress: rides.filter(r => ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
     completed: rides.filter(r => r.status === 'COMPLETED').length,
   };
+
+  // Debug stats
+  console.log('📊 Dashboard Stats:', stats);
+  console.log('📝 Rides breakdown by status:', {
+    PENDING_BIDS: rides.filter(r => r.status === 'PENDING_BIDS').length,
+    BID_ACCEPTED: rides.filter(r => r.status === 'BID_ACCEPTED').length,
+    IN_PROGRESS: rides.filter(r => ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
+    COMPLETED: rides.filter(r => r.status === 'COMPLETED').length,
+    CANCELLED: rides.filter(r => r.status === 'CANCELLED').length,
+  });
 
   if (loading) {
     return (

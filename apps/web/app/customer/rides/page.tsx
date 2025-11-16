@@ -67,7 +67,10 @@ export default function RidesPage() {
   const loadRides = async () => {
     try {
       const response = await rideApi.getHistory();
-      setRides(response.data || []);
+      // L'API retourne { rides: [...] }
+      const ridesArray = response.data.rides || response.data || [];
+      console.log('Loaded rides:', ridesArray);
+      setRides(ridesArray);
     } catch (error) {
       console.error('Error loading rides:', error);
     } finally {

@@ -572,7 +572,15 @@ router.get('/history', verifyToken, async (req: AuthRequest, res, next) => {
       include: {
         customer: { select: { name: true } },
         driver: { select: { name: true, rating: true } },
-        payment: true
+        payment: true,
+        acceptedBid: {
+          include: {
+            driver: { select: { name: true, rating: true } }
+          }
+        },
+        _count: {
+          select: { bids: true }
+        }
       },
       orderBy: { createdAt: 'desc' },
       take: 50
