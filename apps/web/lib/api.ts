@@ -109,6 +109,9 @@ export const rideApi = {
 
   cancel: (id: string) =>
     api.post(`/rides/${id}/cancel`),
+
+  getNewBids: () =>
+    api.get('/rides/new-bids'),
 };
 
 // Payment APIs

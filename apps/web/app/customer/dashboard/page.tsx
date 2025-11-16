@@ -33,16 +33,37 @@ import {
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 import { connectSocket, onNewBid } from '@/lib/socket';
+import { NewBidsNotification } from '@/components/NewBidsNotification';
 
 export default function CustomerDashboard() {
   const router = useRouter();
   const { user, token, logout } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newBids, setNewBids] = useState<any[]>([]);
+  const [dismissedBids, setDismissedBids] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
     logout();
     router.push('/');
+  };
+
+  const loadNewBids = async () => {
+    try {
+      const response = await rideApi.getNewBids();
+      console.log('📩 New bids loaded:', response.data);
+      const bidsToShow = response.data.newBids.filter(
+        (bid: any) => !dismissedBids.has(bid.rideId)
+      );
+      setNewBids(bidsToShow);
+    } catch (error) {
+      console.error('Error loading new bids:', error);
+    }
+  };
+
+  const handleDismissBid = (rideId: string) => {
+    setDismissedBids((prev) => new Set(prev).add(rideId));
+    setNewBids((prev) => prev.filter((bid) => bid.rideId !== rideId));
   };
 
   useEffect(() => {
@@ -58,6 +79,17 @@ export default function CustomerDashboard() {
       connectSocket(user.id, 'customer', token);
     }
   }, [token, user]);
+
+  // Load new bids on mount and poll every 30 seconds
+  useEffect(() => {
+    if (!token) return;
+
+    loadNewBids(); // Load immediately
+
+    // Poll every 30 seconds
+    const interval = setInterval(loadNewBids, 30000);
+    return () => clearInterval(interval);
+  }, [token, dismissedBids]);
 
   // Listen for new bids
   useEffect(() => {
@@ -79,6 +111,8 @@ export default function CustomerDashboard() {
 
       // Reload rides to update badge count
       loadData();
+      // Also reload new bids banner
+      loadNewBids();
     };
 
     const unsubscribe = onNewBid(handleNewBid);
@@ -214,6 +248,14 @@ export default function CustomerDashboard() {
       {/* Main Content */}
       <Container size="md" mt="xl">
         <Stack gap="xl">
+          {/* New Bids Notification Banner */}
+          {newBids.length > 0 && (
+            <NewBidsNotification
+              newBids={newBids}
+              onDismiss={handleDismissBid}
+            />
+          )}
+
           {/* CTA Card */}
           <Card 
             shadow="sm" 

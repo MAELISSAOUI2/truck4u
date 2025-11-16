@@ -245,6 +245,58 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
   }
 });
 
+// GET /api/rides/new-bids - Get rides with new bids
+router.get('/new-bids', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
+  try {
+    const ridesWithBids = await prisma.ride.findMany({
+      where: {
+        customerId: req.userId,
+        status: 'PENDING_BIDS',
+      },
+      include: {
+        bids: {
+          where: {
+            status: 'ACTIVE',
+          },
+          include: {
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                rating: true,
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        _count: {
+          select: { bids: true }
+        }
+      }
+    });
+
+    // Filter only rides that have bids
+    const ridesWithNewBids = ridesWithBids
+      .filter(ride => ride.bids.length > 0)
+      .map(ride => ({
+        rideId: ride.id,
+        count: ride.bids.length,
+        latestBid: ride.bids[0] ? {
+          driverName: ride.bids[0].driver.name,
+          price: ride.bids[0].proposedPrice,
+        } : null,
+        pickup: ride.pickup,
+        dropoff: ride.dropoff,
+      }));
+
+    res.json({ newBids: ridesWithNewBids });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/rides/history - Get user's ride history
 router.get('/history', verifyToken, async (req: AuthRequest, res, next) => {
   try {
