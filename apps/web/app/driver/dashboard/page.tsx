@@ -20,6 +20,7 @@ import {
   Loader,
   Center,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconTruck,
   IconCash,
