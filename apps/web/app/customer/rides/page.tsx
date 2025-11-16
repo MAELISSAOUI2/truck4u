@@ -244,11 +244,11 @@ export default function RidesPage() {
                               {new Date(ride.createdAt).toLocaleDateString('fr-FR')}
                             </Text>
                           </Group>
-                          {ride.acceptedBid && (
+                          {ride.winningBid && (
                             <Group gap={4}>
                               <IconTruck size={14} />
                               <Text size="xs" c="dimmed">
-                                {ride.acceptedBid.driver?.name || 'Driver'}
+                                {ride.winningBid.driver?.name || 'Driver'}
                               </Text>
                             </Group>
                           )}
