@@ -16,7 +16,10 @@
     "db:studio": "npm run studio --workspace=@truck4u/database"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "react-hot-toast": "^2.6.0"
   }
 }
