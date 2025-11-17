@@ -34,6 +34,7 @@ import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 import { connectSocket, onNewBid } from '@/lib/socket';
 import { NewBidsNotification } from '@/components/NewBidsNotification';
+import { NotificationBell } from '@/app/components/notifications';
 
 export default function CustomerDashboard() {
   const router = useRouter();
@@ -188,6 +189,7 @@ export default function CustomerDashboard() {
               <Title order={1} size="2rem">{user?.name?.split(' ')[0] || 'Client'}</Title>
             </div>
             <Group gap="sm">
+              <NotificationBell />
               <ActionIcon
                 size="xl"
                 radius="xl"

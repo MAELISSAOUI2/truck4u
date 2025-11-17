@@ -98,3 +98,61 @@ export const useDriverStore = create<DriverState>()(
     }
   )
 );
+
+interface Driver {
+  id: string;
+  name: string;
+  phone: string;
+  rating?: number;
+  vehicleType?: string;
+  totalRides?: number;
+}
+
+interface OfferNotification {
+  id: string;
+  rideId: string;
+  driver: Driver;
+  proposedPrice: number;
+  estimatedArrival?: string;
+  message?: string;
+  status: 'ACTIVE' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+  createdAt: string;
+  ride?: {
+    id: string;
+    pickupAddress: string;
+    dropoffAddress: string;
+  };
+}
+
+interface NotificationState {
+  notifications: OfferNotification[];
+  unreadCount: number;
+  addNotification: (notification: OfferNotification) => void;
+  removeNotification: (notificationId: string) => void;
+  updateNotificationStatus: (notificationId: string, status: 'ACCEPTED' | 'REJECTED') => void;
+  clearNotifications: () => void;
+  markAllAsRead: () => void;
+}
+
+export const useNotificationStore = create<NotificationState>((set) => ({
+  notifications: [],
+  unreadCount: 0,
+  addNotification: (notification) =>
+    set((state) => ({
+      notifications: [notification, ...state.notifications],
+      unreadCount: state.unreadCount + 1,
+    })),
+  removeNotification: (notificationId) =>
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n.id !== notificationId),
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    })),
+  updateNotificationStatus: (notificationId, status) =>
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === notificationId ? { ...n, status } : n
+      ),
+    })),
+  clearNotifications: () => set({ notifications: [], unreadCount: 0 }),
+  markAllAsRead: () => set({ unreadCount: 0 }),
+}));
