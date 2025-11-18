@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore, useNotificationStore } from '@/lib/store';
 import { connectSocket, onNewBid, onBidAccepted, onBidRejected, disconnectSocket } from '@/lib/socket';
 import { notifications } from '@mantine/notifications';
 import { IconTruck } from '@tabler/icons-react';
+import { AutoOfferModal } from './AutoOfferModal';
 
 export function SocketNotificationProvider({ children }: { children: React.ReactNode }) {
   const { user, token, isAuthenticated } = useAuthStore();
   const { addNotification, updateNotificationStatus } = useNotificationStore();
+  const [currentOffer, setCurrentOffer] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !user || !token || user.userType !== 'customer') {
@@ -42,14 +45,8 @@ export function SocketNotificationProvider({ children }: { children: React.React
         ride: bid.ride,
       });
 
-      // Show Mantine notification
-      notifications.show({
-        title: 'Nouvelle offre reçue!',
-        message: `${bid.driver.name} propose ${bid.proposedPrice} DT`,
-        color: 'blue',
-        icon: <IconTruck size={18} />,
-        autoClose: 5000,
-      });
+      // Show auto offer modal (inDrive style)
+      setCurrentOffer(bid);
 
       // Browser notification
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -87,5 +84,120 @@ export function SocketNotificationProvider({ children }: { children: React.React
     };
   }, [isAuthenticated, user, token, addNotification, updateNotificationStatus]);
 
-  return <>{children}</>;
+  const handleAccept = async (bidId: string, rideId: string) => {
+    if (!token) {
+      notifications.show({
+        title: 'Erreur',
+        message: 'Vous devez être connecté',
+        color: 'red',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rides/${rideId}/accept-bid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bidId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Échec de l\'acceptation');
+      }
+
+      // Update notification status
+      updateNotificationStatus(bidId, 'ACCEPTED');
+
+      notifications.show({
+        title: 'Offre acceptée!',
+        message: 'Votre transporteur a été notifié',
+        color: 'green',
+      });
+
+      // Close modal
+      setCurrentOffer(null);
+    } catch (error: any) {
+      console.error('Error accepting bid:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: error.message || 'Erreur lors de l\'acceptation',
+        color: 'red',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReject = async (bidId: string, rideId: string) => {
+    if (!token) {
+      notifications.show({
+        title: 'Erreur',
+        message: 'Vous devez être connecté',
+        color: 'red',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/rides/${rideId}/bids/${bidId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Échec du rejet');
+      }
+
+      // Update notification status
+      updateNotificationStatus(bidId, 'REJECTED');
+
+      notifications.show({
+        title: 'Offre rejetée',
+        message: 'L\'offre a été rejetée',
+        color: 'orange',
+      });
+
+      // Close modal
+      setCurrentOffer(null);
+    } catch (error: any) {
+      console.error('Error rejecting bid:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors du rejet',
+        color: 'red',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <>
+      {children}
+      {currentOffer && (
+        <AutoOfferModal
+          opened={!!currentOffer}
+          onClose={() => setCurrentOffer(null)}
+          bidId={currentOffer.id}
+          rideId={currentOffer.rideId}
+          driver={currentOffer.driver}
+          proposedPrice={currentOffer.proposedPrice}
+          estimatedArrival={currentOffer.estimatedArrival}
+          message={currentOffer.message}
+          ride={currentOffer.ride}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          isProcessing={isProcessing}
+        />
+      )}
+    </>
+  );
 }
