@@ -83,23 +83,34 @@ export default function PaymentPage() {
 
   const loadPaymentData = async () => {
     try {
-      // Load ride details
+      // Load ride details (already includes bids)
       const rideResponse = await rideApi.getById(rideId);
-      setRide(rideResponse.data);
+      const rideData = rideResponse.data;
+      setRide(rideData);
 
       // Load specific bid if provided
       if (bidId) {
-        const bidsResponse = await rideApi.getBids(rideId);
-        const selectedBid = bidsResponse.data.find((b: any) => b.bidId === bidId || b.id === bidId);
+        // First try to find bid in ride data (already included)
+        let selectedBid = rideData.bids?.find((b: any) => b.id === bidId);
+
+        // If not found, fetch bids separately
+        if (!selectedBid) {
+          const bidsResponse = await rideApi.getBids(rideId);
+          // Backend returns { bids: [...] }
+          const bidsList = bidsResponse.data.bids || bidsResponse.data;
+          selectedBid = bidsList.find((b: any) => b.id === bidId);
+        }
+
         if (selectedBid) {
           setBid(selectedBid);
         } else {
           setError('Offre introuvable');
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading payment data:', error);
-      setError('Impossible de charger les informations de paiement');
+      console.error('Error details:', error.response?.data);
+      setError(error.response?.data?.message || 'Impossible de charger les informations de paiement');
     } finally {
       setLoading(false);
     }

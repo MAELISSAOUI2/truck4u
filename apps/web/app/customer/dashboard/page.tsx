@@ -51,6 +51,20 @@ export default function CustomerDashboard() {
       return;
     }
     loadData();
+
+    // Refresh data when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📱 Page became visible, refreshing data...');
+        loadData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [token]);
 
   const loadData = async () => {
@@ -73,7 +87,16 @@ export default function CustomerDashboard() {
         console.log('📋 All ride statuses:', ridesArray.map((r: any) => r.status));
       }
 
-      setRides(ridesArray);
+      // Transform rides to add convenience fields
+      const transformedRides = ridesArray.map((ride: any) => ({
+        ...ride,
+        pickupAddress: typeof ride.pickup === 'object' ? ride.pickup.address : ride.pickup,
+        deliveryAddress: typeof ride.dropoff === 'object' ? ride.dropoff.address : ride.dropoff,
+        bidsCount: ride._count?.bids || 0,
+        estimatedPrice: ride.estimatedMaxPrice || ride.estimatedMinPrice,
+      }));
+
+      setRides(transformedRides);
     } catch (error: any) {
       console.error('❌ Failed to load rides:', error);
       console.error('📄 Error details:', error.response?.data);
