@@ -125,8 +125,17 @@ export default function DriverRideDetailsPage() {
 
   // Listen for payment confirmation
   useEffect(() => {
-    if (!token || !user) return;
+    console.log('🔍 Payment listener useEffect running');
+    console.log('🔑 Token:', token ? 'Present' : 'Missing');
+    console.log('👤 User:', user);
+    console.log('🆔 User ID:', user?.id);
 
+    if (!token || !user) {
+      console.log('⚠️ Missing token or user, not connecting socket');
+      return;
+    }
+
+    console.log('🔌 Connecting socket for driver:', user.id);
     // Connect socket
     connectSocket(user.id, 'driver', token);
 
