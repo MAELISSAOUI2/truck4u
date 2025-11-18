@@ -595,7 +595,8 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
 router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const { status } = z.object({
-      status: z.enum(['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED', 'COMPLETED'])
+      // Note: COMPLETED is not allowed here - use confirmation workflow instead
+      status: z.enum(['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'])
     }).parse(req.body);
 
     const ride = await prisma.ride.findUnique({
@@ -661,8 +662,8 @@ router.post('/:id/proof-photo/:type', verifyToken, requireDriver, async (req: Au
   }
 });
 
-// POST /api/rides/:id/confirm-completion-driver - Driver confirms ride completion
-router.post('/:id/confirm-completion-driver', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+// POST /api/rides/:id/confirm-completion-driver - Driver confirms ride completion (uses requireDriverAuth for development)
+router.post('/:id/confirm-completion-driver', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const ride = await prisma.ride.findUnique({
       where: { id: req.params.id },

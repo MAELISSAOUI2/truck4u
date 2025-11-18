@@ -45,7 +45,7 @@ const STATUS_FLOW = [
   'LOADING',
   'IN_TRANSIT',
   'DROPOFF_ARRIVED',
-  'COMPLETED',
+  // Note: COMPLETED is handled by confirmation workflow, not direct status update
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; action: string }> = {
@@ -77,7 +77,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; action: string }
   DROPOFF_ARRIVED: {
     label: 'Arrivé à destination',
     icon: IconPackageExport,
-    action: 'Terminer la course',
+    action: 'Confirmer la livraison',
   },
   COMPLETED: {
     label: 'Course terminée',
@@ -239,6 +239,35 @@ export default function DriverRideDetailsPage() {
   };
 
   const handleNextStatus = async () => {
+    // Special case: DROPOFF_ARRIVED should confirm completion, not go to COMPLETED directly
+    if (ride.status === 'DROPOFF_ARRIVED') {
+      setUpdating(true);
+      try {
+        await rideApi.confirmCompletionDriver(params.id as string);
+
+        notifications.show({
+          title: 'Livraison confirmée',
+          message: 'En attente de la confirmation client. Vous serez notifié une fois la course terminée.',
+          color: 'green',
+          icon: <IconCheck />,
+        });
+
+        // Reload to show waiting state
+        await loadRideDetails();
+      } catch (error: any) {
+        console.error('Error confirming completion:', error);
+        notifications.show({
+          title: 'Erreur',
+          message: error.response?.data?.message || 'Impossible de confirmer la livraison',
+          color: 'red',
+        });
+      } finally {
+        setUpdating(false);
+      }
+      return;
+    }
+
+    // Normal status progression for other statuses
     const currentIndex = STATUS_FLOW.indexOf(ride.status);
     if (currentIndex === -1 || currentIndex >= STATUS_FLOW.length - 1) return;
 
@@ -365,6 +394,18 @@ export default function DriverRideDetailsPage() {
                         <Text size="sm" fw={600}>En attente du paiement client</Text>
                         <Text size="xs" c="dimmed">
                           Le client doit confirmer le mode de paiement avant que vous puissiez démarrer.
+                        </Text>
+                      </div>
+                    </Group>
+                  </Paper>
+                ) : ride.status === 'DROPOFF_ARRIVED' && ride.proofPhotos?.driverConfirmedCompletion ? (
+                  <Paper p="md" withBorder style={{ background: '#e7f5ff' }}>
+                    <Group gap="xs">
+                      <IconCheck size={20} color="green" />
+                      <div>
+                        <Text size="sm" fw={600}>Livraison confirmée</Text>
+                        <Text size="xs" c="dimmed">
+                          En attente de la confirmation du client. Vous recevrez vos gains une fois confirmé.
                         </Text>
                       </div>
                     </Group>
