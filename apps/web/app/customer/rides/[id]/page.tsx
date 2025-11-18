@@ -731,7 +731,7 @@ export default function RideDetailsPage() {
                     </Button>
                   )}
 
-                  {ride.status === 'BID_ACCEPTED' && ride.payment?.status === 'PENDING' && (
+                  {ride.status === 'BID_ACCEPTED' && !ride.payment && (
                     <Button
                       fullWidth
                       radius="xl"
@@ -740,6 +740,18 @@ export default function RideDetailsPage() {
                     >
                       Effectuer le paiement
                     </Button>
+                  )}
+
+                  {ride.status === 'BID_ACCEPTED' && ride.payment?.method === 'CASH' && ride.payment?.status === 'PENDING' && (
+                    <Paper p="md" withBorder style={{ background: '#e7f5ff' }}>
+                      <Group gap="xs" mb="xs">
+                        <IconCheck size={20} color="green" />
+                        <Text size="sm" fw={600}>Paiement en espèces confirmé</Text>
+                      </Group>
+                      <Text size="xs" c="dimmed">
+                        Le conducteur confirmera la réception du paiement à la fin de la course.
+                      </Text>
+                    </Paper>
                   )}
 
                   {ride.status === 'DROPOFF_ARRIVED' && (

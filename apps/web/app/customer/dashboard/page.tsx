@@ -108,8 +108,8 @@ export default function CustomerDashboard() {
 
   const stats = {
     total: rides.length,
-    pending: rides.filter(r => ['PENDING_BIDS', 'BID_ACCEPTED'].includes(r.status)).length,
-    inProgress: rides.filter(r => ['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
+    pending: rides.filter(r => r.status === 'PENDING_BIDS').length,
+    inProgress: rides.filter(r => ['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED'].includes(r.status)).length,
     completed: rides.filter(r => r.status === 'COMPLETED').length,
   };
 

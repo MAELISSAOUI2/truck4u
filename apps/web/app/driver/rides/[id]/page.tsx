@@ -39,6 +39,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
 const STATUS_FLOW = [
+  'BID_ACCEPTED',
   'DRIVER_ARRIVING',
   'PICKUP_ARRIVED',
   'LOADING',
@@ -48,6 +49,11 @@ const STATUS_FLOW = [
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; icon: any; action: string }> = {
+  BID_ACCEPTED: {
+    label: 'Offre acceptée - En attente de paiement',
+    icon: IconCheck,
+    action: 'Démarrer la course',
+  },
   DRIVER_ARRIVING: {
     label: 'En route vers le départ',
     icon: IconTruckDelivery,
@@ -314,15 +320,30 @@ export default function DriverRideDetailsPage() {
             {ride.status !== 'COMPLETED' && (
               <>
                 <Divider my="xl" />
-                <Button
-                  fullWidth
-                  size="lg"
-                  onClick={handleNextStatus}
-                  loading={updating}
-                  rightSection={<IconCheck size={18} />}
-                >
-                  {STATUS_CONFIG[ride.status]?.action}
-                </Button>
+                {ride.status === 'BID_ACCEPTED' && !ride.payment ? (
+                  <Paper p="md" withBorder style={{ background: '#fff3cd' }}>
+                    <Group gap="xs">
+                      <IconCheck size={20} color="orange" />
+                      <div>
+                        <Text size="sm" fw={600}>En attente du paiement client</Text>
+                        <Text size="xs" c="dimmed">
+                          Le client doit confirmer le mode de paiement avant que vous puissiez démarrer.
+                        </Text>
+                      </div>
+                    </Group>
+                  </Paper>
+                ) : (
+                  <Button
+                    fullWidth
+                    size="lg"
+                    onClick={handleNextStatus}
+                    loading={updating}
+                    rightSection={<IconCheck size={18} />}
+                    disabled={ride.status === 'BID_ACCEPTED' && !ride.payment}
+                  >
+                    {STATUS_CONFIG[ride.status]?.action}
+                  </Button>
+                )}
               </>
             )}
           </Card>
