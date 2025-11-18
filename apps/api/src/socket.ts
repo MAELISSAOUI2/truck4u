@@ -237,6 +237,14 @@ export function setupSocketHandlers(io: Server) {
       console.log(`📡 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
     });
 
+    // Join driver room for notifications (without changing availability status)
+    socket.on('driver_connect', (data: { driverId: string }) => {
+      (socket as DriverSocket).driverId = data.driverId;
+      socket.join(`driver:${data.driverId}`);
+      console.log(`✅ Driver ${data.driverId} joined room: driver:${data.driverId}`);
+      console.log(`📡 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
+    });
+
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);
     });

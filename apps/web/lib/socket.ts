@@ -30,6 +30,9 @@ export const connectSocket = (userId: string, userType: 'customer' | 'driver', t
     if (userType === 'customer') {
       console.log('📤 Emitting customer_connect for:', userId);
       socket.emit('customer_connect', { customerId: userId });
+    } else if (userType === 'driver') {
+      console.log('📤 Emitting driver_connect for:', userId);
+      socket.emit('driver_connect', { driverId: userId });
     }
   });
 
@@ -48,6 +51,9 @@ export const connectSocket = (userId: string, userType: 'customer' | 'driver', t
     if (userType === 'customer') {
       console.log('📤 Socket already connected, emitting customer_connect for:', userId);
       socket.emit('customer_connect', { customerId: userId });
+    } else if (userType === 'driver') {
+      console.log('📤 Socket already connected, emitting driver_connect for:', userId);
+      socket.emit('driver_connect', { driverId: userId });
     }
   }
 
