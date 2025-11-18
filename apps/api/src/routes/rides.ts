@@ -521,7 +521,7 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
       : Math.round(bid.proposedPrice * 0.15 * 100) / 100;
     const driverAmount = bid.proposedPrice - platformFee;
 
-    // Update bid, ride, create pending payment, and set driver as unavailable
+    // Update bid, ride, and set driver as unavailable (payment created later when customer pays)
     await prisma.$transaction([
       prisma.bid.update({
         where: { id: bidId },
@@ -533,7 +533,9 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
           status: 'BID_ACCEPTED',
           driverId: bid.driverId,
           winningBidId: bidId,
-          finalPrice: bid.proposedPrice
+          finalPrice: bid.proposedPrice,
+          platformFee,
+          driverEarnings: driverAmount
         }
       }),
       prisma.bid.updateMany({
@@ -548,17 +550,6 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
       prisma.driver.update({
         where: { id: bid.driverId },
         data: { isAvailable: false }
-      }),
-      // Create pending payment
-      prisma.payment.create({
-        data: {
-          rideId: bid.rideId,
-          method: 'CARD', // Will be updated when customer pays
-          totalAmount: bid.proposedPrice,
-          platformFee,
-          driverAmount,
-          status: 'PENDING'
-        }
       })
     ]);
 
@@ -600,8 +591,8 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
   }
 });
 
-// PATCH /api/rides/:id/status - Update ride status
-router.patch('/:id/status', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+// PATCH /api/rides/:id/status - Update ride status (uses requireDriverAuth for development)
+router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const { status } = z.object({
       status: z.enum(['DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED', 'COMPLETED'])
