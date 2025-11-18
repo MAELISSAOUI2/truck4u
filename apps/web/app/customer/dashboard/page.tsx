@@ -32,8 +32,6 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { connectSocket, onNewBid } from '@/lib/socket';
-import { NewBidsNotification } from '@/components/NewBidsNotification';
 import { NotificationBell } from '@/app/components/notifications';
 
 export default function CustomerDashboard() {
@@ -41,30 +39,10 @@ export default function CustomerDashboard() {
   const { user, token, logout } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newBids, setNewBids] = useState<any[]>([]);
-  const [dismissedBids, setDismissedBids] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
     logout();
     router.push('/');
-  };
-
-  const loadNewBids = async () => {
-    try {
-      const response = await rideApi.getNewBids();
-      console.log('📩 New bids loaded:', response.data);
-      const bidsToShow = response.data.newBids.filter(
-        (bid: any) => !dismissedBids.has(bid.rideId)
-      );
-      setNewBids(bidsToShow);
-    } catch (error) {
-      console.error('Error loading new bids:', error);
-    }
-  };
-
-  const handleDismissBid = (rideId: string) => {
-    setDismissedBids((prev) => new Set(prev).add(rideId));
-    setNewBids((prev) => prev.filter((bid) => bid.rideId !== rideId));
   };
 
   useEffect(() => {
@@ -73,55 +51,7 @@ export default function CustomerDashboard() {
       return;
     }
     loadData();
-
-    // Connect to Socket.io for real-time notifications
-    if (user) {
-      console.log('🔌 Connecting customer to socket:', user.id);
-      connectSocket(user.id, 'customer', token);
-    }
-  }, [token, user]);
-
-  // Load new bids on mount and poll every 30 seconds
-  useEffect(() => {
-    if (!token) return;
-
-    loadNewBids(); // Load immediately
-
-    // Poll every 30 seconds
-    const interval = setInterval(loadNewBids, 30000);
-    return () => clearInterval(interval);
-  }, [token, dismissedBids]);
-
-  // Listen for new bids
-  useEffect(() => {
-    if (!user) return;
-
-    const handleNewBid = (bidData: any) => {
-      console.log('🎯 New bid received on dashboard:', bidData);
-
-      notifications.show({
-        title: '🎉 Nouvelle offre reçue !',
-        message: `${bidData.driver?.name || 'Un transporteur'} vous propose ${bidData.proposedPrice} DT`,
-        color: 'green',
-        autoClose: 8000,
-        onClick: () => {
-          router.push(`/customer/rides/${bidData.rideId}`);
-        },
-        style: { cursor: 'pointer' },
-      });
-
-      // Reload rides to update badge count
-      loadData();
-      // Also reload new bids banner
-      loadNewBids();
-    };
-
-    const unsubscribe = onNewBid(handleNewBid);
-
-    return () => {
-      unsubscribe();
-    };
-  }, [user]);
+  }, [token]);
 
   const loadData = async () => {
     try {
@@ -250,14 +180,6 @@ export default function CustomerDashboard() {
       {/* Main Content */}
       <Container size="md" mt="xl">
         <Stack gap="xl">
-          {/* New Bids Notification Banner */}
-          {newBids.length > 0 && (
-            <NewBidsNotification
-              newBids={newBids}
-              onDismiss={handleDismissBid}
-            />
-          )}
-
           {/* CTA Card */}
           <Card 
             shadow="sm" 
