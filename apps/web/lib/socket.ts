@@ -130,3 +130,9 @@ export const onBidRejected = (callback: (data: any) => void) => {
   socket.on('bid_rejected', callback);
   return () => socket.off('bid_rejected', callback);
 };
+
+export const onPaymentConfirmed = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('payment_confirmed', callback);
+  return () => socket.off('payment_confirmed', callback);
+};

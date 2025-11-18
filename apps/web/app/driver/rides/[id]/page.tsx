@@ -32,7 +32,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { updateDriverLocation } from '@/lib/socket';
+import { updateDriverLocation, connectSocket, onPaymentConfirmed } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -122,6 +122,34 @@ export default function DriverRideDetailsPage() {
       initializeMap();
     }
   }, [ride]);
+
+  // Listen for payment confirmation
+  useEffect(() => {
+    if (!token || !user) return;
+
+    // Connect socket
+    connectSocket(user.id, 'driver', token);
+
+    // Listen for payment confirmation
+    const unsubscribe = onPaymentConfirmed((data: any) => {
+      console.log('💳 Payment confirmed:', data);
+
+      // Show notification
+      notifications.show({
+        title: 'Paiement confirmé !',
+        message: data.message || 'Le client a confirmé le paiement. Vous pouvez démarrer la course.',
+        color: 'green',
+        autoClose: 5000,
+      });
+
+      // Reload ride details to get updated payment info
+      loadRideDetails();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [token, user, params.id]);
 
   const loadRideDetails = async () => {
     try {

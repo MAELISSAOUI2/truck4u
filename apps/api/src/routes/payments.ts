@@ -3,6 +3,7 @@ import { prisma } from '@truck4u/database';
 import { verifyToken, requireCustomer, requireDriver, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import axios from 'axios';
+import type { Server } from 'socket.io';
 
 const router = Router();
 
@@ -72,6 +73,17 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
             }
           });
 
+      // Notify driver that payment method has been selected
+      const io = req.app.get('io') as Server;
+      if (ride.driverId) {
+        io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
+          rideId,
+          method: 'CASH',
+          amount: ride.finalPrice,
+          message: 'Le client a choisi le paiement en espèces. Vous pouvez démarrer la course.'
+        });
+      }
+
       return res.json({
         paymentId: payment.id,
         method: 'CASH',
@@ -129,6 +141,17 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
             }
           });
 
+      // Notify driver that payment method has been selected
+      const io = req.app.get('io') as Server;
+      if (ride.driverId) {
+        io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
+          rideId,
+          method: 'CARD',
+          amount: ride.finalPrice,
+          message: 'Le client a initié le paiement par carte. Vous pouvez démarrer la course.'
+        });
+      }
+
       return res.json({
         paymentId: payment.id,
         method: 'CARD',
@@ -182,6 +205,17 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
               }
             }
           });
+
+      // Notify driver that payment method has been selected
+      const io = req.app.get('io') as Server;
+      if (ride.driverId) {
+        io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
+          rideId,
+          method: 'FLOUCI',
+          amount: ride.finalPrice,
+          message: 'Le client a initié le paiement avec Flouci. Vous pouvez démarrer la course.'
+        });
+      }
 
       return res.json({
         paymentId: payment.id,
