@@ -27,7 +27,7 @@ export function SocketNotificationProvider({ children }: { children: React.React
 
       // Add to notification store
       addNotification({
-        id: bid.id,
+        id: bid.bidId, // Backend sends bidId, not id
         rideId: bid.rideId,
         driver: {
           id: bid.driver.id,
@@ -186,7 +186,7 @@ export function SocketNotificationProvider({ children }: { children: React.React
         <AutoOfferModal
           opened={!!currentOffer}
           onClose={() => setCurrentOffer(null)}
-          bidId={currentOffer.id}
+          bidId={currentOffer.bidId}
           rideId={currentOffer.rideId}
           driver={currentOffer.driver}
           proposedPrice={currentOffer.proposedPrice}
