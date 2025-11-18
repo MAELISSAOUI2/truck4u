@@ -113,9 +113,6 @@ export const rideApi = {
   getHistory: () =>
     api.get('/rides/history'),
 
-  createPayment: (id: string, data: any) =>
-    api.post(`/rides/${id}/payment`, data),
-
   cancel: (id: string) =>
     api.post(`/rides/${id}/cancel`),
 

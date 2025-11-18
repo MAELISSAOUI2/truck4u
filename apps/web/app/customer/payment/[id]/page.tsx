@@ -30,7 +30,7 @@ import {
   IconUser,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
-import { rideApi } from '@/lib/api';
+import { rideApi, paymentApi } from '@/lib/api';
 
 const PAYMENT_METHODS = [
   {
@@ -130,23 +130,19 @@ export default function PaymentPage() {
     setProcessing(true);
 
     try {
-      const actualBidId = bid.bidId || bid.id;
+      // Initiate payment with selected method
+      const paymentResponse = await paymentApi.initiate(
+        rideId,
+        paymentMethod as 'CASH' | 'CARD' | 'FLOUCI'
+      );
 
-      // For CASH payment, no payment gateway needed
+      // For CASH payment, just redirect to ride page
       if (paymentMethod === 'CASH') {
-        // Ride is already accepted from previous step, just redirect
         router.push(`/customer/rides/${rideId}`);
         return;
       }
 
-      // Create payment with selected method (CARD or FLOUCI)
-      const paymentResponse = await rideApi.createPayment(rideId, {
-        bidId: actualBidId,
-        paymentMethod,
-        amount: calculateCommission(),
-      });
-
-      // Redirect to payment gateway
+      // For CARD/FLOUCI, redirect to payment gateway
       if (paymentResponse.data.paymentUrl) {
         window.location.href = paymentResponse.data.paymentUrl;
       } else {
