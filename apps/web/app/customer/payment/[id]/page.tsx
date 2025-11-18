@@ -24,24 +24,35 @@ import {
   IconShieldCheck,
   IconAlertCircle,
   IconCheck,
+  IconCash,
+  IconStar,
+  IconTruck,
+  IconUser,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 
 const PAYMENT_METHODS = [
   {
-    id: 'paymee',
-    name: 'Paymee',
-    description: 'Carte bancaire via Paymee',
+    id: 'CARD',
+    name: 'Carte bancaire',
+    description: 'Paiement par carte bancaire sécurisé',
     icon: IconCreditCard,
     color: 'blue',
   },
   {
-    id: 'flouci',
+    id: 'FLOUCI',
     name: 'Flouci',
-    description: 'Paiement mobile',
+    description: 'Paiement mobile instantané',
     icon: IconWallet,
     color: 'orange',
+  },
+  {
+    id: 'CASH',
+    name: 'Espèces',
+    description: 'Paiement en espèces au transporteur',
+    icon: IconCash,
+    color: 'green',
   },
 ];
 
@@ -58,7 +69,7 @@ export default function PaymentPage() {
   const [bid, setBid] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('paymee');
+  const [paymentMethod, setPaymentMethod] = useState('CARD');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -79,8 +90,12 @@ export default function PaymentPage() {
       // Load specific bid if provided
       if (bidId) {
         const bidsResponse = await rideApi.getBids(rideId);
-        const selectedBid = bidsResponse.data.find((b: any) => b.id === bidId);
-        setBid(selectedBid);
+        const selectedBid = bidsResponse.data.find((b: any) => b.bidId === bidId || b.id === bidId);
+        if (selectedBid) {
+          setBid(selectedBid);
+        } else {
+          setError('Offre introuvable');
+        }
       }
     } catch (error) {
       console.error('Error loading payment data:', error);
@@ -93,7 +108,8 @@ export default function PaymentPage() {
   const calculateCommission = () => {
     if (!bid) return 0;
     // Commission: 10% du montant
-    return Math.round(bid.amount * 0.1);
+    const price = bid.proposedPrice || bid.amount || 0;
+    return Math.round(price * 0.1);
   };
 
   const handlePayment = async () => {
@@ -103,9 +119,18 @@ export default function PaymentPage() {
     setProcessing(true);
 
     try {
-      // Create payment with selected method
+      const actualBidId = bid.bidId || bid.id;
+
+      // For CASH payment, no payment gateway needed
+      if (paymentMethod === 'CASH') {
+        // Ride is already accepted from previous step, just redirect
+        router.push(`/customer/rides/${rideId}`);
+        return;
+      }
+
+      // Create payment with selected method (CARD or FLOUCI)
       const paymentResponse = await rideApi.createPayment(rideId, {
-        bidId: bid.id,
+        bidId: actualBidId,
         paymentMethod,
         amount: calculateCommission(),
       });
@@ -114,9 +139,8 @@ export default function PaymentPage() {
       if (paymentResponse.data.paymentUrl) {
         window.location.href = paymentResponse.data.paymentUrl;
       } else {
-        // Payment successful, update ride status
-        await rideApi.acceptBid(rideId, bid.id);
-        router.push(`/customer/rides/${rideId}?payment=success`);
+        // Payment successful, redirect to ride page
+        router.push(`/customer/rides/${rideId}`);
       }
     } catch (err: any) {
       console.error('Payment error:', err);
@@ -193,15 +217,47 @@ export default function PaymentPage() {
             </Group>
           </Card>
 
-          {/* Ride Summary */}
-          <Card shadow="sm" padding="xl" radius="lg" withBorder>
+          {/* Driver Details Card */}
+          <Card shadow="md" padding="xl" radius="lg" withBorder style={{ borderColor: '#228be6', borderWidth: 2 }}>
             <Stack gap="md">
-              <Title order={3} size="1.25rem">Résumé de la course</Title>
+              <Title order={3} size="1.25rem">Votre transporteur</Title>
 
-              <div>
-                <Text size="sm" c="dimmed" mb={4}>Transporteur</Text>
-                <Text fw={700}>{bid.driver.name}</Text>
-              </div>
+              <Group>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #228be6 0%, #1864ab 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <IconTruck size={32} color="white" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Text fw={700} size="lg">{bid.driver.name}</Text>
+                  {bid.driver.rating !== undefined && bid.driver.rating !== null && (
+                    <Group gap={6} mt={4}>
+                      <IconStar size={16} fill="#fab005" color="#fab005" />
+                      <Text size="sm" fw={600}>{bid.driver.rating.toFixed(1)}</Text>
+                      {bid.driver.totalRides && (
+                        <Text size="sm" c="dimmed">• {bid.driver.totalRides} courses</Text>
+                      )}
+                    </Group>
+                  )}
+                  {bid.driver.vehicleType && (
+                    <Group gap={4} mt={4}>
+                      <IconTruck size={14} />
+                      <Text size="sm">{bid.driver.vehicleType}</Text>
+                      {bid.driver.vehiclePlate && (
+                        <Text size="sm" c="dimmed">• {bid.driver.vehiclePlate}</Text>
+                      )}
+                    </Group>
+                  )}
+                </div>
+              </Group>
 
               <Divider />
 
@@ -217,7 +273,7 @@ export default function PaymentPage() {
               <div>
                 <Group justify="space-between">
                   <Text size="sm" c="dimmed">Prix de la course</Text>
-                  <Text fw={700}>{bid.amount} DT</Text>
+                  <Text fw={700}>{bid.proposedPrice || bid.amount} DT</Text>
                 </Group>
                 <Group justify="space-between" mt="xs">
                   <Text size="sm" c="dimmed">Commission plateforme (10%)</Text>
@@ -249,7 +305,14 @@ export default function PaymentPage() {
                       onClick={() => setPaymentMethod(method.id)}
                     >
                       <Group>
-                        <method.icon size={32} color={method.color === 'blue' ? '#228BE6' : '#fd7e14'} />
+                        <method.icon
+                          size={32}
+                          color={
+                            method.color === 'blue' ? '#228BE6' :
+                            method.color === 'orange' ? '#fd7e14' :
+                            '#51cf66'
+                          }
+                        />
                         <div style={{ flex: 1 }}>
                           <Text fw={700}>{method.name}</Text>
                           <Text size="sm" c="dimmed">{method.description}</Text>
@@ -299,7 +362,7 @@ export default function PaymentPage() {
                 <Text size="sm" c="dimmed" mb={4}>Total à payer maintenant</Text>
                 <Title order={2} size="2.5rem" c="blue">{commission} DT</Title>
                 <Text size="xs" c="dimmed" mt={4}>
-                  La course sera payée au transporteur ({bid.amount} DT) à la fin
+                  La course sera payée au transporteur ({bid.proposedPrice || bid.amount} DT) à la fin
                 </Text>
               </div>
               <Button
