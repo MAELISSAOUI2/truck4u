@@ -35,7 +35,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
-import { connectSocket, driverOnline, driverOffline } from '@/lib/socket';
+import { connectSocket, driverOnline, driverOffline, onBidAccepted } from '@/lib/socket';
 
 const STATUS_COLORS: Record<string, string> = {
   DRIVER_ARRIVING: 'orange',
@@ -72,6 +72,37 @@ export default function DriverDashboard() {
     }
 
     loadDashboardData();
+  }, [token, user]);
+
+  // Listen for bid accepted - redirect to ride page
+  useEffect(() => {
+    if (!token || !user) return;
+
+    console.log('🎧 Setting up bid_accepted listener for driver:', user.id);
+
+    // Connect socket
+    connectSocket(user.id, 'driver', token);
+
+    // Listen for bid acceptance
+    const unsubscribe = onBidAccepted((data: any) => {
+      console.log('✅ Bid accepted!', data);
+
+      notifications.show({
+        title: 'Offre acceptée ! 🎉',
+        message: 'Le client a accepté votre offre. Redirection vers la course...',
+        color: 'green',
+        autoClose: 3000,
+      });
+
+      // Redirect to ride page after short delay
+      setTimeout(() => {
+        router.push(`/driver/rides/${data.rideId}`);
+      }, 1500);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [token, user]);
 
   const loadDashboardData = async () => {
