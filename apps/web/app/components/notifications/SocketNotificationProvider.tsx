@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore, useNotificationStore } from '@/lib/store';
 import { connectSocket, onNewBid, onBidAccepted, onBidRejected, disconnectSocket } from '@/lib/socket';
 import { notifications } from '@mantine/notifications';
 import { IconTruck } from '@tabler/icons-react';
-import { AutoOfferModal } from './AutoOfferModal';
+import { OfferStackedCards } from './OfferStackedCards';
 
 export function SocketNotificationProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { user, token, isAuthenticated } = useAuthStore();
   const { addNotification, updateNotificationStatus } = useNotificationStore();
-  const [currentOffer, setCurrentOffer] = useState<any>(null);
+  const [activeOffers, setActiveOffers] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -45,8 +47,8 @@ export function SocketNotificationProvider({ children }: { children: React.React
         ride: bid.ride,
       });
 
-      // Show auto offer modal (inDrive style)
-      setCurrentOffer(bid);
+      // Add to active offers (stacked cards style)
+      setActiveOffers((prev) => [...prev, bid]);
 
       // Browser notification
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -110,17 +112,32 @@ export function SocketNotificationProvider({ children }: { children: React.React
         throw new Error(error.message || 'Échec de l\'acceptation');
       }
 
+      const data = await response.json();
+
       // Update notification status
       updateNotificationStatus(bidId, 'ACCEPTED');
 
+      // Remove all offers for this ride from active offers
+      setActiveOffers((prev) => prev.filter((offer) => offer.rideId !== rideId));
+
+      // Reject all other offers for this ride in notification store
+      activeOffers
+        .filter((offer) => offer.rideId === rideId && offer.bidId !== bidId)
+        .forEach((offer) => {
+          updateNotificationStatus(offer.bidId, 'REJECTED');
+        });
+
       notifications.show({
         title: 'Offre acceptée!',
-        message: 'Votre transporteur a été notifié',
+        message: 'Redirection vers le paiement...',
         color: 'green',
       });
 
-      // Close modal
-      setCurrentOffer(null);
+      // Redirect to payment page after short delay
+      setTimeout(() => {
+        router.push(`/customer/payment/${rideId}?bidId=${bidId}`);
+      }, 1500);
+
     } catch (error: any) {
       console.error('Error accepting bid:', error);
       notifications.show({
@@ -159,14 +176,14 @@ export function SocketNotificationProvider({ children }: { children: React.React
       // Update notification status
       updateNotificationStatus(bidId, 'REJECTED');
 
+      // Remove this offer from active offers
+      setActiveOffers((prev) => prev.filter((offer) => offer.bidId !== bidId));
+
       notifications.show({
         title: 'Offre rejetée',
         message: 'L\'offre a été rejetée',
         color: 'orange',
       });
-
-      // Close modal
-      setCurrentOffer(null);
     } catch (error: any) {
       console.error('Error rejecting bid:', error);
       notifications.show({
@@ -182,22 +199,12 @@ export function SocketNotificationProvider({ children }: { children: React.React
   return (
     <>
       {children}
-      {currentOffer && (
-        <AutoOfferModal
-          opened={!!currentOffer}
-          onClose={() => setCurrentOffer(null)}
-          bidId={currentOffer.bidId}
-          rideId={currentOffer.rideId}
-          driver={currentOffer.driver}
-          proposedPrice={currentOffer.proposedPrice}
-          estimatedArrival={currentOffer.estimatedArrival}
-          message={currentOffer.message}
-          ride={currentOffer.ride}
-          onAccept={handleAccept}
-          onReject={handleReject}
-          isProcessing={isProcessing}
-        />
-      )}
+      <OfferStackedCards
+        offers={activeOffers}
+        onAccept={handleAccept}
+        onReject={handleReject}
+        isProcessing={isProcessing}
+      />
     </>
   );
 }
