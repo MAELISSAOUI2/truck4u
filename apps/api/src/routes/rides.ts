@@ -85,27 +85,27 @@ function estimatePrice(distance: number, vehicleType: string, loadAssistance: bo
   };
 }
 
-// Helper: Proximity-based driver dispatch
+// Helper: Notify all nearby drivers within 100km radius
 async function dispatchToDrivers(rideId: string, pickup: any, vehicleType: string, io: Server) {
-  const radiusSteps = [
-    { radius: 5, waitTime: 180000 }, // 5km, 3min
-    { radius: 10, waitTime: 120000 }, // 10km, 2min
-    { radius: 20, waitTime: 120000 }, // 20km, 2min
-    { radius: 30, waitTime: 60000 }  // 30km+, 1min
-  ];
+  try {
+    console.log(`🚀 Dispatching ride ${rideId} to drivers within 100km of`, pickup);
 
-  for (const step of radiusSteps) {
-    // Find drivers within radius using Redis GEORADIUS
+    // Find ALL drivers within 100km radius using Redis GEORADIUS
     const nearbyDriverIds = await redis.georadius(
       'drivers:available',
       pickup.lng,
       pickup.lat,
-      step.radius,
+      100, // 100km radius
       'km',
-      'ASC'
+      'ASC' // Sorted by distance (closest first)
     ) as string[];
 
-    if (nearbyDriverIds.length === 0) continue;
+    console.log(`📍 Found ${nearbyDriverIds.length} drivers within 100km`);
+
+    if (nearbyDriverIds.length === 0) {
+      console.log('⚠️ No available drivers found within 100km');
+      return;
+    }
 
     // Filter by vehicle type and verification status
     const drivers = await prisma.driver.findMany({
@@ -118,40 +118,76 @@ async function dispatchToDrivers(rideId: string, pickup: any, vehicleType: strin
       select: {
         id: true,
         name: true,
-        rating: true
+        rating: true,
+        currentLocation: true
       }
     });
 
-    if (drivers.length > 0) {
-      // Notify drivers via Socket.io
-      const ride = await prisma.ride.findUnique({
-        where: { id: rideId },
-        include: { customer: true }
-      });
+    console.log(`✅ Found ${drivers.length} eligible drivers (${vehicleType}, APPROVED, available)`);
 
-      drivers.forEach(driver => {
-        io.to(`driver:${driver.id}`).emit('ride_request', {
-          rideId,
-          pickup: ride?.pickup,
-          dropoff: ride?.dropoff,
-          distance: ride?.distance,
-          vehicleType,
-          loadAssistance: ride?.loadAssistance,
-          estimatedPrice: { min: ride?.estimatedMinPrice, max: ride?.estimatedMaxPrice },
-          expiresIn: step.waitTime / 1000
-        });
-      });
-
-      // Wait for bids
-      await new Promise(resolve => setTimeout(resolve, step.waitTime));
-
-      // Check if any bids received
-      const bids = await prisma.bid.count({
-        where: { rideId, status: 'ACTIVE' }
-      });
-
-      if (bids > 0) break; // Stop searching if we got bids
+    if (drivers.length === 0) {
+      console.log('⚠️ No eligible drivers found after filtering');
+      return;
     }
+
+    // Get ride details
+    const ride = await prisma.ride.findUnique({
+      where: { id: rideId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            phone: true
+          }
+        }
+      }
+    });
+
+    if (!ride) {
+      console.error('❌ Ride not found:', rideId);
+      return;
+    }
+
+    // Notify ALL eligible drivers via Socket.io immediately
+    let notifiedCount = 0;
+    drivers.forEach(driver => {
+      // Calculate distance from driver to pickup
+      const driverLocation = driver.currentLocation as any;
+      const distanceToPickup = driverLocation
+        ? calculateDistance(
+            driverLocation.lat,
+            driverLocation.lng,
+            pickup.lat,
+            pickup.lng
+          )
+        : null;
+
+      io.to(`driver:${driver.id}`).emit('ride_request', {
+        rideId: ride.id,
+        pickup: ride.pickup,
+        dropoff: ride.dropoff,
+        distance: ride.distance,
+        vehicleType: ride.vehicleType,
+        loadAssistance: ride.loadAssistance,
+        numberOfTrips: ride.numberOfTrips,
+        estimatedMinPrice: ride.estimatedMinPrice,
+        estimatedMaxPrice: ride.estimatedMaxPrice,
+        estimatedDuration: ride.estimatedDuration,
+        description: ride.description,
+        itemPhotos: ride.itemPhotos,
+        customer: ride.customer,
+        distanceToPickup: distanceToPickup ? Math.round(distanceToPickup * 10) / 10 : null,
+        createdAt: ride.createdAt
+      });
+
+      notifiedCount++;
+      console.log(`📤 Notified driver ${driver.name} (${driver.id}) - ${distanceToPickup ? Math.round(distanceToPickup) + 'km away' : 'distance unknown'}`);
+    });
+
+    console.log(`✅ Successfully notified ${notifiedCount} drivers for ride ${rideId}`);
+  } catch (error) {
+    console.error('❌ Error in dispatchToDrivers:', error);
   }
 }
 
