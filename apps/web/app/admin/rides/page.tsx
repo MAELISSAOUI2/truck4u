@@ -415,14 +415,16 @@ export default function AdminRidesPage() {
           </Table>
 
           {filteredRides.length > pageSize && (
-            <Divider />
-            <Group justify="center" p="md">
-              <Pagination
-                total={Math.ceil(filteredRides.length / pageSize)}
-                value={currentPage}
-                onChange={setCurrentPage}
-              />
-            </Group>
+            <>
+              <Divider />
+              <Group justify="center" p="md">
+                <Pagination
+                  total={Math.ceil(filteredRides.length / pageSize)}
+                  value={currentPage}
+                  onChange={setCurrentPage}
+                />
+              </Group>
+            </>
           )}
         </Paper>
 
