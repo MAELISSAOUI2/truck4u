@@ -33,7 +33,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated } from '@/lib/socket';
+import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onNotification } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ChatBox from '@/components/ChatBox';
@@ -182,6 +182,27 @@ export default function DriverRideDetailsPage() {
     };
   }, [token, user, params.id, router]);
 
+  // Listen for intelligent GPS notifications
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const unsubscribe = onNotification((data: any) => {
+      console.log('📢 GPS Notification received:', data);
+
+      notifications.show({
+        title: data.title || 'Notification',
+        message: data.message,
+        color: data.type?.includes('error') ? 'red' : 'blue',
+        icon: <span style={{ fontSize: '20px' }}>{data.icon || '🔔'}</span>,
+        autoClose: 5000,
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user, token]);
+
   const loadRideDetails = async () => {
     try {
       const response = await rideApi.getById(params.id as string);
@@ -208,6 +229,7 @@ export default function DriverRideDetailsPage() {
       (position) => {
         const locationData = {
           rideId: params.id as string,
+          driverId: user?.id || '',
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           speed: position.coords.speed || undefined,

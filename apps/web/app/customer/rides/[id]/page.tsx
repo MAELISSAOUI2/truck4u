@@ -38,7 +38,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi, paymentApi } from '@/lib/api';
-import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged } from '@/lib/socket';
+import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged, onNotification } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ChatBox from '@/components/ChatBox';
@@ -268,6 +268,37 @@ export default function RideDetailsPage() {
       socket.off('driver_confirmed_completion', handleDriverConfirmed);
     };
   }, [params.id, user, token]);
+
+  // Listen for intelligent GPS notifications
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const unsubscribe = onNotification((data: any) => {
+      console.log('📢 GPS Notification received:', data);
+
+      notifications.show({
+        title: data.title || 'Notification',
+        message: data.message,
+        color: data.type?.includes('error') ? 'red' : 'blue',
+        icon: <span style={{ fontSize: '20px' }}>{data.icon || '🔔'}</span>,
+        autoClose: data.type === 'driver_approaching' || data.type === 'delivery_approaching' ? 8000 : 5000,
+      });
+
+      // Play sound for important notifications
+      if (data.type === 'driver_arrived_pickup' || data.type === 'delivery_arrived') {
+        try {
+          const audio = new Audio('/sounds/notification.mp3');
+          audio.play().catch(() => {});
+        } catch (error) {
+          // Ignore sound errors
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user, token]);
 
   useEffect(() => {
     if (ride && mapContainer.current && !map.current) {

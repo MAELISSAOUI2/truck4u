@@ -1,6 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { prisma } from '@truck4u/database';
 import Redis from 'ioredis';
+import { getNotificationService } from './services/notifications';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -65,6 +66,7 @@ export function setupSocketHandlers(io: Server) {
     // Driver location update during ride
     socket.on('driver_location_update', async (data: {
       rideId: string;
+      driverId: string;
       lat: number;
       lng: number;
       speed?: number;
@@ -93,6 +95,18 @@ export function setupSocketHandlers(io: Server) {
           heading: data.heading,
           timestamp: data.timestamp
         });
+
+        // Process location for intelligent notifications
+        const notificationService = getNotificationService();
+        if (notificationService) {
+          await notificationService.processLocationUpdate({
+            rideId: data.rideId,
+            driverId: data.driverId,
+            lat: data.lat,
+            lng: data.lng,
+            timestamp: data.timestamp
+          });
+        }
       } catch (error) {
         console.error('Error in driver_location_update:', error);
       }

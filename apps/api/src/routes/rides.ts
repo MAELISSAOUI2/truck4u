@@ -637,12 +637,18 @@ router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequ
     }).parse(req.body);
 
     const ride = await prisma.ride.findUnique({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
+      include: {
+        customer: { select: { id: true, name: true } },
+        driver: { select: { id: true, name: true } }
+      }
     });
 
     if (!ride || ride.driverId !== req.userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
+
+    const oldStatus = ride.status;
 
     const updatedRide = await prisma.ride.update({
       where: { id: req.params.id },
@@ -652,12 +658,19 @@ router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequ
       }
     });
 
-    // Notify customer
+    // Notify via Socket.io
     const io = req.app.get('io') as Server;
     io.to(`customer:${ride.customerId}`).emit('ride_status_changed', {
       rideId: ride.id,
       status
     });
+
+    // Send intelligent notification via notification service
+    const { getNotificationService } = await import('../services/notifications');
+    const notificationService = getNotificationService();
+    if (notificationService) {
+      await notificationService.sendStatusChangeNotification(ride, oldStatus, status);
+    }
 
     res.json(updatedRide);
   } catch (error) {

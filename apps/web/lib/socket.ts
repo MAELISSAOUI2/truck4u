@@ -115,6 +115,7 @@ export const driverOffline = (driverId: string) => {
 
 export const updateDriverLocation = (data: {
   rideId: string;
+  driverId: string;
   lat: number;
   lng: number;
   speed?: number;
@@ -166,4 +167,11 @@ export const onKYCStatusChanged = (callback: (data: any) => void) => {
   const socket = getSocket();
   socket.on('kyc_status_changed', callback);
   return () => socket.off('kyc_status_changed', callback);
+};
+
+// Notification events (GPS-based intelligent notifications)
+export const onNotification = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('notification', callback);
+  return () => socket.off('notification', callback);
 };

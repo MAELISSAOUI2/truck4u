@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { setupSocketHandlers } from './socket';
+import { initNotificationService } from './services/notifications';
 import authRoutes from './routes/auth';
 import driverRoutes from './routes/drivers';
 import customerRoutes from './routes/customers';
@@ -66,6 +67,9 @@ app.use('/webhooks', webhookRoutes);
 
 // Error handling
 app.use(errorHandler);
+
+// Initialize notification service
+initNotificationService(io);
 
 // Setup Socket.io handlers
 setupSocketHandlers(io);
