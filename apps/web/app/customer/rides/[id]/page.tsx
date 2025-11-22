@@ -249,6 +249,7 @@ export default function RideDetailsPage() {
   const loadRideDetails = async () => {
     try {
       const response = await rideApi.getById(params.id as string);
+      console.log('✅ Ride loaded successfully:', response.data);
       setRide(response.data);
 
       // Load bids if pending
@@ -261,8 +262,16 @@ export default function RideDetailsPage() {
       if (response.data.driver && ['DRIVER_ARRIVING', 'IN_TRANSIT'].includes(response.data.status)) {
         updateDriverPosition(response.data.driver.currentLocation);
       }
-    } catch (error) {
-      console.error('Error loading ride:', error);
+    } catch (error: any) {
+      console.error('❌ Error loading ride:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Impossible de charger la course',
+        color: 'red'
+      });
     } finally {
       setLoading(false);
     }
