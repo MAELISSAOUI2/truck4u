@@ -88,14 +88,7 @@ export default function NewRidePage() {
       router.push('/customer/login');
       return;
     }
-  }, [token]);
-
-  // Calculate route when both addresses are set
-  useEffect(() => {
-    if (formData.pickupAddress && formData.deliveryAddress) {
-      calculateRoute();
-    }
-  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
+  }, [token, router]);
 
   // Calculate route using OSRM (free!)
   const calculateRoute = async () => {
@@ -118,6 +111,13 @@ export default function NewRidePage() {
       console.error('Error calculating route:', err);
     }
   };
+
+  // Calculate route when both addresses are set
+  useEffect(() => {
+    if (formData.pickupAddress && formData.deliveryAddress) {
+      calculateRoute();
+    }
+  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
 
   const handlePickupChange = (address: string, lat: number, lng: number) => {
     setFormData(prev => ({
