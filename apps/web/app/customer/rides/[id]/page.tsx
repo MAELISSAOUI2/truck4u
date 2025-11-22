@@ -726,6 +726,9 @@ export default function RideDetailsPage() {
                                 <Title order={3} size="1.5rem" c="dark">
                                   {bid.amount} DT
                                 </Title>
+                                <Text size="xs" c="dimmed">
+                                  +20 DT frais = {bid.amount + 20} DT
+                                </Text>
                                 <Group gap="xs" mt="xs">
                                   <Button
                                     size="sm"
@@ -886,8 +889,21 @@ export default function RideDetailsPage() {
       >
         <Stack gap="lg">
           <Paper p="md" withBorder style={{ background: '#f8f9fa' }}>
-            <Text size="sm" c="dimmed" mb={4}>Montant à payer</Text>
-            <Title order={2}>{ride?.finalPrice || selectedBidForPayment?.amount || 0} DT</Title>
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">Prix conducteur</Text>
+                <Text size="sm" fw={500}>{ride?.finalPrice || selectedBidForPayment?.amount || 0} DT</Text>
+              </Group>
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">Frais plateforme</Text>
+                <Text size="sm" fw={500} c="blue">+20 DT</Text>
+              </Group>
+              <Divider />
+              <Group justify="space-between">
+                <Text fw={600}>Total à payer</Text>
+                <Title order={2}>{(ride?.finalPrice || selectedBidForPayment?.amount || 0) + 20} DT</Title>
+              </Group>
+            </Stack>
           </Paper>
 
           {ride?.driver && (
@@ -963,8 +979,22 @@ export default function RideDetailsPage() {
             </Group>
             <Text size="sm">
               En confirmant, vous attestez avoir reçu votre marchandise en bon état.
-              Le paiement de {ride?.finalPrice} DT sera alors traité.
             </Text>
+            <Divider my="xs" />
+            <Stack gap={4}>
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">Prix conducteur</Text>
+                <Text size="xs">{ride?.finalPrice} DT</Text>
+              </Group>
+              <Group justify="space-between">
+                <Text size="xs" c="dimmed">Frais plateforme</Text>
+                <Text size="xs" c="blue">+20 DT</Text>
+              </Group>
+              <Group justify="space-between">
+                <Text size="sm" fw={600}>Total</Text>
+                <Text size="sm" fw={600}>{(ride?.finalPrice || 0) + 20} DT</Text>
+              </Group>
+            </Stack>
           </Paper>
 
           <Text size="sm" c="dimmed">

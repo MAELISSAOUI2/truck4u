@@ -344,9 +344,16 @@ export default function CustomerDashboard() {
                         })}
                       </Text>
                       {(ride.finalPrice || ride.estimatedPrice) && (
-                        <Text size="md" fw={700}>
-                          {ride.finalPrice || ride.estimatedPrice} DT
-                        </Text>
+                        <div style={{ textAlign: 'right' }}>
+                          <Text size="md" fw={700}>
+                            {ride.finalPrice || ride.estimatedPrice} DT
+                          </Text>
+                          {ride.finalPrice && (
+                            <Text size="xs" c="dimmed">
+                              +20 DT frais = {ride.finalPrice + 20} DT
+                            </Text>
+                          )}
+                        </div>
                       )}
                     </Group>
                   </Card>
