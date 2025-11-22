@@ -83,6 +83,15 @@ export const driverApi = {
 
   getTierInfo: () =>
     api.get('/drivers/tier/info'),
+
+  getSchedule: () =>
+    api.get('/drivers/schedule'),
+
+  updateSchedule: (weeklySchedule: Record<string, Array<{ start: string; end: string }>>) =>
+    api.put('/drivers/schedule', { weeklySchedule }),
+
+  getScheduleAnalytics: () =>
+    api.get('/drivers/schedule/analytics'),
 };
 
 // Ride APIs

@@ -33,6 +33,7 @@ import {
   IconSettings,
   IconLogout,
   IconCalculator,
+  IconCalendar,
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
@@ -543,32 +544,60 @@ export default function DriverDashboard() {
             </Card>
           )}
 
-          {/* Earnings Simulator Card */}
-          <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <Stack gap="md">
-              <Group justify="space-between">
-                <div>
-                  <Group gap="xs" mb="xs">
-                    <IconCalculator size={24} color="white" />
-                    <Title order={3} size="1.25rem" c="white">
-                      Simulateur de gains
-                    </Title>
-                  </Group>
-                  <Text size="sm" c="white" style={{ opacity: 0.9 }}>
-                    Calculez vos revenus potentiels en fonction de vos objectifs de travail
-                  </Text>
-                </div>
-              </Group>
-              <Button
-                variant="white"
-                size="md"
-                rightSection={<IconChevronRight size={18} />}
-                onClick={() => router.push('/driver/earnings/simulator')}
-              >
-                Essayer le simulateur
-              </Button>
-            </Stack>
-          </Card>
+          {/* Schedule Card */}
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+            <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <div>
+                    <Group gap="xs" mb="xs">
+                      <IconCalculator size={24} color="white" />
+                      <Title order={3} size="1.25rem" c="white">
+                        Simulateur de gains
+                      </Title>
+                    </Group>
+                    <Text size="sm" c="white" style={{ opacity: 0.9 }}>
+                      Calculez vos revenus potentiels
+                    </Text>
+                  </div>
+                </Group>
+                <Button
+                  variant="white"
+                  size="md"
+                  rightSection={<IconChevronRight size={18} />}
+                  onClick={() => router.push('/driver/earnings/simulator')}
+                >
+                  Essayer le simulateur
+                </Button>
+              </Stack>
+            </Card>
+
+            <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #43cea2 0%, #185a9d 100%)' }}>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <div>
+                    <Group gap="xs" mb="xs">
+                      <IconCalendar size={24} color="white" />
+                      <Title order={3} size="1.25rem" c="white">
+                        Planning Intelligent
+                      </Title>
+                    </Group>
+                    <Text size="sm" c="white" style={{ opacity: 0.9 }}>
+                      Gérez votre disponibilité et optimisez votre temps
+                    </Text>
+                  </div>
+                </Group>
+                <Button
+                  variant="white"
+                  size="md"
+                  rightSection={<IconChevronRight size={18} />}
+                  onClick={() => router.push('/driver/schedule')}
+                >
+                  Gérer mon planning
+                </Button>
+              </Stack>
+            </Card>
+          </SimpleGrid>
 
           {/* No active rides message */}
           {!isOnline && (

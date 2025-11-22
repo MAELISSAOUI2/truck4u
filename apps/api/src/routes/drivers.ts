@@ -847,6 +847,209 @@ router.get('/tier/info', verifyToken, requireDriverAuth, async (req: AuthRequest
   }
 });
 
+// GET /api/drivers/schedule - Get driver's schedule and upcoming rides
+router.get('/schedule', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { id: req.userId },
+      select: {
+        weeklySchedule: true,
+        scheduleExceptions: true
+      }
+    });
+
+    // Get upcoming rides
+    const upcomingRides = await prisma.ride.findMany({
+      where: {
+        driverId: req.userId,
+        status: { in: ['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT'] },
+        scheduledFor: { gte: new Date() }
+      },
+      include: {
+        customer: {
+          select: { name: true, phone: true }
+        }
+      },
+      orderBy: {
+        scheduledFor: 'asc'
+      },
+      take: 20
+    });
+
+    res.json({
+      weeklySchedule: driver?.weeklySchedule || getDefaultSchedule(),
+      scheduleExceptions: driver?.scheduleExceptions || [],
+      upcomingRides: upcomingRides.map(ride => ({
+        id: ride.id,
+        scheduledFor: ride.scheduledFor,
+        pickup: ride.pickup,
+        dropoff: ride.dropoff,
+        status: ride.status,
+        customer: ride.customer
+      }))
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/drivers/schedule - Update driver's weekly schedule
+router.put('/schedule', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { weeklySchedule } = z.object({
+      weeklySchedule: z.record(z.array(z.object({
+        start: z.string(),
+        end: z.string()
+      })))
+    }).parse(req.body);
+
+    await prisma.driver.update({
+      where: { id: req.userId },
+      data: { weeklySchedule }
+    });
+
+    res.json({ message: 'Schedule updated successfully', weeklySchedule });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/drivers/schedule/analytics - Get best times to work based on demand
+router.get('/schedule/analytics', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    // Analyze rides from the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const rides = await prisma.ride.findMany({
+      where: {
+        createdAt: { gte: thirtyDaysAgo },
+        status: { in: ['COMPLETED', 'IN_TRANSIT', 'LOADING'] }
+      },
+      select: {
+        createdAt: true,
+        finalPrice: true
+      }
+    });
+
+    // Group by day of week and hour
+    const demandByDayAndHour: Record<string, Record<number, { count: number; avgPrice: number }>> = {};
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    days.forEach(day => {
+      demandByDayAndHour[day] = {};
+      for (let hour = 0; hour < 24; hour++) {
+        demandByDayAndHour[day][hour] = { count: 0, avgPrice: 0 };
+      }
+    });
+
+    rides.forEach(ride => {
+      const date = new Date(ride.createdAt);
+      const dayName = days[date.getDay()];
+      const hour = date.getHours();
+
+      demandByDayAndHour[dayName][hour].count++;
+      demandByDayAndHour[dayName][hour].avgPrice += ride.finalPrice || 0;
+    });
+
+    // Calculate averages and find peak hours
+    Object.keys(demandByDayAndHour).forEach(day => {
+      Object.keys(demandByDayAndHour[day]).forEach(hourStr => {
+        const hour = parseInt(hourStr);
+        const data = demandByDayAndHour[day][hour];
+        if (data.count > 0) {
+          data.avgPrice = data.avgPrice / data.count;
+        }
+      });
+    });
+
+    // Find top 5 peak hours across all days
+    const peakHours: Array<{ day: string; hour: number; demand: number; avgPrice: number }> = [];
+    Object.entries(demandByDayAndHour).forEach(([day, hours]) => {
+      Object.entries(hours).forEach(([hourStr, data]) => {
+        if (data.count > 0) {
+          peakHours.push({
+            day,
+            hour: parseInt(hourStr),
+            demand: data.count,
+            avgPrice: Math.round(data.avgPrice * 100) / 100
+          });
+        }
+      });
+    });
+
+    peakHours.sort((a, b) => b.demand - a.demand);
+
+    res.json({
+      demandByDayAndHour,
+      peakHours: peakHours.slice(0, 10),
+      recommendations: generateScheduleRecommendations(demandByDayAndHour)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Helper function to generate default schedule
+function getDefaultSchedule() {
+  return {
+    monday: [{ start: '08:00', end: '18:00' }],
+    tuesday: [{ start: '08:00', end: '18:00' }],
+    wednesday: [{ start: '08:00', end: '18:00' }],
+    thursday: [{ start: '08:00', end: '18:00' }],
+    friday: [{ start: '08:00', end: '18:00' }],
+    saturday: [{ start: '08:00', end: '14:00' }],
+    sunday: []
+  };
+}
+
+// Helper function to generate schedule recommendations
+function generateScheduleRecommendations(demandData: any) {
+  const recommendations = [];
+
+  // Find days with highest demand
+  const dayDemand: Record<string, number> = {};
+  Object.entries(demandData).forEach(([day, hours]: [string, any]) => {
+    dayDemand[day] = Object.values(hours).reduce((sum: number, h: any) => sum + h.count, 0);
+  });
+
+  const sortedDays = Object.entries(dayDemand).sort((a, b) => b[1] - a[1]);
+  const topDays = sortedDays.slice(0, 3).map(([day]) => day);
+
+  recommendations.push({
+    type: 'top_days',
+    message: `Les jours avec le plus de demande sont: ${topDays.join(', ')}`,
+    days: topDays
+  });
+
+  // Find peak hours
+  const avgHourDemand: Record<number, number> = {};
+  for (let hour = 0; hour < 24; hour++) {
+    avgHourDemand[hour] = 0;
+    let dayCount = 0;
+    Object.values(demandData).forEach((hours: any) => {
+      if (hours[hour]?.count > 0) {
+        avgHourDemand[hour] += hours[hour].count;
+        dayCount++;
+      }
+    });
+    if (dayCount > 0) avgHourDemand[hour] /= dayCount;
+  }
+
+  const peakHour = Object.entries(avgHourDemand).reduce((max, [hour, demand]) =>
+    demand > max.demand ? { hour: parseInt(hour), demand } : max,
+    { hour: 0, demand: 0 }
+  );
+
+  recommendations.push({
+    type: 'peak_hours',
+    message: `L'heure de pointe est autour de ${peakHour.hour}h`,
+    hour: peakHour.hour
+  });
+
+  return recommendations;
+}
+
 // Export the badge and tier update functions for use in other routes
 export { updateDriverBadges, updateDriverTier };
 export default router;

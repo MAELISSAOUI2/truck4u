@@ -38,6 +38,8 @@ model Driver {
   platformFeeRate      Float     @default(0.10) // Platform fee percentage (10% default, varies by tier)
   totalEarnings        Float     @default(0.0)
   currentLocation      Json?     // {lat, lng, timestamp}
+  weeklySchedule       Json?     // Weekly availability schedule: { monday: [{start: "08:00", end: "18:00"}], tuesday: [...], ... }
+  scheduleExceptions   Json?     // One-time exceptions: [{date: "2024-01-15", available: false, reason: "Vacation"}]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
