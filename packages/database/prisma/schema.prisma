@@ -12,6 +12,7 @@ model Driver {
   phone                String    @unique
   name                 String
   email                String?
+  profilePhoto         String?   // S3 URL for driver profile photo
   verificationStatus   VerificationStatus @default(PENDING_DOCUMENTS)
   verificationNotes    String?   @db.Text
   rejectionReason      String?   @db.Text
@@ -25,13 +26,18 @@ model Driver {
   vehicleColor         String?
   rating               Float     @default(0.0)
   totalRides           Int       @default(0)
+  completedRides       Int       @default(0)  // Number of completed rides
+  acceptedBids         Int       @default(0)  // Number of bids accepted by customers
+  totalBids            Int       @default(0)  // Total bids made
+  acceptanceRate       Float     @default(0.0) // Calculated: (acceptedBids / totalBids) * 100
+  badges               String[]  @default([])  // Array of badge names
   totalEarnings        Float     @default(0.0)
   currentLocation      Json?     // {lat, lng, timestamp}
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
   bids                 Bid[]
-  completedRides       Ride[]    @relation("CompletedRides")
+  rides                Ride[]    @relation("CompletedRides")
   earnings             DriverEarnings[]
   kycDocuments         KYCDocument[]
 

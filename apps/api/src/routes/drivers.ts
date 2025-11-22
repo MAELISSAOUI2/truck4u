@@ -276,7 +276,7 @@ router.get('/available-rides', verifyToken, requireDriverAuth, async (req: AuthR
 router.get('/earnings/history', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
   try {
     const { period } = req.query;
-    
+
     let startDate = new Date();
     if (period === 'week') {
       startDate.setDate(startDate.getDate() - 7);
@@ -313,4 +313,201 @@ router.get('/earnings/history', verifyToken, requireDriverAuth, async (req: Auth
   }
 });
 
+// POST /api/drivers/profile/photo - Upload profile photo
+router.post('/profile/photo', verifyToken, requireDriverAuth, upload.single('photo'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo provided' });
+    }
+
+    // Validate file is an image
+    if (!req.file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ error: 'File must be an image' });
+    }
+
+    // Upload to S3
+    const photoUrl = await uploadToS3(req.file, 'profile-photos');
+
+    // Update driver profile with photo URL
+    const driver = await prisma.driver.update({
+      where: { id: req.userId },
+      data: { profilePhoto: photoUrl }
+    });
+
+    res.json({
+      photoUrl: driver.profilePhoto,
+      message: 'Profile photo updated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/drivers/:id/reviews - Get driver reviews from completed rides
+router.get('/:id/reviews', verifyToken, async (req, res, next) => {
+  try {
+    const driverId = req.params.id;
+
+    // Get all completed rides for this driver that have customer reviews
+    const rides = await prisma.ride.findMany({
+      where: {
+        driverId,
+        status: 'COMPLETED',
+        customerRating: { not: null }
+      },
+      include: {
+        customer: {
+          select: { name: true }
+        }
+      },
+      orderBy: {
+        completedAt: 'desc'
+      },
+      take: 50 // Limit to 50 most recent reviews
+    });
+
+    const reviews = rides.map(ride => ({
+      id: ride.id,
+      customerName: ride.customer.name,
+      rating: ride.customerRating || 0,
+      review: ride.customerReview || '',
+      date: ride.completedAt?.toISOString() || ride.updatedAt.toISOString()
+    }));
+
+    // Calculate review statistics
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+      : 0;
+
+    // Rating distribution
+    const distribution = {
+      5: reviews.filter(r => r.rating === 5).length,
+      4: reviews.filter(r => r.rating === 4).length,
+      3: reviews.filter(r => r.rating === 3).length,
+      2: reviews.filter(r => r.rating === 2).length,
+      1: reviews.filter(r => r.rating === 1).length
+    };
+
+    res.json({
+      reviews,
+      statistics: {
+        total: totalReviews,
+        average: Math.round(averageRating * 10) / 10,
+        distribution
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Helper function to calculate and update driver badges
+async function updateDriverBadges(driverId: string) {
+  const driver = await prisma.driver.findUnique({
+    where: { id: driverId },
+    include: {
+      rides: {
+        where: { status: 'COMPLETED' },
+        select: {
+          customerRating: true,
+          completedAt: true,
+          createdAt: true
+        }
+      },
+      bids: {
+        select: {
+          status: true
+        }
+      }
+    }
+  });
+
+  if (!driver) return;
+
+  const badges: string[] = [];
+  const completedRides = driver.rides;
+  const totalRides = completedRides.length;
+
+  // VERIFIED badge - always if status is APPROVED
+  if (driver.verificationStatus === 'APPROVED') {
+    badges.push('VERIFIED');
+  }
+
+  // NEW badge - less than 10 completed rides
+  if (totalRides < 10) {
+    badges.push('NEW');
+  }
+
+  // TOP_RATED badge - rating >= 4.8 and at least 20 rides
+  if (driver.rating >= 4.8 && totalRides >= 20) {
+    badges.push('TOP_RATED');
+  }
+
+  // PUNCTUAL badge - Check if rides were completed on time
+  // Assuming a ride is punctual if completed within estimated time + buffer
+  const punctualRides = completedRides.filter(ride => {
+    if (!ride.completedAt) return false;
+    const createdAt = new Date(ride.createdAt);
+    const completedAt = new Date(ride.completedAt);
+    const timeDiff = (completedAt.getTime() - createdAt.getTime()) / (1000 * 60); // in minutes
+    // Assuming most rides should complete within 3 hours
+    return timeDiff <= 180;
+  });
+
+  if (totalRides >= 10 && (punctualRides.length / totalRides) >= 0.9) {
+    badges.push('PUNCTUAL');
+  }
+
+  // CLEAN badge - High ratings (4.5+) consistently
+  const recentRatings = completedRides
+    .filter(r => r.customerRating !== null)
+    .slice(0, 20)
+    .map(r => r.customerRating!);
+
+  if (recentRatings.length >= 10 && recentRatings.every(rating => rating >= 4)) {
+    badges.push('CLEAN');
+  }
+
+  // PROFESSIONAL badge - Has business license and high completion rate
+  if (driver.hasBusinessLicense && totalRides >= 50) {
+    badges.push('PROFESSIONAL');
+  }
+
+  // Calculate acceptance rate
+  const totalBids = driver.bids.length;
+  const acceptedBids = driver.bids.filter(bid => bid.status === 'ACCEPTED').length;
+  const acceptanceRate = totalBids > 0 ? (acceptedBids / totalBids) * 100 : 0;
+
+  // Update driver with badges and acceptance rate
+  await prisma.driver.update({
+    where: { id: driverId },
+    data: {
+      badges,
+      acceptanceRate,
+      totalBids,
+      acceptedBids,
+      completedRides: totalRides
+    }
+  });
+
+  return badges;
+}
+
+// POST /api/drivers/:id/update-badges - Update driver badges (can be called by admin or cron)
+router.post('/:id/update-badges', verifyToken, async (req, res, next) => {
+  try {
+    const badges = await updateDriverBadges(req.params.id);
+
+    res.json({
+      message: 'Badges updated successfully',
+      badges
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export the badge update function for use in other routes
+export { updateDriverBadges };
 export default router;

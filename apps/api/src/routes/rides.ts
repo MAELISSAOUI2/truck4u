@@ -4,6 +4,7 @@ import { verifyToken, requireCustomer, requireDriver, requireDriverAuth, AuthReq
 import { z } from 'zod';
 import Redis from 'ioredis';
 import { Server } from 'socket.io';
+import { updateDriverBadges } from './drivers';
 
 const router = Router();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
@@ -897,6 +898,14 @@ router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, 
           newAverageRating: Math.round(avgRating * 10) / 10,
           message: `Le client vous a noté ${rating}/5 étoiles`
         });
+      }
+
+      // Update driver badges based on new rating and stats
+      try {
+        await updateDriverBadges(ride.driverId!);
+      } catch (badgeError) {
+        console.error('Error updating driver badges:', badgeError);
+        // Don't fail the request if badge update fails
       }
     }
 
