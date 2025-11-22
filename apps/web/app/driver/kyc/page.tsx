@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/lib/store';
 import {
   Container,
   Title,
@@ -79,6 +80,7 @@ const STATUS_LABELS = {
 
 export default function DriverKYCPage() {
   const router = useRouter();
+  const { token } = useAuthStore();
   const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,11 @@ export default function DriverKYCPage() {
 
   const fetchKYCStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/driver/login');
+        return;
+      }
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/kyc/status`, {
         headers: {
           Authorization: `Bearer ${token}`
@@ -139,7 +145,11 @@ export default function DriverKYCPage() {
     setUploading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/driver/login');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('documentType', documentType);
@@ -181,7 +191,8 @@ export default function DriverKYCPage() {
 
   const handleDeleteDocument = async (docId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      if (!token) return;
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/kyc/documents/${docId}`, {
         method: 'DELETE',
         headers: {
