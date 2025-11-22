@@ -68,6 +68,7 @@ export default function DriverProfilePage() {
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [vehiclePhotos, setVehiclePhotos] = useState<string[]>([]);
 
   useEffect(() => {
     if (!token || !user) {
@@ -81,16 +82,41 @@ export default function DriverProfilePage() {
   const loadProfileData = async () => {
     try {
       // Charger les avis clients
-      const response = await fetch(
+      const reviewsResponse = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/drivers/${user?.id}/reviews`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
+      if (reviewsResponse.ok) {
+        const data = await reviewsResponse.json();
         setReviews(data.reviews || []);
+      }
+
+      // Charger les photos du véhicule depuis les documents KYC
+      const kycResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/drivers/${user?.id}/kyc-documents`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (kycResponse.ok) {
+        const kycData = await kycResponse.json();
+        const vehiclePhotoTypes = [
+          'VEHICLE_PHOTO_FRONT',
+          'VEHICLE_PHOTO_BACK',
+          'VEHICLE_PHOTO_LEFT',
+          'VEHICLE_PHOTO_RIGHT',
+          'VEHICLE_PHOTO_INTERIOR',
+        ];
+
+        const photos = kycData.documents
+          ?.filter((doc: any) => vehiclePhotoTypes.includes(doc.documentType))
+          .map((doc: any) => doc.fileUrl) || [];
+
+        setVehiclePhotos(photos);
       }
     } catch (error) {
       console.error('Error loading profile data:', error);
@@ -475,6 +501,43 @@ export default function DriverProfilePage() {
                       </Text>
                     </div>
                   </Group>
+                )}
+
+                {/* Vehicle Photos */}
+                {vehiclePhotos.length > 0 && (
+                  <>
+                    <Divider my="xs" />
+                    <div>
+                      <Text size="xs" c="dimmed" mb="xs">
+                        Photos du véhicule
+                      </Text>
+                      <SimpleGrid cols={3} spacing="xs">
+                        {vehiclePhotos.map((photo, index) => (
+                          <Paper
+                            key={index}
+                            radius="md"
+                            style={{
+                              aspectRatio: '1',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                            }}
+                            withBorder
+                            onClick={() => window.open(photo, '_blank')}
+                          >
+                            <img
+                              src={photo}
+                              alt={`Véhicule ${index + 1}`}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          </Paper>
+                        ))}
+                      </SimpleGrid>
+                    </div>
+                  </>
                 )}
               </Stack>
             </Card>

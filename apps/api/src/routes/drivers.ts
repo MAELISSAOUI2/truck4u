@@ -343,6 +343,22 @@ router.post('/profile/photo', verifyToken, requireDriverAuth, upload.single('pho
   }
 });
 
+// GET /api/drivers/:id/kyc-documents - Get driver KYC documents (including vehicle photos)
+router.get('/:id/kyc-documents', verifyToken, async (req, res, next) => {
+  try {
+    const driverId = req.params.id;
+
+    const documents = await prisma.kYCDocument.findMany({
+      where: { driverId },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    res.json({ documents });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/drivers/:id/reviews - Get driver reviews from completed rides
 router.get('/:id/reviews', verifyToken, async (req, res, next) => {
   try {
