@@ -12,25 +12,67 @@ model Driver {
   phone                String    @unique
   name                 String
   email                String?
-  verificationStatus   VerificationStatus @default(PENDING_REVIEW)
-  documents            Json      // {cin_front, cin_back, license, vehicle_reg, business_license, vehicle_photos[]}
+  verificationStatus   VerificationStatus @default(PENDING_DOCUMENTS)
+  verificationNotes    String?   @db.Text
+  rejectionReason      String?   @db.Text
   hasBusinessLicense   Boolean   @default(false)
   isAvailable          Boolean   @default(false)
   vehicleType          VehicleType
   vehiclePlate         String?
+  vehicleBrand         String?
+  vehicleModel         String?
+  vehicleYear          Int?
+  vehicleColor         String?
   rating               Float     @default(0.0)
   totalRides           Int       @default(0)
   totalEarnings        Float     @default(0.0)
   currentLocation      Json?     // {lat, lng, timestamp}
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
-  
+
   bids                 Bid[]
   completedRides       Ride[]    @relation("CompletedRides")
   earnings             DriverEarnings[]
-  
+  kycDocuments         KYCDocument[]
+
   @@index([verificationStatus])
   @@index([isAvailable, vehicleType])
+}
+
+model KYCDocument {
+  id                   String    @id @default(uuid())
+  driverId             String
+  documentType         DocumentType
+  fileUrl              String
+  fileName             String
+  fileSize             Int
+  mimeType             String
+  verificationStatus   DocumentVerificationStatus @default(PENDING)
+  verificationNotes    String?   @db.Text
+  uploadedAt           DateTime  @default(now())
+  verifiedAt           DateTime?
+  verifiedBy           String?   // Admin ID or system
+  expiresAt            DateTime? // For documents with expiration (license, etc.)
+  metadata             Json?     // Additional document-specific data
+
+  driver               Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, documentType])
+  @@index([verificationStatus])
+}
+
+model Admin {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  name                 String
+  role                 AdminRole @default(MODERATOR)
+  isActive             Boolean   @default(true)
+  lastLoginAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([email])
+  @@index([isActive])
 }
 
 model Customer {
@@ -181,9 +223,39 @@ model DriverEarnings {
 
 // Enums
 enum VerificationStatus {
+  PENDING_DOCUMENTS
   PENDING_REVIEW
   APPROVED
   REJECTED
+  SUSPENDED
+}
+
+enum DocumentType {
+  CIN_FRONT
+  CIN_BACK
+  DRIVING_LICENSE
+  VEHICLE_REGISTRATION
+  BUSINESS_LICENSE
+  VEHICLE_PHOTO_FRONT
+  VEHICLE_PHOTO_BACK
+  VEHICLE_PHOTO_LEFT
+  VEHICLE_PHOTO_RIGHT
+  VEHICLE_PHOTO_INTERIOR
+  INSURANCE_CERTIFICATE
+  TECHNICAL_INSPECTION
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
 }
 
 enum VehicleType {

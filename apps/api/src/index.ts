@@ -13,8 +13,10 @@ import paymentRoutes from './routes/payments';
 import subscriptionRoutes from './routes/subscriptions';
 import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
+import kycRoutes from './routes/kyc';
 import { errorHandler } from './middleware/error';
 import { rateLimiter } from './middleware/rateLimit';
+import path from 'path';
 
 dotenv.config();
 
@@ -46,6 +48,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/drivers', driverRoutes);
@@ -53,6 +58,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/kyc', kycRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/webhooks', webhookRoutes);
 
