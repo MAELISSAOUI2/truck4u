@@ -95,8 +95,7 @@ router.post('/register/driver', async (req, res, next) => {
     const driver = await prisma.driver.create({
       data: {
         ...data,
-        verificationStatus: 'PENDING_REVIEW',
-        documents: {}
+        verificationStatus: 'PENDING_DOCUMENTS'
       }
     });
 

@@ -82,11 +82,12 @@ export default function DriverLoginPage() {
 
       notifications.show({
         title: 'Bienvenue !',
-        message: 'Votre compte a été créé avec succès',
+        message: 'Veuillez compléter votre dossier KYC',
         color: 'green',
       });
 
-      router.push('/driver/dashboard');
+      // Redirect to KYC page for new drivers
+      router.push('/driver/kyc');
     } catch (error: any) {
       notifications.show({
         title: 'Erreur',
