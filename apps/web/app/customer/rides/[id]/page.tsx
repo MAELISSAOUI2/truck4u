@@ -509,10 +509,25 @@ export default function RideDetailsPage() {
     try {
       await rideApi.rate(params.id as string, rating, review);
       setRatingModalOpen(false);
-      loadRideDetails();
+
+      notifications.show({
+        title: 'Merci pour votre évaluation !',
+        message: 'Votre note a été enregistrée avec succès.',
+        color: 'green',
+        autoClose: 3000,
+      });
+
+      // Redirect to dashboard after rating
+      setTimeout(() => {
+        router.push('/customer/dashboard');
+      }, 1500);
     } catch (error: any) {
       console.error('Error submitting rating:', error);
-      alert(error.response?.data?.message || 'Erreur lors de l\'évaluation');
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.message || 'Erreur lors de l\'évaluation',
+        color: 'red',
+      });
     }
   };
 

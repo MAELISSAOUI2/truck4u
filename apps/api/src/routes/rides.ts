@@ -886,6 +886,18 @@ router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, 
         where: { id: ride.driverId! },
         data: { rating: avgRating }
       });
+
+      // Notify driver that they've been rated
+      const io = req.app.get('io') as Server;
+      if (io) {
+        io.to(`driver:${ride.driverId}`).emit('ride_rated', {
+          rideId: ride.id,
+          rating,
+          review,
+          newAverageRating: Math.round(avgRating * 10) / 10,
+          message: `Le client vous a noté ${rating}/5 étoiles`
+        });
+      }
     }
 
     res.json({ message: 'Rating submitted successfully' });

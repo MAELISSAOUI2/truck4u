@@ -149,6 +149,12 @@ export const onPaymentConfirmed = (callback: (data: any) => void) => {
   return () => socket.off('payment_confirmed', callback);
 };
 
+export const onRideRated = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('ride_rated', callback);
+  return () => socket.off('ride_rated', callback);
+};
+
 // Admin socket events
 export const onNewKYCSubmission = (callback: (data: any) => void) => {
   const socket = getSocket();

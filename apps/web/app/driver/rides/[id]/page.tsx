@@ -32,7 +32,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { updateDriverLocation, connectSocket, onPaymentConfirmed } from '@/lib/socket';
+import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -140,7 +140,7 @@ export default function DriverRideDetailsPage() {
     connectSocket(user.id, 'driver', token);
 
     // Listen for payment confirmation
-    const unsubscribe = onPaymentConfirmed((data: any) => {
+    const unsubscribe1 = onPaymentConfirmed((data: any) => {
       console.log('💳 Payment confirmed:', data);
 
       // Show notification
@@ -155,10 +155,29 @@ export default function DriverRideDetailsPage() {
       loadRideDetails();
     });
 
+    // Listen for ride rating
+    const unsubscribe2 = onRideRated((data: any) => {
+      console.log('⭐ Ride rated:', data);
+
+      // Show notification
+      notifications.show({
+        title: 'Course évaluée !',
+        message: data.message || `Le client vous a noté ${data.rating}/5 étoiles`,
+        color: 'green',
+        autoClose: 3000,
+      });
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        router.push('/driver/dashboard');
+      }, 2000);
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribe1();
+      unsubscribe2();
     };
-  }, [token, user, params.id]);
+  }, [token, user, params.id, router]);
 
   const loadRideDetails = async () => {
     try {
