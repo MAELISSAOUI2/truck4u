@@ -92,6 +92,16 @@ export const driverApi = {
 
   getScheduleAnalytics: () =>
     api.get('/drivers/schedule/analytics'),
+
+  getReturnLoads: (destinationLat?: number, destinationLng?: number) => {
+    const params = new URLSearchParams();
+    if (destinationLat !== undefined) params.append('destinationLat', destinationLat.toString());
+    if (destinationLng !== undefined) params.append('destinationLng', destinationLng.toString());
+    return api.get(`/drivers/return-loads${params.toString() ? '?' + params.toString() : ''}`);
+  },
+
+  updateHomeLocation: (lat: number, lng: number, address?: string) =>
+    api.put('/drivers/home-location', { lat, lng, address }),
 };
 
 // Ride APIs

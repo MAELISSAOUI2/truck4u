@@ -34,6 +34,7 @@ import {
   IconLogout,
   IconCalculator,
   IconCalendar,
+  IconRoute,
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
@@ -598,6 +599,33 @@ export default function DriverDashboard() {
               </Stack>
             </Card>
           </SimpleGrid>
+
+          {/* Return Loads Card */}
+          <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
+            <Stack gap="md">
+              <Group justify="space-between">
+                <div>
+                  <Group gap="xs" mb="xs">
+                    <IconRoute size={24} color="white" />
+                    <Title order={3} size="1.25rem" c="white">
+                      Mode retour à vide
+                    </Title>
+                  </Group>
+                  <Text size="sm" c="white" style={{ opacity: 0.9 }}>
+                    Trouvez des chargements le long de votre trajet retour et maximisez vos gains
+                  </Text>
+                </div>
+              </Group>
+              <Button
+                variant="white"
+                size="md"
+                rightSection={<IconChevronRight size={18} />}
+                onClick={() => router.push('/driver/return-loads')}
+              >
+                Voir les opportunités
+              </Button>
+            </Stack>
+          </Card>
 
           {/* No active rides message */}
           {!isOnline && (

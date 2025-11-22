@@ -1050,6 +1050,216 @@ function generateScheduleRecommendations(demandData: any) {
   return recommendations;
 }
 
+// GET /api/drivers/return-loads - Find rides along return route
+router.get('/return-loads', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { id: req.userId },
+      select: {
+        vehicleType: true,
+        currentLocation: true,
+        homeLocation: true,
+        tier: true,
+        platformFeeRate: true
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    // Get destination from query params or use driver's home location
+    const destinationLat = req.query.destinationLat ? parseFloat(req.query.destinationLat as string) : null;
+    const destinationLng = req.query.destinationLng ? parseFloat(req.query.destinationLng as string) : null;
+
+    let destination: { lat: number; lng: number; address?: string } | null = null;
+
+    if (destinationLat && destinationLng) {
+      destination = { lat: destinationLat, lng: destinationLng };
+    } else if (driver.homeLocation) {
+      const home = driver.homeLocation as any;
+      if (home.lat && home.lng) {
+        destination = home;
+      }
+    }
+
+    // Get current location
+    const currentLoc = driver.currentLocation as any;
+
+    if (!currentLoc || !currentLoc.lat || !currentLoc.lng) {
+      return res.status(400).json({
+        error: 'Current location not available. Please enable GPS and update your location.'
+      });
+    }
+
+    if (!destination) {
+      return res.status(400).json({
+        error: 'Destination not set. Please set your home location or provide a destination.'
+      });
+    }
+
+    // Maximum detour in km (configurable)
+    const MAX_DETOUR_KM = parseInt(process.env.MAX_RETURN_DETOUR_KM || '20');
+
+    // Calculate direct distance from current to destination
+    const directDistance = calculateDistance(
+      currentLoc.lat,
+      currentLoc.lng,
+      destination.lat,
+      destination.lng
+    );
+
+    // Find all pending rides matching vehicle type
+    const allRides = await prisma.ride.findMany({
+      where: {
+        status: 'PENDING_BIDS',
+        vehicleType: driver.vehicleType
+      },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            accountType: true,
+            phone: true
+          }
+        },
+        _count: {
+          select: {
+            bids: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Filter rides that are along the return route
+    const returnLoads = allRides
+      .map(ride => {
+        const pickup = ride.pickup as any;
+        const dropoff = ride.dropoff as any;
+
+        if (!pickup || !pickup.lat || !pickup.lng) return null;
+
+        // Calculate: current -> pickup
+        const distToPickup = calculateDistance(
+          currentLoc.lat,
+          currentLoc.lng,
+          pickup.lat,
+          pickup.lng
+        );
+
+        // Calculate: pickup -> destination
+        const pickupToDest = calculateDistance(
+          pickup.lat,
+          pickup.lng,
+          destination!.lat,
+          destination!.lng
+        );
+
+        // Calculate: pickup -> dropoff (if we have dropoff)
+        let pickupToDropoff = 0;
+        let dropoffToDest = 0;
+
+        if (dropoff && dropoff.lat && dropoff.lng) {
+          pickupToDropoff = calculateDistance(
+            pickup.lat,
+            pickup.lng,
+            dropoff.lat,
+            dropoff.lng
+          );
+
+          dropoffToDest = calculateDistance(
+            dropoff.lat,
+            dropoff.lng,
+            destination!.lat,
+            destination!.lng
+          );
+        }
+
+        // Total distance with this ride: current -> pickup -> dropoff -> destination
+        const totalDistanceWithRide = dropoff
+          ? distToPickup + pickupToDropoff + dropoffToDest
+          : distToPickup + pickupToDest;
+
+        // Detour = additional distance compared to direct route
+        const detour = totalDistanceWithRide - directDistance;
+
+        // Calculate efficiency: how much of the ride distance is useful vs detour
+        const rideDistance = dropoff ? pickupToDropoff : 0;
+        const efficiency = rideDistance > 0 ? (rideDistance / totalDistanceWithRide) * 100 : 0;
+
+        // Only include if detour is acceptable
+        if (detour <= MAX_DETOUR_KM) {
+          // Calculate potential earnings (after platform fees)
+          const grossEarnings = ride.finalPrice || ride.suggestedPrice || 0;
+          const platformFee = grossEarnings * driver.platformFeeRate;
+          const netEarnings = grossEarnings - platformFee;
+
+          return {
+            ...ride,
+            returnLoadInfo: {
+              directDistance: Math.round(directDistance * 10) / 10,
+              totalDistanceWithRide: Math.round(totalDistanceWithRide * 10) / 10,
+              detour: Math.round(detour * 10) / 10,
+              distanceToPickup: Math.round(distToPickup * 10) / 10,
+              efficiency: Math.round(efficiency * 10) / 10,
+              grossEarnings: Math.round(grossEarnings * 100) / 100,
+              platformFee: Math.round(platformFee * 100) / 100,
+              netEarnings: Math.round(netEarnings * 100) / 100,
+              pickupToDropoff: Math.round(pickupToDropoff * 10) / 10
+            }
+          };
+        }
+
+        return null;
+      })
+      .filter(ride => ride !== null);
+
+    // Sort by efficiency (best matches first)
+    returnLoads.sort((a, b) => {
+      return (b?.returnLoadInfo?.efficiency || 0) - (a?.returnLoadInfo?.efficiency || 0);
+    });
+
+    res.json({
+      currentLocation: currentLoc,
+      destination,
+      directDistance: Math.round(directDistance * 10) / 10,
+      maxDetour: MAX_DETOUR_KM,
+      returnLoads: returnLoads.slice(0, 20), // Limit to 20 best matches
+      totalFound: returnLoads.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/drivers/home-location - Update driver's home location
+router.put('/home-location', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { lat, lng, address } = z.object({
+      lat: z.number(),
+      lng: z.number(),
+      address: z.string().optional()
+    }).parse(req.body);
+
+    await prisma.driver.update({
+      where: { id: req.userId },
+      data: {
+        homeLocation: { lat, lng, address: address || '' }
+      }
+    });
+
+    res.json({
+      message: 'Home location updated successfully',
+      homeLocation: { lat, lng, address }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Export the badge and tier update functions for use in other routes
 export { updateDriverBadges, updateDriverTier };
 export default router;
