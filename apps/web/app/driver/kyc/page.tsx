@@ -106,6 +106,18 @@ export default function DriverKYCPage() {
       if (res.ok) {
         const data = await res.json();
         setKycStatus(data);
+
+        // Redirect to pending page if already submitted for review
+        if (data.verificationStatus === 'PENDING_REVIEW') {
+          router.push('/driver/pending');
+          return;
+        }
+
+        // Redirect to dashboard if approved
+        if (data.verificationStatus === 'APPROVED') {
+          router.push('/driver/dashboard');
+          return;
+        }
       }
     } catch (error) {
       console.error('Failed to fetch KYC status:', error);

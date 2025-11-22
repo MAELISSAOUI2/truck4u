@@ -229,9 +229,13 @@ router.get('/status', async (req, res, next) => {
         rejectionReason: true,
         kycDocuments: {
           select: {
+            id: true,
             documentType: true,
+            fileName: true,
+            fileUrl: true,
             verificationStatus: true,
-            verificationNotes: true
+            verificationNotes: true,
+            uploadedAt: true
           }
         }
       }
