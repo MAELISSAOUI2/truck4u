@@ -240,6 +240,33 @@ export default function RideDetailsPage() {
     };
   }, [params.id]);
 
+  // Listen for driver completion confirmation
+  useEffect(() => {
+    if (!params.id || !user) return;
+
+    const socket = connectSocket(user.id, 'customer', token!);
+
+    const handleDriverConfirmed = (data: any) => {
+      console.log('✅ Driver confirmed delivery:', data);
+
+      // Reload ride data to get updated proofPhotos with driver confirmation
+      loadRideDetails();
+
+      notifications.show({
+        title: 'Livraison confirmée',
+        message: 'Le conducteur a confirmé la livraison. Veuillez confirmer la réception.',
+        color: 'green',
+        autoClose: false,
+      });
+    };
+
+    socket.on('driver_confirmed_completion', handleDriverConfirmed);
+
+    return () => {
+      socket.off('driver_confirmed_completion', handleDriverConfirmed);
+    };
+  }, [params.id, user, token]);
+
   useEffect(() => {
     if (ride && mapContainer.current && !map.current) {
       initializeMap();
