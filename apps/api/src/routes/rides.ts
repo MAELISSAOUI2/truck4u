@@ -854,11 +854,13 @@ router.post('/:id/confirm-completion-customer', verifyToken, requireCustomer, as
   }
 });
 
-// POST /api/rides/:id/rate - Rate the ride
+// POST /api/rides/:id/rate - Rate the ride (multi-criteria)
 router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
   try {
-    const { rating, review } = z.object({
-      rating: z.number().min(1).max(5),
+    const { punctuality, care, communication, review } = z.object({
+      punctuality: z.number().min(1).max(5),
+      care: z.number().min(1).max(5),
+      communication: z.number().min(1).max(5),
       review: z.string().max(500).optional()
     }).parse(req.body);
 
@@ -875,54 +877,79 @@ router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, 
       return res.status(400).json({ error: 'Can only rate completed rides' });
     }
 
-    // Update ride rating
+    // Calculate overall average from the 3 criteria
+    const overallRating = (punctuality + care + communication) / 3;
+
+    // Update ride rating with detailed criteria
     await prisma.ride.update({
       where: { id: req.params.id },
       data: {
-        customerRating: rating,
+        customerRatingPunctuality: punctuality,
+        customerRatingCare: care,
+        customerRatingCommunication: communication,
+        customerRatingOverall: overallRating,
         customerReview: review
       }
     });
 
-    // Update driver's average rating
+    // Update driver's average ratings (overall and by criteria)
     if (ride.driver) {
       const allRatings = await prisma.ride.findMany({
         where: {
           driverId: ride.driverId,
-          customerRating: { not: null }
+          customerRatingOverall: { not: null }
         },
-        select: { customerRating: true }
+        select: {
+          customerRatingPunctuality: true,
+          customerRatingCare: true,
+          customerRatingCommunication: true,
+          customerRatingOverall: true
+        }
       });
 
-      const avgRating = allRatings.reduce((sum, r) => sum + (r.customerRating || 0), 0) / allRatings.length;
+      if (allRatings.length > 0) {
+        const avgOverall = allRatings.reduce((sum, r) => sum + (r.customerRatingOverall || 0), 0) / allRatings.length;
+        const avgPunctuality = allRatings.reduce((sum, r) => sum + (r.customerRatingPunctuality || 0), 0) / allRatings.length;
+        const avgCare = allRatings.reduce((sum, r) => sum + (r.customerRatingCare || 0), 0) / allRatings.length;
+        const avgCommunication = allRatings.reduce((sum, r) => sum + (r.customerRatingCommunication || 0), 0) / allRatings.length;
 
-      await prisma.driver.update({
-        where: { id: ride.driverId! },
-        data: { rating: avgRating }
-      });
-
-      // Notify driver that they've been rated
-      const io = req.app.get('io') as Server;
-      if (io) {
-        io.to(`driver:${ride.driverId}`).emit('ride_rated', {
-          rideId: ride.id,
-          rating,
-          review,
-          newAverageRating: Math.round(avgRating * 10) / 10,
-          message: `Le client vous a noté ${rating}/5 étoiles`
+        await prisma.driver.update({
+          where: { id: ride.driverId! },
+          data: {
+            rating: avgOverall,
+            ratingPunctuality: avgPunctuality,
+            ratingCare: avgCare,
+            ratingCommunication: avgCommunication
+          }
         });
-      }
 
-      // Update driver badges based on new rating and stats
-      try {
-        await updateDriverBadges(ride.driverId!);
-      } catch (badgeError) {
-        console.error('Error updating driver badges:', badgeError);
-        // Don't fail the request if badge update fails
+        // Notify driver that they've been rated
+        const io = req.app.get('io') as Server;
+        if (io) {
+          io.to(`driver:${ride.driverId}`).emit('ride_rated', {
+            rideId: ride.id,
+            ratings: { punctuality, care, communication },
+            overallRating: Math.round(overallRating * 10) / 10,
+            review,
+            newAverageRating: Math.round(avgOverall * 10) / 10,
+            message: `Le client vous a noté ${Math.round(overallRating * 10) / 10}/5 étoiles`
+          });
+        }
+
+        // Update driver badges based on new rating and stats
+        try {
+          await updateDriverBadges(ride.driverId!);
+        } catch (badgeError) {
+          console.error('Error updating driver badges:', badgeError);
+          // Don't fail the request if badge update fails
+        }
       }
     }
 
-    res.json({ message: 'Rating submitted successfully' });
+    res.json({
+      message: 'Rating submitted successfully',
+      overallRating: Math.round(overallRating * 10) / 10
+    });
   } catch (error) {
     next(error);
   }

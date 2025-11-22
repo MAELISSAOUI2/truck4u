@@ -48,8 +48,26 @@ interface Review {
   id: string;
   customerName: string;
   rating: number;
+  ratingPunctuality: number;
+  ratingCare: number;
+  ratingCommunication: number;
   review: string;
   date: string;
+}
+
+interface ReviewStatistics {
+  total: number;
+  average: number;
+  averagePunctuality: number;
+  averageCare: number;
+  averageCommunication: number;
+  distribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
 }
 
 // Badge configuration avec icônes et couleurs
@@ -67,6 +85,7 @@ export default function DriverProfilePage() {
   const { user, token, logout, setUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<ReviewStatistics | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [vehiclePhotos, setVehiclePhotos] = useState<string[]>([]);
 
@@ -92,6 +111,7 @@ export default function DriverProfilePage() {
       if (reviewsResponse.ok) {
         const data = await reviewsResponse.json();
         setReviews(data.reviews || []);
+        setReviewStats(data.statistics || null);
       }
 
       // Charger les photos du véhicule depuis les documents KYC
@@ -312,6 +332,85 @@ export default function DriverProfilePage() {
               )}
             </Stack>
           </Card>
+
+          {/* Detailed Rating Breakdown */}
+          {reviewStats && reviewStats.total > 0 && (
+            <Card shadow="sm" padding="xl" radius="lg" withBorder>
+              <Title order={3} size="1.25rem" mb="lg">
+                Évaluation détaillée
+              </Title>
+              <Stack gap="lg">
+                {/* Punctuality */}
+                <div>
+                  <Group justify="space-between" mb="xs">
+                    <Group gap="xs">
+                      <Text size="sm" fw={500}>🕐 Ponctualité</Text>
+                    </Group>
+                    <Badge size="lg" variant="light" color="blue">
+                      {reviewStats.averagePunctuality.toFixed(1)}/5
+                    </Badge>
+                  </Group>
+                  <Progress
+                    value={(reviewStats.averagePunctuality / 5) * 100}
+                    color="blue"
+                    size="lg"
+                    radius="xl"
+                  />
+                </div>
+
+                {/* Care */}
+                <div>
+                  <Group justify="space-between" mb="xs">
+                    <Group gap="xs">
+                      <Text size="sm" fw={500}>📦 Soin</Text>
+                    </Group>
+                    <Badge size="lg" variant="light" color="teal">
+                      {reviewStats.averageCare.toFixed(1)}/5
+                    </Badge>
+                  </Group>
+                  <Progress
+                    value={(reviewStats.averageCare / 5) * 100}
+                    color="teal"
+                    size="lg"
+                    radius="xl"
+                  />
+                </div>
+
+                {/* Communication */}
+                <div>
+                  <Group justify="space-between" mb="xs">
+                    <Group gap="xs">
+                      <Text size="sm" fw={500}>💬 Communication</Text>
+                    </Group>
+                    <Badge size="lg" variant="light" color="grape">
+                      {reviewStats.averageCommunication.toFixed(1)}/5
+                    </Badge>
+                  </Group>
+                  <Progress
+                    value={(reviewStats.averageCommunication / 5) * 100}
+                    color="grape"
+                    size="lg"
+                    radius="xl"
+                  />
+                </div>
+
+                <Divider />
+
+                {/* Overall Average */}
+                <Paper p="md" withBorder style={{ backgroundColor: '#f8f9fa' }}>
+                  <Group justify="space-between">
+                    <Group gap="xs">
+                      <IconStar size={20} fill="#FFD700" color="#FFD700" />
+                      <Text size="sm" fw={600}>Moyenne globale</Text>
+                    </Group>
+                    <Badge size="xl" variant="filled" color="yellow">
+                      {reviewStats.average.toFixed(1)}/5
+                    </Badge>
+                  </Group>
+                </Paper>
+              </Stack>
+            </Card>
+          )}
 
           {/* Statistics Grid */}
           <SimpleGrid cols={3} spacing="md">
@@ -584,19 +683,35 @@ export default function DriverProfilePage() {
                           </Text>
                         </div>
                       </Group>
-                      <Group gap={4}>
-                        {[...Array(5)].map((_, i) => (
-                          <IconStar
-                            key={i}
-                            size={16}
-                            fill={i < review.rating ? '#FFD700' : 'none'}
-                            color={i < review.rating ? '#FFD700' : '#dee2e6'}
-                          />
-                        ))}
-                      </Group>
+                      <Badge size="lg" variant="filled" color="yellow">
+                        {review.rating.toFixed(1)}
+                      </Badge>
                     </Group>
+
+                    {/* Detailed Criteria */}
+                    <SimpleGrid cols={3} spacing="xs" mt="xs">
+                      <Paper p="xs" withBorder style={{ backgroundColor: '#f0f9ff' }}>
+                        <Text size="xs" c="dimmed" ta="center">🕐 Ponctualité</Text>
+                        <Text size="sm" fw={600} ta="center" c="blue">
+                          {review.ratingPunctuality}/5
+                        </Text>
+                      </Paper>
+                      <Paper p="xs" withBorder style={{ backgroundColor: '#f0fdfa' }}>
+                        <Text size="xs" c="dimmed" ta="center">📦 Soin</Text>
+                        <Text size="sm" fw={600} ta="center" c="teal">
+                          {review.ratingCare}/5
+                        </Text>
+                      </Paper>
+                      <Paper p="xs" withBorder style={{ backgroundColor: '#faf5ff' }}>
+                        <Text size="xs" c="dimmed" ta="center">💬 Communication</Text>
+                        <Text size="sm" fw={600} ta="center" c="grape">
+                          {review.ratingCommunication}/5
+                        </Text>
+                      </Paper>
+                    </SimpleGrid>
+
                     {review.review && (
-                      <Text size="sm" style={{ fontStyle: 'italic' }}>
+                      <Text size="sm" style={{ fontStyle: 'italic' }} mt="xs">
                         "{review.review}"
                       </Text>
                     )}

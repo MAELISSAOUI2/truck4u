@@ -24,7 +24,10 @@ model Driver {
   vehicleModel         String?
   vehicleYear          Int?
   vehicleColor         String?
-  rating               Float     @default(0.0)
+  rating               Float     @default(0.0)  // Overall average rating
+  ratingPunctuality    Float     @default(0.0)  // Average punctuality rating
+  ratingCare           Float     @default(0.0)  // Average care rating
+  ratingCommunication  Float     @default(0.0)  // Average communication rating
   totalRides           Int       @default(0)
   completedRides       Int       @default(0)  // Number of completed rides
   acceptedBids         Int       @default(0)  // Number of bids accepted by customers
@@ -133,11 +136,19 @@ model Ride {
   // Proof of service
   proofPhotos          Json?     // {loading: url, delivery: url, timestamp}
 
-  // Rating
-  customerRating       Int?
-  customerReview       String?   @db.Text
-  driverRating         Int?
-  driverReview         String?   @db.Text
+  // Rating - Customer rates Driver
+  customerRatingPunctuality      Int?  // Driver punctuality (1-5)
+  customerRatingCare             Int?  // Care with goods (1-5)
+  customerRatingCommunication    Int?  // Communication quality (1-5)
+  customerRatingOverall          Float? // Auto-calculated average
+  customerReview                 String? @db.Text
+
+  // Rating - Driver rates Customer
+  driverRatingRespect            Int?  // Customer respect (1-5)
+  driverRatingClarity            Int?  // Instruction clarity (1-5)
+  driverRatingPayment            Int?  // Payment smoothness (1-5)
+  driverRatingOverall            Float? // Auto-calculated average
+  driverReview                   String? @db.Text
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

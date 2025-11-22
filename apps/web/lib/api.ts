@@ -107,8 +107,8 @@ export const rideApi = {
   uploadProofPhoto: (id: string, type: 'loading' | 'delivery', photoUrl: string) =>
     api.post(`/rides/${id}/proof-photo/${type}`, { photoUrl }),
   
-  rate: (id: string, rating: number, review?: string) =>
-    api.post(`/rides/${id}/rate`, { rating, review }),
+  rate: (id: string, ratings: { punctuality: number; care: number; communication: number }, review?: string) =>
+    api.post(`/rides/${id}/rate`, { ...ratings, review }),
 
   getHistory: () =>
     api.get('/rides/history'),

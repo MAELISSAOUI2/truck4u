@@ -369,7 +369,7 @@ router.get('/:id/reviews', verifyToken, async (req, res, next) => {
       where: {
         driverId,
         status: 'COMPLETED',
-        customerRating: { not: null }
+        customerRatingOverall: { not: null }
       },
       include: {
         customer: {
@@ -385,24 +385,39 @@ router.get('/:id/reviews', verifyToken, async (req, res, next) => {
     const reviews = rides.map(ride => ({
       id: ride.id,
       customerName: ride.customer.name,
-      rating: ride.customerRating || 0,
+      rating: ride.customerRatingOverall || 0,
+      ratingPunctuality: ride.customerRatingPunctuality || 0,
+      ratingCare: ride.customerRatingCare || 0,
+      ratingCommunication: ride.customerRatingCommunication || 0,
       review: ride.customerReview || '',
       date: ride.completedAt?.toISOString() || ride.updatedAt.toISOString()
     }));
 
-    // Calculate review statistics
+    // Calculate review statistics including detailed criteria
     const totalReviews = reviews.length;
     const averageRating = totalReviews > 0
       ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
       : 0;
 
-    // Rating distribution
+    const averagePunctuality = totalReviews > 0
+      ? reviews.reduce((sum, r) => sum + r.ratingPunctuality, 0) / totalReviews
+      : 0;
+
+    const averageCare = totalReviews > 0
+      ? reviews.reduce((sum, r) => sum + r.ratingCare, 0) / totalReviews
+      : 0;
+
+    const averageCommunication = totalReviews > 0
+      ? reviews.reduce((sum, r) => sum + r.ratingCommunication, 0) / totalReviews
+      : 0;
+
+    // Rating distribution for overall rating
     const distribution = {
-      5: reviews.filter(r => r.rating === 5).length,
-      4: reviews.filter(r => r.rating === 4).length,
-      3: reviews.filter(r => r.rating === 3).length,
-      2: reviews.filter(r => r.rating === 2).length,
-      1: reviews.filter(r => r.rating === 1).length
+      5: reviews.filter(r => Math.round(r.rating) === 5).length,
+      4: reviews.filter(r => Math.round(r.rating) === 4).length,
+      3: reviews.filter(r => Math.round(r.rating) === 3).length,
+      2: reviews.filter(r => Math.round(r.rating) === 2).length,
+      1: reviews.filter(r => Math.round(r.rating) === 1).length
     };
 
     res.json({
@@ -410,6 +425,9 @@ router.get('/:id/reviews', verifyToken, async (req, res, next) => {
       statistics: {
         total: totalReviews,
         average: Math.round(averageRating * 10) / 10,
+        averagePunctuality: Math.round(averagePunctuality * 10) / 10,
+        averageCare: Math.round(averageCare * 10) / 10,
+        averageCommunication: Math.round(averageCommunication * 10) / 10,
         distribution
       }
     });

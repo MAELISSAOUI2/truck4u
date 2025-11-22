@@ -117,7 +117,9 @@ export default function RideDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
-  const [rating, setRating] = useState(5);
+  const [ratingPunctuality, setRatingPunctuality] = useState(5);
+  const [ratingCare, setRatingCare] = useState(5);
+  const [ratingCommunication, setRatingCommunication] = useState(5);
   const [review, setReview] = useState('');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedBidForPayment, setSelectedBidForPayment] = useState<any>(null);
@@ -540,12 +542,22 @@ export default function RideDetailsPage() {
 
   const handleSubmitRating = async () => {
     try {
-      await rideApi.rate(params.id as string, rating, review);
+      await rideApi.rate(
+        params.id as string,
+        {
+          punctuality: ratingPunctuality,
+          care: ratingCare,
+          communication: ratingCommunication,
+        },
+        review
+      );
       setRatingModalOpen(false);
+
+      const overallRating = ((ratingPunctuality + ratingCare + ratingCommunication) / 3).toFixed(1);
 
       notifications.show({
         title: 'Merci pour votre évaluation !',
-        message: 'Votre note a été enregistrée avec succès.',
+        message: `Vous avez noté le conducteur ${overallRating}/5 étoiles`,
         color: 'green',
         autoClose: 3000,
       });
@@ -1055,22 +1067,73 @@ export default function RideDetailsPage() {
       <Modal
         opened={ratingModalOpen}
         onClose={() => setRatingModalOpen(false)}
-        title="Évaluer la course"
+        title="Évaluer le conducteur"
         centered
+        size="md"
       >
-        <Stack gap="md">
+        <Stack gap="lg">
+          <Text size="sm" c="dimmed">
+            Évaluez votre expérience selon ces critères
+          </Text>
+
+          {/* Punctuality */}
           <div>
-            <Text size="sm" fw={500} mb="xs">Note</Text>
-            <Rating value={rating} onChange={setRating} size="xl" />
+            <Group gap="xs" mb="xs">
+              <Text size="sm" fw={500}>🕐 Ponctualité</Text>
+            </Group>
+            <Text size="xs" c="dimmed" mb="xs">
+              A-t-il respecté les délais ?
+            </Text>
+            <Rating value={ratingPunctuality} onChange={setRatingPunctuality} size="lg" />
           </div>
+
+          <Divider />
+
+          {/* Care */}
+          <div>
+            <Group gap="xs" mb="xs">
+              <Text size="sm" fw={500}>📦 Soin</Text>
+            </Group>
+            <Text size="xs" c="dimmed" mb="xs">
+              A-t-il manipulé la marchandise avec précaution ?
+            </Text>
+            <Rating value={ratingCare} onChange={setRatingCare} size="lg" />
+          </div>
+
+          <Divider />
+
+          {/* Communication */}
+          <div>
+            <Group gap="xs" mb="xs">
+              <Text size="sm" fw={500}>💬 Communication</Text>
+            </Group>
+            <Text size="xs" c="dimmed" mb="xs">
+              Était-il réactif et clair ?
+            </Text>
+            <Rating value={ratingCommunication} onChange={setRatingCommunication} size="lg" />
+          </div>
+
+          <Divider />
+
+          {/* Overall */}
+          <Paper p="md" withBorder style={{ backgroundColor: '#f8f9fa' }}>
+            <Group justify="space-between">
+              <Text size="sm" fw={600}>Note globale</Text>
+              <Badge size="lg" variant="filled" color="blue">
+                {((ratingPunctuality + ratingCare + ratingCommunication) / 3).toFixed(1)}/5
+              </Badge>
+            </Group>
+          </Paper>
+
           <Textarea
             label="Commentaire (optionnel)"
             placeholder="Partagez votre expérience..."
-            rows={4}
+            rows={3}
             value={review}
             onChange={(e) => setReview(e.target.value)}
           />
-          <Button fullWidth color="dark" onClick={handleSubmitRating}>
+
+          <Button fullWidth color="dark" size="lg" onClick={handleSubmitRating}>
             Envoyer l'évaluation
           </Button>
         </Stack>
