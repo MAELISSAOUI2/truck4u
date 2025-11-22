@@ -202,11 +202,42 @@ export default function DriverKYCPage() {
       });
 
       if (res.ok) {
+        // Update state immediately by removing the document from the list
+        if (kycStatus) {
+          const deletedDoc = kycStatus.documents.find(doc => doc.id === docId);
+          const updatedDocs = kycStatus.documents.filter(doc => doc.id !== docId);
+
+          // Update missing documents list if it was a required document
+          const requiredDocs = ['CIN_FRONT', 'CIN_BACK', 'DRIVING_LICENSE', 'VEHICLE_REGISTRATION', 'VEHICLE_PHOTO_FRONT'];
+          const updatedMissing = deletedDoc && requiredDocs.includes(deletedDoc.documentType)
+            ? [...kycStatus.missingDocuments, deletedDoc.documentType]
+            : kycStatus.missingDocuments;
+
+          setKycStatus({
+            ...kycStatus,
+            documents: updatedDocs,
+            missingDocuments: updatedMissing,
+            progress: {
+              total: kycStatus.progress.total,
+              uploaded: updatedDocs.filter(d => requiredDocs.includes(d.documentType)).length,
+              percentage: Math.round((updatedDocs.filter(d => requiredDocs.includes(d.documentType)).length / kycStatus.progress.total) * 100)
+            }
+          });
+        }
+
+        // Then fetch fresh data from server
         await fetchKYCStatus();
+
         notifications.show({
           title: 'Succès',
-          message: 'Document supprimé',
+          message: 'Document supprimé. Vous pouvez maintenant en télécharger un nouveau.',
           color: 'green'
+        });
+      } else {
+        notifications.show({
+          title: 'Erreur',
+          message: 'Impossible de supprimer le document',
+          color: 'red'
         });
       }
     } catch (error) {
@@ -374,7 +405,13 @@ export default function DriverKYCPage() {
                               <div>
                                 <Text size="sm" fw={600}>{existingDoc.fileName}</Text>
                                 <Text size="xs" c="dimmed">
-                                  {new Date(existingDoc.uploadedAt).toLocaleDateString('fr-FR')}
+                                  {existingDoc.uploadedAt
+                                    ? new Date(existingDoc.uploadedAt).toLocaleDateString('fr-FR', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                      })
+                                    : 'Date inconnue'}
                                 </Text>
                               </div>
                             </Group>
