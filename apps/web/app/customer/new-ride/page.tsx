@@ -117,6 +117,7 @@ export default function NewRidePage() {
     if (formData.pickupAddress && formData.deliveryAddress) {
       calculateRoute();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
 
   const handlePickupChange = (address: string, lat: number, lng: number) => {
@@ -489,7 +490,7 @@ export default function NewRidePage() {
                         size="lg"
                         radius="lg"
                         color="dark"
-                        onClick={() => setFormData({ ...formData, numberOfTrips: formData.numberOfTrips + 1) })}
+                        onClick={() => setFormData({ ...formData, numberOfTrips: formData.numberOfTrips + 1 })}
                       >
                         <IconPlus size={18} />
                       </ActionIcon>
