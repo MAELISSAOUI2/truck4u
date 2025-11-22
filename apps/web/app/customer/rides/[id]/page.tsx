@@ -41,6 +41,7 @@ import { rideApi, paymentApi } from '@/lib/api';
 import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import ChatBox from '@/components/ChatBox';
 
 // Configure Mapbox
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
@@ -121,6 +122,7 @@ export default function RideDetailsPage() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedBidForPayment, setSelectedBidForPayment] = useState<any>(null);
   const [confirmDeliveryModalOpen, setConfirmDeliveryModalOpen] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
   const { user } = useAuthStore();
 
   // Connect to socket and setup real-time listeners
@@ -641,7 +643,13 @@ export default function RideDetailsPage() {
                       <ActionIcon size="lg" radius="xl" color="green" variant="light">
                         <IconPhone size={20} />
                       </ActionIcon>
-                      <ActionIcon size="lg" radius="xl" color="blue" variant="light">
+                      <ActionIcon
+                        size="lg"
+                        radius="xl"
+                        color="blue"
+                        variant="light"
+                        onClick={() => setChatModalOpen(true)}
+                      >
                         <IconMessageCircle size={20} />
                       </ActionIcon>
                     </Group>
@@ -1036,6 +1044,17 @@ export default function RideDetailsPage() {
           </Button>
         </Stack>
       </Modal>
+
+      {/* Chat Modal */}
+      {ride?.driver && (
+        <ChatBox
+          opened={chatModalOpen}
+          onClose={() => setChatModalOpen(false)}
+          rideId={params.id as string}
+          userType="CUSTOMER"
+          token={token!}
+        />
+      )}
     </div>
   );
 }

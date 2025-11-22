@@ -104,24 +104,24 @@ model Ride {
   customerId           String
   driverId             String?
   status               RideStatus @default(PENDING_BIDS)
-  
+
   // Route
   pickup               Json      // {lat, lng, address, details, access_notes}
   dropoff              Json      // {lat, lng, address, details}
   distance             Float     // in km
   estimatedDuration    Int       // in minutes
-  
+
   // Service details
   vehicleType          VehicleType
   loadAssistance       Boolean   @default(false)
   numberOfTrips        Int       @default(1)
   itemPhotos           String[]  // S3 URLs
   description          String?   @db.Text
-  
+
   // Timing
   serviceType          ServiceType @default(IMMEDIATE)
   scheduledFor         DateTime?
-  
+
   // Pricing
   estimatedMinPrice    Float?
   estimatedMaxPrice    Float?
@@ -129,26 +129,27 @@ model Ride {
   finalPrice           Float?
   platformFee          Float?
   driverEarnings       Float?
-  
+
   // Proof of service
   proofPhotos          Json?     // {loading: url, delivery: url, timestamp}
-  
+
   // Rating
   customerRating       Int?
   customerReview       String?   @db.Text
   driverRating         Int?
   driverReview         String?   @db.Text
-  
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   completedAt          DateTime?
-  
+
   customer             Customer  @relation(fields: [customerId], references: [id])
   driver               Driver?   @relation("CompletedRides", fields: [driverId], references: [id])
   bids                 Bid[]
   payment              Payment?
   winningBid           Bid?      @relation("WinningBid", fields: [winningBidId], references: [id])
-  
+  chatMessages         ChatMessage[]
+
   @@index([status, createdAt])
   @@index([customerId])
   @@index([driverId])
@@ -221,10 +222,26 @@ model DriverEarnings {
   platformFee          Float
   netEarnings          Float
   paidAt               DateTime  @default(now())
-  
+
   driver               Driver    @relation(fields: [driverId], references: [id])
-  
+
   @@index([driverId, paidAt])
+}
+
+model ChatMessage {
+  id                   String    @id @default(uuid())
+  rideId               String
+  senderId             String
+  senderType           UserType
+  message              String    @db.Text
+  isQuickMessage       Boolean   @default(false)
+  isRead               Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+
+  ride                 Ride      @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  @@index([rideId, createdAt])
+  @@index([rideId, isRead])
 }
 
 // Enums
@@ -323,4 +340,10 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   CANCELLED
+}
+
+enum UserType {
+  CUSTOMER
+  DRIVER
+  ADMIN
 }

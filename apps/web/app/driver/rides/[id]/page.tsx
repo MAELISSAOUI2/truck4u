@@ -29,12 +29,14 @@ import {
   IconPackageImport,
   IconPackageExport,
   IconRoute,
+  IconMessageCircle,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import ChatBox from '@/components/ChatBox';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
@@ -97,6 +99,7 @@ export default function DriverRideDetailsPage() {
   const [ride, setRide] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -499,7 +502,7 @@ export default function DriverRideDetailsPage() {
               {ride.customer?.phone && ride.status !== 'BID_ACCEPTED' && (
                 <Group gap="md">
                   <IconPhone size={20} />
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <Text size="xs" c="dimmed">
                       Téléphone
                     </Text>
@@ -509,15 +512,26 @@ export default function DriverRideDetailsPage() {
                       </a>
                     </Text>
                   </div>
-                  <Button
-                    variant="light"
-                    size="sm"
-                    component="a"
-                    href={`tel:${ride.customer.phone}`}
-                    leftSection={<IconPhone size={16} />}
-                  >
-                    Appeler
-                  </Button>
+                  <Group gap="xs">
+                    <Button
+                      variant="light"
+                      size="sm"
+                      component="a"
+                      href={`tel:${ride.customer.phone}`}
+                      leftSection={<IconPhone size={16} />}
+                    >
+                      Appeler
+                    </Button>
+                    <Button
+                      variant="light"
+                      size="sm"
+                      color="blue"
+                      onClick={() => setChatModalOpen(true)}
+                      leftSection={<IconMessageCircle size={16} />}
+                    >
+                      Message
+                    </Button>
+                  </Group>
                 </Group>
               )}
 
@@ -554,6 +568,17 @@ export default function DriverRideDetailsPage() {
           )}
         </Stack>
       </Container>
+
+      {/* Chat Modal */}
+      {ride?.customer && (
+        <ChatBox
+          opened={chatModalOpen}
+          onClose={() => setChatModalOpen(false)}
+          rideId={params.id as string}
+          userType="DRIVER"
+          token={token!}
+        />
+      )}
     </div>
   );
 }

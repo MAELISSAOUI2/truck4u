@@ -14,6 +14,7 @@ import subscriptionRoutes from './routes/subscriptions';
 import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
 import kycRoutes from './routes/kyc';
+import chatRoutes from './routes/chat';
 import { errorHandler } from './middleware/error';
 import { rateLimiter } from './middleware/rateLimit';
 import path from 'path';
@@ -59,6 +60,7 @@ app.use('/api/rides', rideRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/kyc', kycRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/webhooks', webhookRoutes);
 
