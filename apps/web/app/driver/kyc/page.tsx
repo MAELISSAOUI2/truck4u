@@ -461,13 +461,28 @@ export default function DriverKYCPage() {
               </Center>
             )}
 
+            {/* Debug info */}
+            <Alert color="blue" variant="light" mt="lg">
+              <Text size="sm">
+                <strong>Statut actuel:</strong> {kycStatus?.verificationStatus}
+              </Text>
+              <Text size="sm">
+                <strong>Documents manquants:</strong> {kycStatus?.missingDocuments.length || 0}
+              </Text>
+              <Text size="sm">
+                <strong>Documents requis:</strong> {kycStatus?.missingDocuments.join(', ') || 'Aucun'}
+              </Text>
+            </Alert>
+
             {kycStatus?.verificationStatus === 'PENDING_REVIEW' && (
               <Alert icon={<IconCheck size={16} />} title="Documents complets" color="green" variant="light" mt="lg">
                 Tous les documents requis ont été téléchargés. Votre dossier est en cours de vérification.
               </Alert>
             )}
 
-            {kycStatus?.verificationStatus === 'PENDING_DOCUMENTS' &&
+            {/* Show submit button for PENDING_DOCUMENTS or REJECTED when all docs uploaded */}
+            {(kycStatus?.verificationStatus === 'PENDING_DOCUMENTS' ||
+              kycStatus?.verificationStatus === 'REJECTED') &&
              kycStatus?.missingDocuments.length === 0 && (
               <Button
                 fullWidth
