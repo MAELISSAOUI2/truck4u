@@ -2,11 +2,207 @@ import { Router } from 'express';
 import { prisma } from '@truck4u/database';
 import { verifyToken, requireAdmin, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
+import path from 'path';
 
 const router = Router();
 
 // All admin routes require admin auth
 router.use(verifyToken, requireAdmin);
+
+// ============================================
+// KYC MANAGEMENT
+// ============================================
+
+// GET /api/admin/kyc/pending - Get drivers with pending KYC verification
+router.get('/kyc/pending', async (req, res, next) => {
+  try {
+    const drivers = await prisma.driver.findMany({
+      where: {
+        verificationStatus: 'PENDING_REVIEW'
+      },
+      include: {
+        kycDocuments: {
+          orderBy: { uploadedAt: 'desc' }
+        }
+      },
+      orderBy: {
+        updatedAt: 'asc' // Oldest first
+      }
+    });
+
+    res.json({ drivers, count: drivers.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/kyc/driver/:id - Get driver KYC details
+router.get('/kyc/driver/:id', async (req, res, next) => {
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { id: req.params.id },
+      include: {
+        kycDocuments: {
+          orderBy: { uploadedAt: 'desc' }
+        },
+        completedRides: {
+          take: 10,
+          orderBy: { completedAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            finalPrice: true,
+            customerRating: true,
+            completedAt: true
+          }
+        }
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    res.json({ driver });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/kyc/document/:id/verify - Verify a specific document
+router.post('/kyc/document/:id/verify', async (req, res, next) => {
+  try {
+    const { status, notes } = z.object({
+      status: z.enum(['APPROVED', 'REJECTED']),
+      notes: z.string().optional()
+    }).parse(req.body);
+
+    const authReq = req as AuthRequest;
+
+    const document = await prisma.kYCDocument.update({
+      where: { id: req.params.id },
+      data: {
+        verificationStatus: status,
+        verificationNotes: notes,
+        verifiedAt: new Date(),
+        verifiedBy: authReq.userId
+      },
+      include: {
+        driver: {
+          include: {
+            kycDocuments: true
+          }
+        }
+      }
+    });
+
+    // Check if all documents are approved
+    const allApproved = document.driver.kycDocuments.every(
+      doc => doc.verificationStatus === 'APPROVED'
+    );
+
+    // If all docs approved, approve driver
+    if (allApproved) {
+      await prisma.driver.update({
+        where: { id: document.driverId },
+        data: {
+          verificationStatus: 'APPROVED',
+          verificationNotes: 'All documents verified and approved'
+        }
+      });
+    }
+
+    res.json({
+      message: `Document ${status.toLowerCase()}`,
+      document
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/kyc/driver/:id/approve - Approve driver KYC
+router.post('/kyc/driver/:id/approve', async (req, res, next) => {
+  try {
+    const { notes } = z.object({
+      notes: z.string().optional()
+    }).parse(req.body);
+
+    const driver = await prisma.driver.update({
+      where: { id: req.params.id },
+      data: {
+        verificationStatus: 'APPROVED',
+        verificationNotes: notes,
+        rejectionReason: null
+      }
+    });
+
+    // Approve all pending documents
+    await prisma.kYCDocument.updateMany({
+      where: {
+        driverId: req.params.id,
+        verificationStatus: 'PENDING'
+      },
+      data: {
+        verificationStatus: 'APPROVED',
+        verifiedAt: new Date()
+      }
+    });
+
+    // TODO: Send SMS notification to driver
+
+    res.json({
+      message: 'Driver approved successfully',
+      driver
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/kyc/driver/:id/reject - Reject driver KYC
+router.post('/kyc/driver/:id/reject', async (req, res, next) => {
+  try {
+    const { reason, documentIds } = z.object({
+      reason: z.string().min(10),
+      documentIds: z.array(z.string()).optional()
+    }).parse(req.body);
+
+    const driver = await prisma.driver.update({
+      where: { id: req.params.id },
+      data: {
+        verificationStatus: 'REJECTED',
+        rejectionReason: reason
+      }
+    });
+
+    // Reject specific documents if provided
+    if (documentIds && documentIds.length > 0) {
+      await prisma.kYCDocument.updateMany({
+        where: {
+          id: { in: documentIds }
+        },
+        data: {
+          verificationStatus: 'REJECTED',
+          verifiedAt: new Date()
+        }
+      });
+    }
+
+    // TODO: Send SMS notification to driver
+
+    res.json({
+      message: 'Driver rejected',
+      driver
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// DRIVER MANAGEMENT
+// ============================================
 
 // GET /api/admin/drivers/pending - Get drivers pending verification
 router.get('/drivers/pending', async (req, res, next) => {
@@ -193,6 +389,224 @@ router.get('/disputes', async (req, res, next) => {
   try {
     // TODO: Implement disputes/reports system
     res.json({ disputes: [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// DRIVER LIST & SEARCH
+// ============================================
+
+// GET /api/admin/drivers - Get all drivers with filters
+router.get('/drivers', async (req, res, next) => {
+  try {
+    const { status, search, page = '1', limit = '20' } = req.query;
+
+    const where: any = {};
+
+    if (status) {
+      where.verificationStatus = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search as string, mode: 'insensitive' } },
+        { phone: { contains: search as string } },
+        { email: { contains: search as string, mode: 'insensitive' } },
+        { vehiclePlate: { contains: search as string, mode: 'insensitive' } }
+      ];
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [drivers, total] = await Promise.all([
+      prisma.driver.findMany({
+        where,
+        include: {
+          kycDocuments: {
+            select: {
+              documentType: true,
+              verificationStatus: true
+            }
+          },
+          _count: {
+            select: {
+              completedRides: true,
+              bids: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum
+      }),
+      prisma.driver.count({ where })
+    ]);
+
+    res.json({
+      drivers,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/admin/drivers/:id/suspend - Suspend driver
+router.patch('/drivers/:id/suspend', async (req, res, next) => {
+  try {
+    const { reason } = z.object({
+      reason: z.string().min(10)
+    }).parse(req.body);
+
+    const driver = await prisma.driver.update({
+      where: { id: req.params.id },
+      data: {
+        verificationStatus: 'SUSPENDED',
+        isAvailable: false,
+        rejectionReason: reason
+      }
+    });
+
+    res.json({
+      message: 'Driver suspended',
+      driver
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PATCH /api/admin/drivers/:id/activate - Reactivate driver
+router.patch('/drivers/:id/activate', async (req, res, next) => {
+  try {
+    const driver = await prisma.driver.update({
+      where: { id: req.params.id },
+      data: {
+        verificationStatus: 'APPROVED',
+        rejectionReason: null
+      }
+    });
+
+    res.json({
+      message: 'Driver activated',
+      driver
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// ENHANCED ANALYTICS
+// ============================================
+
+// GET /api/admin/stats/overview - Dashboard overview stats
+router.get('/stats/overview', async (req, res, next) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+    const startOfWeek = new Date(now.setDate(now.getDate() - 7));
+    const startOfMonth = new Date(now.setMonth(now.getMonth() - 1));
+
+    // Get key metrics
+    const [
+      totalDrivers,
+      activeDrivers,
+      pendingDrivers,
+      totalCustomers,
+      totalRides,
+      todayRides,
+      activeRides,
+      completedToday,
+      totalRevenue
+    ] = await Promise.all([
+      prisma.driver.count(),
+      prisma.driver.count({ where: { verificationStatus: 'APPROVED' } }),
+      prisma.driver.count({ where: { verificationStatus: 'PENDING_REVIEW' } }),
+      prisma.customer.count(),
+      prisma.ride.count(),
+      prisma.ride.count({ where: { createdAt: { gte: startOfToday } } }),
+      prisma.ride.count({
+        where: {
+          status: {
+            in: ['PENDING_BIDS', 'BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT']
+          }
+        }
+      }),
+      prisma.ride.count({
+        where: {
+          status: 'COMPLETED',
+          completedAt: { gte: startOfToday }
+        }
+      }),
+      prisma.payment.aggregate({
+        where: {
+          status: 'COMPLETED'
+        },
+        _sum: {
+          platformFee: true
+        }
+      })
+    ]);
+
+    res.json({
+      drivers: {
+        total: totalDrivers,
+        active: activeDrivers,
+        pending: pendingDrivers
+      },
+      customers: {
+        total: totalCustomers
+      },
+      rides: {
+        total: totalRides,
+        today: todayRides,
+        active: activeRides,
+        completedToday
+      },
+      revenue: {
+        total: totalRevenue._sum.platformFee || 0
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/stats/kyc - KYC statistics
+router.get('/stats/kyc', async (req, res, next) => {
+  try {
+    const kycStats = await prisma.driver.groupBy({
+      by: ['verificationStatus'],
+      _count: true
+    });
+
+    const documentStats = await prisma.kYCDocument.groupBy({
+      by: ['verificationStatus'],
+      _count: true
+    });
+
+    const avgVerificationTime = await prisma.$queryRaw`
+      SELECT
+        AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600) as avg_hours
+      FROM "Driver"
+      WHERE verification_status = 'APPROVED'
+    `;
+
+    res.json({
+      driversByStatus: kycStats,
+      documentsByStatus: documentStats,
+      avgVerificationTimeHours: avgVerificationTime
+    });
   } catch (error) {
     next(error);
   }
