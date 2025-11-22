@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Container,
   Stack,
   Title,
   Text,
-  TextInput,
   Textarea,
   Button,
   Card,
@@ -18,11 +17,10 @@ import {
   Checkbox,
   Select,
   Stepper,
-  FileInput,
   Badge,
-  List,
   ThemeIcon,
   rem,
+  TextInput,
 } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
@@ -42,13 +40,11 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
+import SimpleMap from '@/components/SimpleMap';
+import { notifications } from '@mantine/notifications';
 import '@mantine/dates/styles.css';
 import '@mantine/dropzone/styles.css';
-
-// Configure Mapbox token
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
 
 const VEHICLE_TYPES = [
   { value: 'CAMIONNETTE', label: 'Camionnette', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
@@ -57,30 +53,15 @@ const VEHICLE_TYPES = [
   { value: 'CAMION_LOURD', label: 'Camion Lourd', icon: '🚛', basePrice: 100, capacity: '8+ tonnes', description: 'Transport de marchandises lourdes' },
 ];
 
-interface AddressSuggestion {
-  place_name: string;
-  center: [number, number];
-}
-
 export default function NewRidePage() {
   const router = useRouter();
   const { token } = useAuthStore();
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const pickupMarker = useRef<mapboxgl.Marker | null>(null);
-  const deliveryMarker = useRef<mapboxgl.Marker | null>(null);
 
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [distance, setDistance] = useState(0);
   const [duration, setDuration] = useState(0);
-
-  // Address autocomplete
-  const [pickupSuggestions, setPickupSuggestions] = useState<AddressSuggestion[]>([]);
-  const [deliverySuggestions, setDeliverySuggestions] = useState<AddressSuggestion[]>([]);
-  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
-  const [showDeliverySuggestions, setShowDeliverySuggestions] = useState(false);
 
   // Photos
   const [photos, setPhotos] = useState<File[]>([]);
@@ -107,196 +88,53 @@ export default function NewRidePage() {
       router.push('/customer/login');
       return;
     }
-
-    // Initialize map
-    if (mapContainer.current && !map.current) {
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [10.1815, 36.8065], // Tunis center
-        zoom: 11,
-      });
-
-      // Add navigation controls
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    }
-
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
   }, [token]);
 
-  // Fetch address suggestions
-  const fetchAddressSuggestions = async (query: string, isPickup: boolean) => {
-    if (query.length < 3) {
-      isPickup ? setPickupSuggestions([]) : setDeliverySuggestions([]);
-      return;
+  // Calculate route when both addresses are set
+  useEffect(() => {
+    if (formData.pickupAddress && formData.deliveryAddress) {
+      calculateRoute();
     }
+  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
 
+  // Calculate route using OSRM (free!)
+  const calculateRoute = async () => {
     try {
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-        `access_token=${mapboxgl.accessToken}&country=TN&limit=5&language=fr`
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${formData.pickupLng},${formData.pickupLat};${formData.deliveryLng},${formData.deliveryLat}?` +
+        `overview=false&geometries=geojson`
       );
-      const data = await response.json();
 
-      if (data.features) {
-        const suggestions = data.features.map((f: any) => ({
-          place_name: f.place_name,
-          center: f.center,
-        }));
-
-        if (isPickup) {
-          setPickupSuggestions(suggestions);
-          setShowPickupSuggestions(true);
-        } else {
-          setDeliverySuggestions(suggestions);
-          setShowDeliverySuggestions(true);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.routes && data.routes[0]) {
+          const route = data.routes[0];
+          setDistance(parseFloat((route.distance / 1000).toFixed(1)));
+          setDuration(Math.round(route.duration / 60));
         }
       }
     } catch (err) {
-      console.error('Error fetching suggestions:', err);
+      console.error('Error calculating route:', err);
     }
   };
 
-  // Debounced address search
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (formData.pickupAddress) {
-        fetchAddressSuggestions(formData.pickupAddress, true);
-      }
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [formData.pickupAddress]);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (formData.deliveryAddress) {
-        fetchAddressSuggestions(formData.deliveryAddress, false);
-      }
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [formData.deliveryAddress]);
-
-  // Select address suggestion
-  const selectSuggestion = (suggestion: AddressSuggestion, isPickup: boolean) => {
-    const [lng, lat] = suggestion.center;
-
-    if (isPickup) {
-      setFormData(prev => ({
-        ...prev,
-        pickupAddress: suggestion.place_name,
-        pickupLat: lat,
-        pickupLng: lng,
-      }));
-      setShowPickupSuggestions(false);
-      addMarker(lng, lat, true);
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        deliveryAddress: suggestion.place_name,
-        deliveryLat: lat,
-        deliveryLng: lng,
-      }));
-      setShowDeliverySuggestions(false);
-      addMarker(lng, lat, false);
-    }
+  const handlePickupChange = (address: string, lat: number, lng: number) => {
+    setFormData(prev => ({
+      ...prev,
+      pickupAddress: address,
+      pickupLat: lat,
+      pickupLng: lng,
+    }));
   };
 
-  // Add marker to map
-  const addMarker = (lng: number, lat: number, isPickup: boolean) => {
-    if (!map.current) return;
-
-    if (isPickup) {
-      if (pickupMarker.current) {
-        pickupMarker.current.remove();
-      }
-
-      const el = document.createElement('div');
-      el.innerHTML = '📍';
-      el.style.fontSize = '32px';
-
-      pickupMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([lng, lat])
-        .addTo(map.current);
-    } else {
-      if (deliveryMarker.current) {
-        deliveryMarker.current.remove();
-      }
-
-      const el = document.createElement('div');
-      el.innerHTML = '🏁';
-      el.style.fontSize = '32px';
-
-      deliveryMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([lng, lat])
-        .addTo(map.current);
-    }
-
-    // Update map bounds if both markers exist
-    if (pickupMarker.current && deliveryMarker.current) {
-      const bounds = new mapboxgl.LngLatBounds()
-        .extend([formData.pickupLng, formData.pickupLat])
-        .extend([lng, lat]);
-
-      map.current.fitBounds(bounds, { padding: 100, duration: 1000 });
-      drawRoute();
-    } else {
-      // Center on the new marker
-      map.current.flyTo({ center: [lng, lat], zoom: 13, duration: 1000 });
-    }
-  };
-
-  // Draw route between markers
-  const drawRoute = async () => {
-    if (!map.current || !pickupMarker.current || !deliveryMarker.current) return;
-
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${formData.pickupLng},${formData.pickupLat};${formData.deliveryLng},${formData.deliveryLat}?` +
-        `geometries=geojson&access_token=${mapboxgl.accessToken}`
-      );
-      const data = await response.json();
-
-      if (data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        setDistance(parseFloat((route.distance / 1000).toFixed(1)));
-        setDuration(Math.round(route.duration / 60));
-
-        const geojson = {
-          type: 'Feature' as const,
-          properties: {},
-          geometry: route.geometry,
-        };
-
-        if (map.current.getSource('route')) {
-          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData(geojson as any);
-        } else {
-          map.current.addLayer({
-            id: 'route',
-            type: 'line',
-            source: {
-              type: 'geojson',
-              data: geojson as any,
-            },
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round',
-            },
-            paint: {
-              'line-color': '#000000',
-              'line-width': 4,
-              'line-opacity': 0.8,
-            },
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching route:', err);
-    }
+  const handleDeliveryChange = (address: string, lat: number, lng: number) => {
+    setFormData(prev => ({
+      ...prev,
+      deliveryAddress: address,
+      deliveryLat: lat,
+      deliveryLng: lng,
+    }));
   };
 
   const handleNextStep = () => {
@@ -360,7 +198,13 @@ export default function NewRidePage() {
 
       const response = await rideApi.create(apiData);
 
-      // Success! Redirect to dashboard with success message
+      notifications.show({
+        title: 'Succès!',
+        message: 'Votre course a été publiée avec succès',
+        color: 'green',
+      });
+
+      // Success! Redirect to dashboard
       router.push(`/customer/dashboard?success=ride_created`);
     } catch (err: any) {
       console.error('Erreur création course:', err);
@@ -400,7 +244,36 @@ export default function NewRidePage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
         {/* Map - Left side - always visible */}
         <div style={{ flex: 1, position: 'relative', minHeight: '300px' }}>
-          <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+          {formData.pickupAddress && formData.deliveryAddress ? (
+            <SimpleMap
+              pickup={{
+                lat: formData.pickupLat,
+                lng: formData.pickupLng,
+                address: formData.pickupAddress
+              }}
+              dropoff={{
+                lat: formData.deliveryLat,
+                lng: formData.deliveryLng,
+                address: formData.deliveryAddress
+              }}
+              height="100%"
+            />
+          ) : (
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#f1f3f5'
+            }}>
+              <Stack align="center" gap="md">
+                <IconMapPin size={64} color="#868e96" />
+                <Text c="dimmed" size="lg">
+                  Sélectionnez les adresses pour voir la carte
+                </Text>
+              </Stack>
+            </div>
+          )}
 
           {/* Route Info Overlay */}
           {distance > 0 && (
@@ -482,110 +355,22 @@ export default function NewRidePage() {
                   )}
 
                   {/* Pickup Address with autocomplete */}
-                  <div style={{ position: 'relative' }}>
-                    <TextInput
-                      label="Adresse de départ"
-                      placeholder="Rechercher une adresse..."
-                      size="lg"
-                      radius="lg"
-                      leftSection={<IconMapPin size={18} style={{ color: '#51cf66' }} />}
-                      value={formData.pickupAddress}
-                      onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
-                      onFocus={() => pickupSuggestions.length > 0 && setShowPickupSuggestions(true)}
-                      required
-                    />
-                    {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                      <Paper
-                        shadow="md"
-                        radius="md"
-                        withBorder
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 1000,
-                          marginTop: 4,
-                          maxHeight: 300,
-                          overflow: 'auto',
-                        }}
-                      >
-                        <List spacing={0} size="sm">
-                          {pickupSuggestions.map((suggestion, idx) => (
-                            <List.Item
-                              key={idx}
-                              style={{
-                                padding: '12px 16px',
-                                cursor: 'pointer',
-                                borderBottom: idx < pickupSuggestions.length - 1 ? '1px solid #e9ecef' : 'none',
-                              }}
-                              onClick={() => selectSuggestion(suggestion, true)}
-                              icon={
-                                <ThemeIcon color="green" size={24} radius="xl" variant="light">
-                                  <IconMapPin size={16} />
-                                </ThemeIcon>
-                              }
-                            >
-                              <Text size="sm">{suggestion.place_name}</Text>
-                            </List.Item>
-                          ))}
-                        </List>
-                      </Paper>
-                    )}
-                  </div>
+                  <AddressAutocomplete
+                    label="Adresse de départ"
+                    placeholder="Rechercher une adresse..."
+                    value={formData.pickupAddress}
+                    onChange={handlePickupChange}
+                    icon={<IconMapPin size={18} style={{ color: '#51cf66' }} />}
+                  />
 
                   {/* Delivery Address with autocomplete */}
-                  <div style={{ position: 'relative' }}>
-                    <TextInput
-                      label="Adresse de livraison"
-                      placeholder="Rechercher une adresse..."
-                      size="lg"
-                      radius="lg"
-                      leftSection={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
-                      value={formData.deliveryAddress}
-                      onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                      onFocus={() => deliverySuggestions.length > 0 && setShowDeliverySuggestions(true)}
-                      required
-                    />
-                    {showDeliverySuggestions && deliverySuggestions.length > 0 && (
-                      <Paper
-                        shadow="md"
-                        radius="md"
-                        withBorder
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 1000,
-                          marginTop: 4,
-                          maxHeight: 300,
-                          overflow: 'auto',
-                        }}
-                      >
-                        <List spacing={0} size="sm">
-                          {deliverySuggestions.map((suggestion, idx) => (
-                            <List.Item
-                              key={idx}
-                              style={{
-                                padding: '12px 16px',
-                                cursor: 'pointer',
-                                borderBottom: idx < deliverySuggestions.length - 1 ? '1px solid #e9ecef' : 'none',
-                              }}
-                              onClick={() => selectSuggestion(suggestion, false)}
-                              icon={
-                                <ThemeIcon color="red" size={24} radius="xl" variant="light">
-                                  <IconMapPin size={16} />
-                                </ThemeIcon>
-                              }
-                            >
-                              <Text size="sm">{suggestion.place_name}</Text>
-                            </List.Item>
-                          ))}
-                        </List>
-                      </Paper>
-                    )}
-                  </div>
+                  <AddressAutocomplete
+                    label="Adresse de livraison"
+                    placeholder="Rechercher une adresse..."
+                    value={formData.deliveryAddress}
+                    onChange={handleDeliveryChange}
+                    icon={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
+                  />
 
                   <Button
                     size="xl"
@@ -704,7 +489,7 @@ export default function NewRidePage() {
                         size="lg"
                         radius="lg"
                         color="dark"
-                        onClick={() => setFormData({ ...formData, numberOfTrips: formData.numberOfTrips + 1 })}
+                        onClick={() => setFormData({ ...formData, numberOfTrips: formData.numberOfTrips + 1) })}
                       >
                         <IconPlus size={18} />
                       </ActionIcon>
