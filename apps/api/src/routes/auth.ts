@@ -26,6 +26,11 @@ const registerDriverSchema = z.object({
   name: z.string().min(2),
   vehicleType: z.enum(['CAMIONNETTE', 'FOURGON', 'CAMION_3_5T', 'CAMION_LOURD']),
   vehiclePlate: z.string().optional(),
+  vehicleBrand: z.string().optional(),
+  vehicleModel: z.string().optional(),
+  vehicleYear: z.number().int().min(1990).max(new Date().getFullYear() + 1).optional(),
+  vehicleColor: z.string().optional(),
+  hasBusinessLicense: z.boolean().default(false),
   email: z.string().email().or(z.literal('')).optional()
 });
 

@@ -13,6 +13,10 @@ import {
   Group,
   Anchor,
   Tabs,
+  Select,
+  NumberInput,
+  Checkbox,
+  SimpleGrid,
 } from '@mantine/core';
 import {
   IconTruck,
@@ -41,9 +45,14 @@ export default function DriverLoginPage() {
   const [registerData, setRegisterData] = useState({
     phone: '+216',
     name: '',
+    email: '',
     vehicleType: 'CAMIONNETTE',
     vehiclePlate: '',
-    email: '',
+    vehicleBrand: '',
+    vehicleModel: '',
+    vehicleYear: new Date().getFullYear(),
+    vehicleColor: '',
+    hasBusinessLicense: false,
   });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -216,6 +225,71 @@ export default function DriverLoginPage() {
                     value={registerData.email}
                     onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                     description="Optionnel"
+                    size="md"
+                  />
+
+                  <Select
+                    label="Type de véhicule"
+                    placeholder="Sélectionnez le type"
+                    leftSection={<IconTruck size={20} />}
+                    value={registerData.vehicleType}
+                    onChange={(value) => setRegisterData({ ...registerData, vehicleType: value || 'CAMIONNETTE' })}
+                    data={[
+                      { value: 'CAMIONNETTE', label: 'Camionnette' },
+                      { value: 'FOURGON', label: 'Fourgon' },
+                      { value: 'CAMION_3_5T', label: 'Camion 3.5T' },
+                      { value: 'CAMION_LOURD', label: 'Camion Lourd' },
+                    ]}
+                    required
+                    size="md"
+                  />
+
+                  <SimpleGrid cols={2} spacing="md">
+                    <TextInput
+                      label="Marque du véhicule"
+                      placeholder="ex: Mercedes"
+                      value={registerData.vehicleBrand}
+                      onChange={(e) => setRegisterData({ ...registerData, vehicleBrand: e.target.value })}
+                      description="Optionnel"
+                      size="md"
+                    />
+
+                    <TextInput
+                      label="Modèle du véhicule"
+                      placeholder="ex: Sprinter"
+                      value={registerData.vehicleModel}
+                      onChange={(e) => setRegisterData({ ...registerData, vehicleModel: e.target.value })}
+                      description="Optionnel"
+                      size="md"
+                    />
+                  </SimpleGrid>
+
+                  <SimpleGrid cols={2} spacing="md">
+                    <NumberInput
+                      label="Année du véhicule"
+                      placeholder="ex: 2020"
+                      value={registerData.vehicleYear}
+                      onChange={(value) => setRegisterData({ ...registerData, vehicleYear: value as number })}
+                      min={1990}
+                      max={new Date().getFullYear() + 1}
+                      description="Optionnel"
+                      size="md"
+                    />
+
+                    <TextInput
+                      label="Couleur du véhicule"
+                      placeholder="ex: Blanc"
+                      value={registerData.vehicleColor}
+                      onChange={(e) => setRegisterData({ ...registerData, vehicleColor: e.target.value })}
+                      description="Optionnel"
+                      size="md"
+                    />
+                  </SimpleGrid>
+
+                  <Checkbox
+                    label="Je possède une patente (licence commerciale)"
+                    checked={registerData.hasBusinessLicense}
+                    onChange={(e) => setRegisterData({ ...registerData, hasBusinessLicense: e.currentTarget.checked })}
                     size="md"
                   />
 
