@@ -69,7 +69,19 @@ export default function DriverLoginPage() {
         color: 'green',
       });
 
-      router.push('/driver/dashboard');
+      // Redirect based on verification status
+      const status = response.data.user.verificationStatus;
+
+      if (status === 'APPROVED') {
+        router.push('/driver/dashboard');
+      } else if (status === 'PENDING_REVIEW') {
+        router.push('/driver/pending');
+      } else if (status === 'REJECTED' || status === 'PENDING_DOCUMENTS') {
+        router.push('/driver/kyc');
+      } else {
+        // Fallback
+        router.push('/driver/kyc');
+      }
     } catch (error: any) {
       notifications.show({
         title: 'Erreur',

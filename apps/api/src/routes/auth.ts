@@ -58,7 +58,9 @@ router.post('/login', async (req, res, next) => {
         id: user.id,
         phone: user.phone,
         name: user.name,
-        userType
+        userType,
+        // Include verification status for drivers
+        ...(userType === 'driver' && { verificationStatus: (user as any).verificationStatus })
       }
     });
   } catch (error) {

@@ -71,6 +71,17 @@ export default function DriverDashboard() {
       return;
     }
 
+    // Check verification status - only APPROVED drivers can access dashboard
+    if (user.verificationStatus === 'PENDING_DOCUMENTS' || user.verificationStatus === 'REJECTED') {
+      router.push('/driver/kyc');
+      return;
+    }
+
+    if (user.verificationStatus === 'PENDING_REVIEW') {
+      router.push('/driver/pending');
+      return;
+    }
+
     loadDashboardData();
   }, [token, user]);
 
