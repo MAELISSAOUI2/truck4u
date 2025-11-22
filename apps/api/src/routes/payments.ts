@@ -12,10 +12,10 @@ const initiatePaymentSchema = z.object({
   method: z.enum(['CASH', 'CARD', 'FLOUCI'])
 });
 
-// Helper: Calculate platform fee
+// Helper: Calculate platform fee (FIXED 20 DT)
 function calculatePlatformFee(amount: number, isB2BCustomer: boolean): number {
-  const commission = isB2BCustomer ? 0.08 : 0.15;
-  return Math.round(amount * commission * 100) / 100;
+  // Platform fee is fixed at 20 DT regardless of ride amount or customer type
+  return 20.0;
 }
 
 // POST /api/payments/initiate - Initiate payment (can be done at BID_ACCEPTED or COMPLETED)
@@ -53,7 +53,8 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
     }
 
     const platformFee = calculatePlatformFee(ride.finalPrice, ride.customer.isB2BSubscriber);
-    const driverAmount = ride.finalPrice - platformFee;
+    const driverAmount = ride.finalPrice; // Driver gets the full bid price
+    const totalAmount = driverAmount + platformFee; // Customer pays driver price + platform fee
 
     if (method === 'CASH') {
       // Update or create payment record for cash
@@ -66,7 +67,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
             data: {
               rideId,
               method: 'CASH',
-              totalAmount: ride.finalPrice,
+              totalAmount,
               platformFee,
               driverAmount,
               status: 'PENDING'
@@ -79,7 +80,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
           rideId,
           method: 'CASH',
-          amount: ride.finalPrice,
+          amount: totalAmount,
           message: 'Le client a choisi le paiement en espèces. Vous pouvez démarrer la course.'
         });
       }
@@ -87,7 +88,9 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
       return res.json({
         paymentId: payment.id,
         method: 'CASH',
-        totalAmount: ride.finalPrice,
+        driverPrice: driverAmount,
+        platformFee: platformFee,
+        totalAmount: totalAmount,
         message: 'Please pay cash to driver. Driver will confirm receipt.'
       });
     }
@@ -97,7 +100,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
       const paymeeResponse = await axios.post(
         `${process.env.PAYMEE_API_URL}/payments`,
         {
-          amount: ride.finalPrice * 1000, // Convert to millimes
+          amount: totalAmount * 1000, // Convert to millimes (total = driver price + 20 DT)
           note: `Truck4u Ride #${rideId.substring(0, 8)}`,
           first_name: ride.customer.name.split(' ')[0],
           last_name: ride.customer.name.split(' ')[1] || '',
@@ -130,7 +133,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
             data: {
               rideId,
               method: 'CARD',
-              totalAmount: ride.finalPrice,
+              totalAmount,
               platformFee,
               driverAmount,
               status: 'PENDING',
@@ -147,7 +150,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
           rideId,
           method: 'CARD',
-          amount: ride.finalPrice,
+          amount: totalAmount,
           message: 'Le client a initié le paiement par carte. Vous pouvez démarrer la course.'
         });
       }
@@ -156,7 +159,9 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         paymentId: payment.id,
         method: 'CARD',
         paymentUrl: paymeeResponse.data.payment_url,
-        totalAmount: ride.finalPrice
+        driverPrice: driverAmount,
+        platformFee: platformFee,
+        totalAmount: totalAmount
       });
     }
 
@@ -165,7 +170,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
       const flouciResponse = await axios.post(
         `${process.env.FLOUCI_API_URL}/api/payment`,
         {
-          amount: ride.finalPrice,
+          amount: totalAmount,
           description: `Truck4u Ride #${rideId.substring(0, 8)}`,
           accept_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
           cancel_url: `${process.env.FRONTEND_URL}/customer/rides/${rideId}`,
@@ -195,7 +200,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
             data: {
               rideId,
               method: 'FLOUCI',
-              totalAmount: ride.finalPrice,
+              totalAmount,
               platformFee,
               driverAmount,
               status: 'PENDING',
@@ -212,7 +217,7 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         io.to(`driver:${ride.driverId}`).emit('payment_confirmed', {
           rideId,
           method: 'FLOUCI',
-          amount: ride.finalPrice,
+          amount: totalAmount,
           message: 'Le client a initié le paiement avec Flouci. Vous pouvez démarrer la course.'
         });
       }
@@ -221,7 +226,9 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
         paymentId: payment.id,
         method: 'FLOUCI',
         paymentUrl: flouciResponse.data.result.link,
-        totalAmount: ride.finalPrice
+        driverPrice: driverAmount,
+        platformFee: platformFee,
+        totalAmount: totalAmount
       });
     }
 

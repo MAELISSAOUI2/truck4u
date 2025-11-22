@@ -322,6 +322,107 @@ router.patch('/drivers/:id/verify', async (req, res, next) => {
   }
 });
 
+// GET /api/admin/rides - Get all rides with filters and pagination
+router.get('/rides', async (req, res, next) => {
+  try {
+    const { status, search, page = '1', limit = '20' } = req.query;
+
+    const where: any = {};
+
+    // Filter by status
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    // Search by ID, customer name, driver name, or address
+    if (search) {
+      where.OR = [
+        { id: { contains: search as string, mode: 'insensitive' } },
+        { customer: { name: { contains: search as string, mode: 'insensitive' } } },
+        { driver: { name: { contains: search as string, mode: 'insensitive' } } },
+        { pickupAddress: { contains: search as string, mode: 'insensitive' } },
+        { dropoffAddress: { contains: search as string, mode: 'insensitive' } }
+      ];
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [rides, total] = await Promise.all([
+      prisma.ride.findMany({
+        where,
+        include: {
+          customer: {
+            select: { id: true, name: true, phone: true, email: true }
+          },
+          driver: {
+            select: { id: true, name: true, phone: true, vehiclePlate: true, vehicleType: true }
+          },
+          payment: {
+            select: {
+              id: true,
+              method: true,
+              status: true,
+              totalAmount: true,
+              platformFee: true,
+              driverAmount: true,
+              completedAt: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limitNum
+      }),
+      prisma.ride.count({ where })
+    ]);
+
+    // Calculate stats
+    const totalRides = await prisma.ride.count();
+    const activeRides = await prisma.ride.count({
+      where: {
+        status: {
+          in: ['PENDING_BIDS', 'BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED']
+        }
+      }
+    });
+    const completedRides = await prisma.ride.count({
+      where: { status: 'COMPLETED' }
+    });
+
+    // Calculate platform revenue (20 DT × completed rides with COMPLETED payments)
+    const platformRevenue = await prisma.payment.aggregate({
+      where: {
+        status: 'COMPLETED'
+      },
+      _sum: {
+        platformFee: true
+      }
+    });
+
+    res.json({
+      rides,
+      stats: {
+        total: totalRides,
+        active: activeRides,
+        completed: completedRides,
+        platformRevenue: platformRevenue._sum.platformFee || 0
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/admin/rides/active - Get all active rides
 router.get('/rides/active', async (req, res, next) => {
   try {
@@ -353,99 +454,102 @@ router.get('/rides/active', async (req, res, next) => {
 // GET /api/admin/analytics - Platform analytics
 router.get('/analytics', async (req, res, next) => {
   try {
-    const { period = 'week' } = req.query;
+    const { period = '7d' } = req.query;
 
-    let startDate = new Date();
-    if (period === 'week') {
+    // Calculate date range
+    let startDate: Date | null = null;
+    const endDate = new Date();
+
+    if (period === '7d') {
+      startDate = new Date();
       startDate.setDate(startDate.getDate() - 7);
-    } else if (period === 'month') {
-      startDate.setMonth(startDate.getMonth() - 1);
-    } else {
-      startDate.setFullYear(startDate.getFullYear() - 1);
+    } else if (period === '30d') {
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+    } else if (period === '90d') {
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 90);
     }
+    // If period === 'all', startDate remains null (no date filter)
 
-    // Total rides
-    const totalRides = await prisma.ride.count({
-      where: {
-        createdAt: { gte: startDate }
-      }
-    });
+    // Build date filter
+    const dateFilter = startDate ? { createdAt: { gte: startDate } } : {};
 
-    // Completed rides
-    const completedRides = await prisma.ride.count({
-      where: {
-        status: 'COMPLETED',
-        createdAt: { gte: startDate }
-      }
-    });
+    // Ride statistics
+    const [totalRides, completedRides, activeRides, cancelledRides] = await Promise.all([
+      prisma.ride.count({ where: dateFilter }),
+      prisma.ride.count({ where: { ...dateFilter, status: 'COMPLETED' } }),
+      prisma.ride.count({
+        where: {
+          ...dateFilter,
+          status: {
+            in: ['PENDING_BIDS', 'BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT', 'DROPOFF_ARRIVED']
+          }
+        }
+      }),
+      prisma.ride.count({ where: { ...dateFilter, status: 'CANCELLED' } })
+    ]);
 
-    // GMV (Gross Merchandise Value)
+    const completionRate = totalRides > 0 ? (completedRides / totalRides) * 100 : 0;
+
+    // Revenue statistics
+    const paymentDateFilter = startDate ? { completedAt: { gte: startDate } } : {};
+
     const payments = await prisma.payment.findMany({
       where: {
         status: 'COMPLETED',
-        completedAt: { gte: startDate }
-      }
-    });
-
-    const gmv = payments.reduce((sum, p) => sum + p.totalAmount, 0);
-    const platformRevenue = payments.reduce((sum, p) => sum + p.platformFee, 0);
-
-    // Active users
-    const activeCustomers = await prisma.customer.count({
-      where: {
-        rides: {
-          some: {
-            createdAt: { gte: startDate }
-          }
-        }
-      }
-    });
-
-    const activeDrivers = await prisma.driver.count({
-      where: {
-        completedRides: {
-          some: {
-            createdAt: { gte: startDate }
-          }
-        }
-      }
-    });
-
-    // Rides by vehicle type
-    const ridesByVehicleType = await prisma.ride.groupBy({
-      by: ['vehicleType'],
-      where: {
-        createdAt: { gte: startDate }
+        ...paymentDateFilter
       },
-      _count: true
+      select: {
+        totalAmount: true,
+        platformFee: true,
+        driverAmount: true
+      }
     });
 
-    // Payment methods distribution
-    const paymentsByMethod = await prisma.payment.groupBy({
-      by: ['method'],
-      where: {
-        completedAt: { gte: startDate }
-      },
-      _count: true
-    });
+    const totalRevenue = payments.reduce((sum, p) => sum + p.totalAmount, 0);
+    const platformFees = payments.reduce((sum, p) => sum + p.platformFee, 0);
+    const driverEarnings = payments.reduce((sum, p) => sum + p.driverAmount, 0);
+    const averageRideValue = completedRides > 0 ? totalRevenue / completedRides : 0;
 
-    // Conversion rate
-    const conversionRate = totalRides > 0 ? (completedRides / totalRides) * 100 : 0;
+    // User statistics
+    const [totalCustomers, totalDrivers, activeDriversCount, approvedDrivers] = await Promise.all([
+      prisma.customer.count(),
+      prisma.driver.count(),
+      prisma.driver.count({
+        where: {
+          isAvailable: true,
+          verificationStatus: 'APPROVED'
+        }
+      }),
+      prisma.driver.count({
+        where: { verificationStatus: 'APPROVED' }
+      })
+    ]);
 
     res.json({
-      period,
-      summary: {
-        totalRides,
-        completedRides,
-        conversionRate: Math.round(conversionRate * 10) / 10,
-        gmv: Math.round(gmv * 100) / 100,
-        platformRevenue: Math.round(platformRevenue * 100) / 100,
-        activeCustomers,
-        activeDrivers
+      rides: {
+        total: totalRides,
+        completed: completedRides,
+        active: activeRides,
+        cancelled: cancelledRides,
+        completionRate: Math.round(completionRate * 10) / 10
       },
-      breakdown: {
-        byVehicleType: ridesByVehicleType,
-        byPaymentMethod: paymentsByMethod
+      revenue: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        platformFees: Math.round(platformFees * 100) / 100,
+        driverEarnings: Math.round(driverEarnings * 100) / 100,
+        averageRideValue: Math.round(averageRideValue * 100) / 100
+      },
+      users: {
+        totalCustomers,
+        totalDrivers,
+        activeDrivers: activeDriversCount,
+        approvedDrivers
+      },
+      period: {
+        startDate: startDate ? startDate.toISOString() : new Date(0).toISOString(),
+        endDate: endDate.toISOString()
       }
     });
   } catch (error) {
