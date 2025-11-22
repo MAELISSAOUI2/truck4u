@@ -84,6 +84,7 @@ export default function DriverKYCPage() {
   const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchKYCStatus();
@@ -219,6 +220,45 @@ export default function DriverKYCPage() {
 
   const getDocumentStatus = (docType: string) => {
     return kycStatus?.documents.find(doc => doc.documentType === docType);
+  };
+
+  const handleSubmitForReview = async () => {
+    try {
+      if (!token) return;
+
+      setSubmitting(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/kyc/submit`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        notifications.show({
+          title: 'Succès',
+          message: 'Documents soumis pour vérification',
+          color: 'green'
+        });
+        router.push('/driver/pending');
+      } else {
+        notifications.show({
+          title: 'Erreur',
+          message: data.error || 'Erreur lors de la soumission',
+          color: 'red'
+        });
+      }
+    } catch (error) {
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors de la soumission',
+        color: 'red'
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -425,6 +465,20 @@ export default function DriverKYCPage() {
               <Alert icon={<IconCheck size={16} />} title="Documents complets" color="green" variant="light" mt="lg">
                 Tous les documents requis ont été téléchargés. Votre dossier est en cours de vérification.
               </Alert>
+            )}
+
+            {kycStatus?.verificationStatus === 'PENDING_DOCUMENTS' &&
+             kycStatus?.missingDocuments.length === 0 && (
+              <Button
+                fullWidth
+                size="lg"
+                mt="lg"
+                onClick={handleSubmitForReview}
+                loading={submitting}
+                leftSection={<IconCheck size={20} />}
+              >
+                Soumettre pour vérification
+              </Button>
             )}
           </Paper>
         </Stack>

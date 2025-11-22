@@ -299,4 +299,56 @@ router.put('/profile', async (req, res, next) => {
   }
 });
 
+// POST /api/kyc/submit - Submit documents for review
+router.post('/submit', async (req, res, next) => {
+  try {
+    const authReq = req as AuthRequest;
+
+    const driver = await prisma.driver.findUnique({
+      where: { id: authReq.userId },
+      include: {
+        kycDocuments: true
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    // Check if all required documents are uploaded
+    const requiredDocs = [
+      'CIN_FRONT', 'CIN_BACK', 'DRIVING_LICENSE',
+      'VEHICLE_REGISTRATION', 'VEHICLE_PHOTO_FRONT'
+    ];
+
+    const uploadedDocTypes = driver.kycDocuments.map(doc => doc.documentType);
+    const missingDocs = requiredDocs.filter(type => !uploadedDocTypes.includes(type));
+
+    if (missingDocs.length > 0) {
+      return res.status(400).json({
+        error: 'Tous les documents requis doivent être téléchargés',
+        missingDocuments: missingDocs
+      });
+    }
+
+    // Update driver status to PENDING_REVIEW
+    const updatedDriver = await prisma.driver.update({
+      where: { id: authReq.userId },
+      data: {
+        verificationStatus: 'PENDING_REVIEW'
+      }
+    });
+
+    // TODO: Send notification to admins via socket.io
+    // This will be implemented when we set up socket.io
+
+    res.json({
+      message: 'Documents soumis pour vérification',
+      verificationStatus: updatedDriver.verificationStatus
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

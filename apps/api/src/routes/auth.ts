@@ -97,6 +97,17 @@ router.post('/register/driver', async (req, res, next) => {
   try {
     const data = registerDriverSchema.parse(req.body);
 
+    // Check if phone already exists
+    const existingDriver = await prisma.driver.findUnique({
+      where: { phone: data.phone }
+    });
+
+    if (existingDriver) {
+      return res.status(409).json({
+        error: 'Ce numéro de téléphone est déjà enregistré. Veuillez vous connecter.'
+      });
+    }
+
     const driver = await prisma.driver.create({
       data: {
         ...data,
