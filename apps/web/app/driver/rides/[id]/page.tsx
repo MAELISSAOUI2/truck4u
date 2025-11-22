@@ -476,7 +476,8 @@ export default function DriverRideDetailsPage() {
                 </div>
               </Group>
 
-              {ride.customer?.phone && (
+              {/* Show customer phone only after payment (DRIVER_ARRIVING onwards) */}
+              {ride.customer?.phone && ride.status !== 'BID_ACCEPTED' && (
                 <Group gap="md">
                   <IconPhone size={20} />
                   <div>

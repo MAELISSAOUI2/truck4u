@@ -25,6 +25,7 @@ interface AuthState {
   updateUser: (updates: Partial<User>) => void;
 }
 
+// Main auth store - keeps current user regardless of type
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
