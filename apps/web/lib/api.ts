@@ -80,6 +80,9 @@ export const driverApi = {
     maintenanceCostPerMonth?: number;
   }) =>
     api.post('/drivers/earnings/simulate', params),
+
+  getTierInfo: () =>
+    api.get('/drivers/tier/info'),
 };
 
 // Ride APIs

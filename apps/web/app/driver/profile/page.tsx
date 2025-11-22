@@ -295,6 +295,25 @@ export default function DriverProfilePage() {
                     ({user?.completedRides || 0} courses terminées)
                   </Text>
                 </Group>
+                {/* Tier Badge */}
+                {user?.tier && (
+                  <Button
+                    variant="gradient"
+                    gradient={
+                      user.tier === 'GOLD'
+                        ? { from: '#FFD700', to: '#FFA500', deg: 135 }
+                        : user.tier === 'SILVER'
+                        ? { from: '#C0C0C0', to: '#808080', deg: 135 }
+                        : { from: '#CD7F32', to: '#A0522D', deg: 135 }
+                    }
+                    size="lg"
+                    mt="md"
+                    onClick={() => router.push('/driver/tier')}
+                  >
+                    {user.tier === 'GOLD' ? '🥇' : user.tier === 'SILVER' ? '🥈' : '🥉'}{' '}
+                    Niveau {user.tier === 'GOLD' ? 'Gold' : user.tier === 'SILVER' ? 'Silver' : 'Bronze'}
+                  </Button>
+                )}
               </div>
 
               {/* Badges dynamiques */}

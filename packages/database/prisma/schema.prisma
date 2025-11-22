@@ -34,6 +34,8 @@ model Driver {
   totalBids            Int       @default(0)  // Total bids made
   acceptanceRate       Float     @default(0.0) // Calculated: (acceptedBids / totalBids) * 100
   badges               String[]  @default([])  // Array of badge names
+  tier                 DriverTier @default(BRONZE) // Driver tier level (Bronze/Silver/Gold)
+  platformFeeRate      Float     @default(0.10) // Platform fee percentage (10% default, varies by tier)
   totalEarnings        Float     @default(0.0)
   currentLocation      Json?     // {lat, lng, timestamp}
   createdAt            DateTime  @default(now())
@@ -357,4 +359,10 @@ enum UserType {
   CUSTOMER
   DRIVER
   ADMIN
+}
+
+enum DriverTier {
+  BRONZE
+  SILVER
+  GOLD
 }

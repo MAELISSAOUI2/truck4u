@@ -497,6 +497,52 @@ export default function DriverDashboard() {
             </Card>
           )}
 
+          {/* Tier Card */}
+          {user?.tier && (
+            <Card
+              shadow="sm"
+              padding="xl"
+              radius="lg"
+              withBorder
+              style={{
+                background:
+                  user.tier === 'GOLD'
+                    ? 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)'
+                    : user.tier === 'SILVER'
+                    ? 'linear-gradient(135deg, #C0C0C0 0%, #808080 100%)'
+                    : 'linear-gradient(135deg, #CD7F32 0%, #A0522D 100%)',
+              }}
+            >
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <div>
+                    <Group gap="xs" mb="xs">
+                      <Text size="3rem" style={{ lineHeight: 1 }}>
+                        {user.tier === 'GOLD' ? '🥇' : user.tier === 'SILVER' ? '🥈' : '🥉'}
+                      </Text>
+                      <div>
+                        <Title order={3} size="1.25rem" c="white">
+                          Niveau {user.tier === 'GOLD' ? 'Gold' : user.tier === 'SILVER' ? 'Silver' : 'Bronze'}
+                        </Title>
+                        <Text size="sm" c="white" style={{ opacity: 0.9 }}>
+                          Frais plateforme: {user.tier === 'GOLD' ? '6' : user.tier === 'SILVER' ? '8' : '10'}%
+                        </Text>
+                      </div>
+                    </Group>
+                  </div>
+                </Group>
+                <Button
+                  variant="white"
+                  size="md"
+                  rightSection={<IconChevronRight size={18} />}
+                  onClick={() => router.push('/driver/tier')}
+                >
+                  Voir ma progression
+                </Button>
+              </Stack>
+            </Card>
+          )}
+
           {/* Earnings Simulator Card */}
           <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
             <Stack gap="md">

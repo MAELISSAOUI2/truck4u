@@ -644,20 +644,209 @@ async function updateDriverBadges(driverId: string) {
   return badges;
 }
 
-// POST /api/drivers/:id/update-badges - Update driver badges (can be called by admin or cron)
+// Helper function to calculate and update driver tier
+async function updateDriverTier(driverId: string) {
+  const driver = await prisma.driver.findUnique({
+    where: { id: driverId },
+    select: {
+      completedRides: true,
+      rating: true,
+      acceptanceRate: true
+    }
+  });
+
+  if (!driver) return null;
+
+  let newTier: 'BRONZE' | 'SILVER' | 'GOLD' = 'BRONZE';
+  let platformFeeRate = 0.10; // 10% default
+
+  // Gold Tier Requirements:
+  // - 200+ completed rides
+  // - Average rating >= 4.5
+  // - Acceptance rate >= 80%
+  if (
+    driver.completedRides >= 200 &&
+    driver.rating >= 4.5 &&
+    driver.acceptanceRate >= 80
+  ) {
+    newTier = 'GOLD';
+    platformFeeRate = 0.06; // 6% for Gold
+  }
+  // Silver Tier Requirements:
+  // - 50-199 completed rides
+  // - Average rating >= 4.0
+  // - Acceptance rate >= 70%
+  else if (
+    driver.completedRides >= 50 &&
+    driver.rating >= 4.0 &&
+    driver.acceptanceRate >= 70
+  ) {
+    newTier = 'SILVER';
+    platformFeeRate = 0.08; // 8% for Silver
+  }
+  // Bronze Tier (default):
+  // - 0-49 completed rides or doesn't meet Silver requirements
+  // - Platform fee: 10%
+
+  // Update driver tier and platform fee
+  await prisma.driver.update({
+    where: { id: driverId },
+    data: {
+      tier: newTier,
+      platformFeeRate
+    }
+  });
+
+  return { tier: newTier, platformFeeRate };
+}
+
+// POST /api/drivers/:id/update-badges - Update driver badges and tier (can be called by admin or cron)
 router.post('/:id/update-badges', verifyToken, async (req, res, next) => {
   try {
     const badges = await updateDriverBadges(req.params.id);
+    const tierInfo = await updateDriverTier(req.params.id);
 
     res.json({
-      message: 'Badges updated successfully',
-      badges
+      message: 'Badges and tier updated successfully',
+      badges,
+      tierInfo
     });
   } catch (error) {
     next(error);
   }
 });
 
-// Export the badge update function for use in other routes
-export { updateDriverBadges };
+// GET /api/drivers/tier/info - Get driver tier info and progress
+router.get('/tier/info', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const driver = await prisma.driver.findUnique({
+      where: { id: req.userId },
+      select: {
+        id: true,
+        tier: true,
+        platformFeeRate: true,
+        completedRides: true,
+        rating: true,
+        acceptanceRate: true
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    // Define tier requirements
+    const tiers = {
+      BRONZE: {
+        name: 'Bronze',
+        color: '#CD7F32',
+        icon: '🥉',
+        requirements: {
+          rides: 0,
+          rating: 0,
+          acceptanceRate: 0
+        },
+        benefits: [
+          'Accès à la plateforme',
+          'Frais de plateforme: 10%',
+          'Support client standard'
+        ],
+        platformFee: 10
+      },
+      SILVER: {
+        name: 'Silver',
+        color: '#C0C0C0',
+        icon: '🥈',
+        requirements: {
+          rides: 50,
+          rating: 4.0,
+          acceptanceRate: 70
+        },
+        benefits: [
+          'Frais de plateforme réduits: 8%',
+          'Badge Silver visible',
+          'Priorité dans les demandes',
+          'Support client prioritaire'
+        ],
+        platformFee: 8
+      },
+      GOLD: {
+        name: 'Gold',
+        color: '#FFD700',
+        icon: '🥇',
+        requirements: {
+          rides: 200,
+          rating: 4.5,
+          acceptanceRate: 80
+        },
+        benefits: [
+          'Frais de plateforme minimaux: 6%',
+          'Badge Gold premium',
+          'Priorité maximale',
+          'Support client VIP',
+          'Bonus mensuels exclusifs'
+        ],
+        platformFee: 6
+      }
+    };
+
+    const currentTier = tiers[driver.tier];
+
+    // Calculate progress to next tier
+    let nextTier = null;
+    let progress = null;
+
+    if (driver.tier === 'BRONZE') {
+      nextTier = tiers.SILVER;
+      progress = {
+        rides: {
+          current: driver.completedRides,
+          required: nextTier.requirements.rides,
+          percentage: Math.min((driver.completedRides / nextTier.requirements.rides) * 100, 100)
+        },
+        rating: {
+          current: driver.rating,
+          required: nextTier.requirements.rating,
+          percentage: Math.min((driver.rating / nextTier.requirements.rating) * 100, 100)
+        },
+        acceptanceRate: {
+          current: driver.acceptanceRate,
+          required: nextTier.requirements.acceptanceRate,
+          percentage: Math.min((driver.acceptanceRate / nextTier.requirements.acceptanceRate) * 100, 100)
+        }
+      };
+    } else if (driver.tier === 'SILVER') {
+      nextTier = tiers.GOLD;
+      progress = {
+        rides: {
+          current: driver.completedRides,
+          required: nextTier.requirements.rides,
+          percentage: Math.min((driver.completedRides / nextTier.requirements.rides) * 100, 100)
+        },
+        rating: {
+          current: driver.rating,
+          required: nextTier.requirements.rating,
+          percentage: Math.min((driver.rating / nextTier.requirements.rating) * 100, 100)
+        },
+        acceptanceRate: {
+          current: driver.acceptanceRate,
+          required: nextTier.requirements.acceptanceRate,
+          percentage: Math.min((driver.acceptanceRate / nextTier.requirements.acceptanceRate) * 100, 100)
+        }
+      };
+    }
+
+    res.json({
+      currentTier,
+      nextTier,
+      progress,
+      allTiers: tiers
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export the badge and tier update functions for use in other routes
+export { updateDriverBadges, updateDriverTier };
 export default router;
