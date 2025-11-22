@@ -60,7 +60,7 @@ router.post('/documents', upload.single('file'), async (req, res, next) => {
 
     // Get driver info
     const driver = await prisma.driver.findUnique({
-      where: { phone: authReq.userId }
+      where: { id: authReq.userId }
     });
 
     if (!driver) {
@@ -139,7 +139,7 @@ router.get('/documents', async (req, res, next) => {
     const authReq = req as AuthRequest;
 
     const driver = await prisma.driver.findUnique({
-      where: { phone: authReq.userId },
+      where: { id: authReq.userId },
       include: {
         kycDocuments: {
           orderBy: { uploadedAt: 'desc' }
@@ -178,7 +178,7 @@ router.delete('/documents/:id', async (req, res, next) => {
     const authReq = req as AuthRequest;
 
     const driver = await prisma.driver.findUnique({
-      where: { phone: authReq.userId }
+      where: { id: authReq.userId }
     });
 
     if (!driver) {
@@ -221,7 +221,7 @@ router.get('/status', async (req, res, next) => {
     const authReq = req as AuthRequest;
 
     const driver = await prisma.driver.findUnique({
-      where: { phone: authReq.userId },
+      where: { id: authReq.userId },
       select: {
         id: true,
         verificationStatus: true,
@@ -286,7 +286,7 @@ router.put('/profile', async (req, res, next) => {
     }).parse(req.body);
 
     const driver = await prisma.driver.update({
-      where: { phone: authReq.userId },
+      where: { id: authReq.userId },
       data
     });
 
