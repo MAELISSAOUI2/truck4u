@@ -1,12 +1,65 @@
 import { Router } from 'express';
 import { prisma } from '@truck4u/database';
-import { verifyToken, requireAdmin, AuthRequest } from '../middleware/auth';
+import { verifyToken, requireAdmin, AuthRequest, generateToken } from '../middleware/auth';
 import { z } from 'zod';
 import path from 'path';
 
 const router = Router();
 
-// All admin routes require admin auth
+// ============================================
+// ADMIN LOGIN (no auth required)
+// ============================================
+
+// POST /api/admin/login - Simple admin login (for development)
+router.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = z.object({
+      email: z.string().email(),
+      password: z.string()
+    }).parse(req.body);
+
+    // Find admin by email
+    const admin = await prisma.admin.findUnique({
+      where: { email }
+    });
+
+    if (!admin) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+    }
+
+    // For development: simple password check (in production, use bcrypt)
+    // For now, we'll just check if any password is provided and admin exists
+    if (!password) {
+      return res.status(401).json({ error: 'Mot de passe requis' });
+    }
+
+    if (!admin.isActive) {
+      return res.status(403).json({ error: 'Compte administrateur désactivé' });
+    }
+
+    // Update last login
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: { lastLoginAt: new Date() }
+    });
+
+    const token = generateToken(admin.id, 'admin');
+
+    res.json({
+      token,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// All other admin routes require admin auth
 router.use(verifyToken, requireAdmin);
 
 // ============================================
