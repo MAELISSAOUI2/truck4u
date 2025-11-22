@@ -32,6 +32,7 @@ import {
   IconBell,
   IconSettings,
   IconLogout,
+  IconCalculator,
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
@@ -495,6 +496,33 @@ export default function DriverDashboard() {
               </Stack>
             </Card>
           )}
+
+          {/* Earnings Simulator Card */}
+          <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+            <Stack gap="md">
+              <Group justify="space-between">
+                <div>
+                  <Group gap="xs" mb="xs">
+                    <IconCalculator size={24} color="white" />
+                    <Title order={3} size="1.25rem" c="white">
+                      Simulateur de gains
+                    </Title>
+                  </Group>
+                  <Text size="sm" c="white" style={{ opacity: 0.9 }}>
+                    Calculez vos revenus potentiels en fonction de vos objectifs de travail
+                  </Text>
+                </div>
+              </Group>
+              <Button
+                variant="white"
+                size="md"
+                rightSection={<IconChevronRight size={18} />}
+                onClick={() => router.push('/driver/earnings/simulator')}
+              >
+                Essayer le simulateur
+              </Button>
+            </Stack>
+          </Card>
 
           {/* No active rides message */}
           {!isOnline && (

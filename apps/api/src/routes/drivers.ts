@@ -313,6 +313,122 @@ router.get('/earnings/history', verifyToken, requireDriverAuth, async (req: Auth
   }
 });
 
+// POST /api/drivers/earnings/simulate - Calculate earnings simulation
+router.post('/earnings/simulate', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const params = z.object({
+      ridesPerDay: z.number().min(0).max(50),
+      averageRidePrice: z.number().min(0),
+      workDaysPerWeek: z.number().min(1).max(7),
+      fuelCostPerKm: z.number().min(0).optional().default(0.5), // DT per km
+      avgDistancePerRide: z.number().min(0).optional().default(15), // km
+      maintenanceCostPerMonth: z.number().min(0).optional().default(100), // DT
+      period: z.enum(['day', 'week', 'month']).optional().default('month')
+    }).parse(req.body);
+
+    const {
+      ridesPerDay,
+      averageRidePrice,
+      workDaysPerWeek,
+      fuelCostPerKm,
+      avgDistancePerRide,
+      maintenanceCostPerMonth,
+      period
+    } = params;
+
+    // Platform fee is 10% (as mentioned in the earnings page)
+    const PLATFORM_FEE_PERCENTAGE = 0.10;
+
+    // Calculate daily earnings
+    const dailyGrossEarnings = ridesPerDay * averageRidePrice;
+    const dailyPlatformFees = dailyGrossEarnings * PLATFORM_FEE_PERCENTAGE;
+    const dailyNetEarnings = dailyGrossEarnings - dailyPlatformFees;
+    const dailyFuelCost = ridesPerDay * avgDistancePerRide * fuelCostPerKm;
+    const dailyProfit = dailyNetEarnings - dailyFuelCost;
+
+    // Calculate weekly earnings
+    const weeklyGrossEarnings = dailyGrossEarnings * workDaysPerWeek;
+    const weeklyPlatformFees = dailyPlatformFees * workDaysPerWeek;
+    const weeklyNetEarnings = dailyNetEarnings * workDaysPerWeek;
+    const weeklyFuelCost = dailyFuelCost * workDaysPerWeek;
+    const weeklyProfit = dailyProfit * workDaysPerWeek;
+
+    // Calculate monthly earnings (assuming 4.33 weeks per month)
+    const monthlyGrossEarnings = weeklyGrossEarnings * 4.33;
+    const monthlyPlatformFees = weeklyPlatformFees * 4.33;
+    const monthlyNetEarnings = weeklyNetEarnings * 4.33;
+    const monthlyFuelCost = weeklyFuelCost * 4.33;
+    const monthlyProfit = monthlyNetEarnings - monthlyFuelCost - maintenanceCostPerMonth;
+
+    // Calculate yearly earnings
+    const yearlyGrossEarnings = monthlyGrossEarnings * 12;
+    const yearlyPlatformFees = monthlyPlatformFees * 12;
+    const yearlyNetEarnings = monthlyNetEarnings * 12;
+    const yearlyFuelCost = monthlyFuelCost * 12;
+    const yearlyMaintenanceCost = maintenanceCostPerMonth * 12;
+    const yearlyProfit = yearlyNetEarnings - yearlyFuelCost - yearlyMaintenanceCost;
+
+    // Total rides per period
+    const totalRidesPerDay = ridesPerDay;
+    const totalRidesPerWeek = ridesPerDay * workDaysPerWeek;
+    const totalRidesPerMonth = totalRidesPerWeek * 4.33;
+    const totalRidesPerYear = totalRidesPerMonth * 12;
+
+    // Cost breakdown percentages
+    const totalCostsMonthly = monthlyPlatformFees + monthlyFuelCost + maintenanceCostPerMonth;
+    const costBreakdown = {
+      platformFees: (monthlyPlatformFees / totalCostsMonthly) * 100,
+      fuelCosts: (monthlyFuelCost / totalCostsMonthly) * 100,
+      maintenance: (maintenanceCostPerMonth / totalCostsMonthly) * 100
+    };
+
+    res.json({
+      inputs: params,
+      daily: {
+        rides: Math.round(totalRidesPerDay),
+        grossEarnings: Math.round(dailyGrossEarnings * 100) / 100,
+        platformFees: Math.round(dailyPlatformFees * 100) / 100,
+        netEarnings: Math.round(dailyNetEarnings * 100) / 100,
+        fuelCost: Math.round(dailyFuelCost * 100) / 100,
+        profit: Math.round(dailyProfit * 100) / 100
+      },
+      weekly: {
+        rides: Math.round(totalRidesPerWeek),
+        grossEarnings: Math.round(weeklyGrossEarnings * 100) / 100,
+        platformFees: Math.round(weeklyPlatformFees * 100) / 100,
+        netEarnings: Math.round(weeklyNetEarnings * 100) / 100,
+        fuelCost: Math.round(weeklyFuelCost * 100) / 100,
+        profit: Math.round(weeklyProfit * 100) / 100
+      },
+      monthly: {
+        rides: Math.round(totalRidesPerMonth),
+        grossEarnings: Math.round(monthlyGrossEarnings * 100) / 100,
+        platformFees: Math.round(monthlyPlatformFees * 100) / 100,
+        netEarnings: Math.round(monthlyNetEarnings * 100) / 100,
+        fuelCost: Math.round(monthlyFuelCost * 100) / 100,
+        maintenanceCost: Math.round(maintenanceCostPerMonth * 100) / 100,
+        profit: Math.round(monthlyProfit * 100) / 100
+      },
+      yearly: {
+        rides: Math.round(totalRidesPerYear),
+        grossEarnings: Math.round(yearlyGrossEarnings * 100) / 100,
+        platformFees: Math.round(yearlyPlatformFees * 100) / 100,
+        netEarnings: Math.round(yearlyNetEarnings * 100) / 100,
+        fuelCost: Math.round(yearlyFuelCost * 100) / 100,
+        maintenanceCost: Math.round(yearlyMaintenanceCost * 100) / 100,
+        profit: Math.round(yearlyProfit * 100) / 100
+      },
+      costBreakdown: {
+        platformFees: Math.round(costBreakdown.platformFees * 10) / 10,
+        fuelCosts: Math.round(costBreakdown.fuelCosts * 10) / 10,
+        maintenance: Math.round(costBreakdown.maintenance * 10) / 10
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST /api/drivers/profile/photo - Upload profile photo
 router.post('/profile/photo', verifyToken, requireDriverAuth, upload.single('photo'), async (req: AuthRequest, res, next) => {
   try {

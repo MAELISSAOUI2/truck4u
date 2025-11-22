@@ -24,6 +24,7 @@ import {
   IconTrendingUp,
   IconCalendar,
   IconReceipt,
+  IconCalculator,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { driverApi } from '@/lib/api';
@@ -104,16 +105,25 @@ export default function DriverEarningsPage() {
             <Title order={2} size="1.5rem">
               Résumé des revenus
             </Title>
-            <Select
-              value={period}
-              onChange={(val) => setPeriod(val || 'month')}
-              data={[
-                { value: 'week', label: 'Cette semaine' },
-                { value: 'month', label: 'Ce mois' },
-                { value: 'year', label: 'Cette année' },
-              ]}
-              w={200}
-            />
+            <Group gap="md">
+              <Button
+                variant="light"
+                leftSection={<IconCalculator size={18} />}
+                onClick={() => router.push('/driver/earnings/simulator')}
+              >
+                Simulateur de gains
+              </Button>
+              <Select
+                value={period}
+                onChange={(val) => setPeriod(val || 'month')}
+                data={[
+                  { value: 'week', label: 'Cette semaine' },
+                  { value: 'month', label: 'Ce mois' },
+                  { value: 'year', label: 'Cette année' },
+                ]}
+                w={200}
+              />
+            </Group>
           </Group>
 
           {/* Summary cards */}

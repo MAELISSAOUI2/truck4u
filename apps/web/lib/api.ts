@@ -70,6 +70,16 @@ export const driverApi = {
   
   getEarningsHistory: (period: string = 'month') =>
     api.get(`/drivers/earnings/history?period=${period}`),
+
+  simulateEarnings: (params: {
+    ridesPerDay: number;
+    averageRidePrice: number;
+    workDaysPerWeek: number;
+    fuelCostPerKm?: number;
+    avgDistancePerRide?: number;
+    maintenanceCostPerMonth?: number;
+  }) =>
+    api.post('/drivers/earnings/simulate', params),
 };
 
 // Ride APIs
