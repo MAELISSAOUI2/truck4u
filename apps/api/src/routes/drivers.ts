@@ -181,6 +181,11 @@ router.get('/available-rides', verifyToken, requireDriverAuth, async (req: AuthR
       return res.json({ rides: [] });
     }
 
+    // If driver is not available (busy with another ride), return empty list
+    if (!driver.isAvailable) {
+      return res.json({ rides: [], message: 'Driver is currently busy with another ride' });
+    }
+
     // Get driver's current location
     const driverLocation = driver.currentLocation as any;
 
