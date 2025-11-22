@@ -202,7 +202,15 @@ router.post('/kyc/driver/:id/approve', async (req, res, next) => {
       }
     });
 
-    // TODO: Send SMS notification to driver
+    // Notify driver via socket.io
+    const io = req.app.get('io') as any;
+    if (io) {
+      io.to(`driver:${driver.id}`).emit('kyc_status_changed', {
+        status: 'APPROVED',
+        message: 'Votre dossier KYC a été approuvé! Vous pouvez maintenant accéder au tableau de bord.',
+        notes: notes || null
+      });
+    }
 
     res.json({
       message: 'Driver approved successfully',
@@ -242,7 +250,15 @@ router.post('/kyc/driver/:id/reject', async (req, res, next) => {
       });
     }
 
-    // TODO: Send SMS notification to driver
+    // Notify driver via socket.io
+    const io = req.app.get('io') as any;
+    if (io) {
+      io.to(`driver:${driver.id}`).emit('kyc_status_changed', {
+        status: 'REJECTED',
+        message: 'Votre dossier KYC a été rejeté. Veuillez consulter les détails et soumettre à nouveau.',
+        reason: reason
+      });
+    }
 
     res.json({
       message: 'Driver rejected',

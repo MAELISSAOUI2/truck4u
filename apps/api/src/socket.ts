@@ -245,6 +245,14 @@ export function setupSocketHandlers(io: Server) {
       console.log(`📡 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
     });
 
+    // Join admin room for notifications
+    socket.on('admin_connect', (data: { adminId: string }) => {
+      socket.join(`admin:${data.adminId}`);
+      socket.join('admins'); // All admins room for broadcasting
+      console.log(`✅ Admin ${data.adminId} joined room: admin:${data.adminId}`);
+      console.log(`📡 Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
+    });
+
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);
     });

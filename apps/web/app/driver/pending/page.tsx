@@ -15,10 +15,12 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { IconClock, IconArrowLeft } from '@tabler/icons-react';
+import { connectSocket, onKYCStatusChanged } from '@/lib/socket';
+import { notifications } from '@mantine/notifications';
 
 export default function DriverPendingPage() {
   const router = useRouter();
-  const { token, updateUser } = useAuthStore();
+  const { user, token, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState('');
 
@@ -28,6 +30,54 @@ export default function DriverPendingPage() {
     const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Listen for real-time KYC status changes via socket
+  useEffect(() => {
+    if (!token || !user) return;
+
+    console.log('🎧 Setting up KYC status listener for driver:', user.id);
+
+    // Connect socket
+    connectSocket(user.id, 'driver', token);
+
+    // Listen for KYC status changes
+    const unsubscribe = onKYCStatusChanged((data: any) => {
+      console.log('✅ KYC status changed:', data);
+
+      // Update user status in store
+      updateUser({ verificationStatus: data.status });
+
+      if (data.status === 'APPROVED') {
+        notifications.show({
+          title: '✅ KYC Approuvé!',
+          message: data.message,
+          color: 'green',
+          autoClose: false,
+        });
+
+        // Redirect to dashboard after short delay
+        setTimeout(() => {
+          router.push('/driver/dashboard');
+        }, 2000);
+      } else if (data.status === 'REJECTED') {
+        notifications.show({
+          title: '❌ KYC Rejeté',
+          message: data.message,
+          color: 'red',
+          autoClose: false,
+        });
+
+        // Redirect to KYC page after short delay
+        setTimeout(() => {
+          router.push('/driver/kyc');
+        }, 2000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [token, user]);
 
   const checkStatus = async () => {
     try {

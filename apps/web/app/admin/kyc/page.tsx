@@ -31,7 +31,9 @@ import {
   IconPhone,
   IconMail,
   IconChevronRight,
+  IconBell,
 } from '@tabler/icons-react';
+import { connectSocket, onNewKYCSubmission } from '@/lib/socket';
 
 interface Driver {
   id: string;
@@ -84,6 +86,43 @@ export default function AdminKYCPage() {
   useEffect(() => {
     fetchDrivers();
   }, [activeTab]);
+
+  // Setup socket connection for real-time KYC notifications
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+
+    // Get admin ID from token (decode JWT)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const adminId = payload.userId;
+
+      // Connect socket as admin
+      connectSocket(adminId, 'admin', token);
+
+      // Listen for new KYC submissions
+      const unsubscribe = onNewKYCSubmission((data: any) => {
+        console.log('🔔 New KYC submission received:', data);
+
+        notifications.show({
+          title: '📝 Nouvelle demande KYC',
+          message: `${data.driverName} a soumis ${data.documentsCount} documents pour vérification`,
+          color: 'blue',
+          autoClose: false,
+          icon: <IconBell size={20} />,
+        });
+
+        // Refresh drivers list to show the new submission
+        fetchDrivers();
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error('Error setting up admin socket:', error);
+    }
+  }, []);
 
   const fetchDrivers = async () => {
     setLoading(true);

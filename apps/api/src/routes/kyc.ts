@@ -343,8 +343,17 @@ router.post('/submit', async (req, res, next) => {
       }
     });
 
-    // TODO: Send notification to admins via socket.io
-    // This will be implemented when we set up socket.io
+    // Notify all admins via socket.io
+    const io = req.app.get('io') as any;
+    if (io) {
+      io.emit('new_kyc_submission', {
+        driverId: driver.id,
+        driverName: driver.name,
+        driverPhone: driver.phone,
+        documentsCount: driver.kycDocuments.length,
+        submittedAt: new Date().toISOString()
+      });
+    }
 
     res.json({
       message: 'Documents soumis pour vérification',

@@ -14,7 +14,7 @@ export const getSocket = (token?: string): Socket => {
   return socket;
 };
 
-export const connectSocket = (userId: string, userType: 'customer' | 'driver', token: string) => {
+export const connectSocket = (userId: string, userType: 'customer' | 'driver' | 'admin', token: string) => {
   const socket = getSocket(token);
 
   if (!socket.connected) {
@@ -33,6 +33,9 @@ export const connectSocket = (userId: string, userType: 'customer' | 'driver', t
     } else if (userType === 'driver') {
       console.log('📤 Emitting driver_connect for:', userId);
       socket.emit('driver_connect', { driverId: userId });
+    } else if (userType === 'admin') {
+      console.log('📤 Emitting admin_connect for:', userId);
+      socket.emit('admin_connect', { adminId: userId });
     }
   });
 
@@ -54,6 +57,9 @@ export const connectSocket = (userId: string, userType: 'customer' | 'driver', t
     } else if (userType === 'driver') {
       console.log('📤 Socket already connected, emitting driver_connect for:', userId);
       socket.emit('driver_connect', { driverId: userId });
+    } else if (userType === 'admin') {
+      console.log('📤 Socket already connected, emitting admin_connect for:', userId);
+      socket.emit('admin_connect', { adminId: userId });
     }
   }
 
@@ -141,4 +147,17 @@ export const onPaymentConfirmed = (callback: (data: any) => void) => {
   const socket = getSocket();
   socket.on('payment_confirmed', callback);
   return () => socket.off('payment_confirmed', callback);
+};
+
+// Admin socket events
+export const onNewKYCSubmission = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('new_kyc_submission', callback);
+  return () => socket.off('new_kyc_submission', callback);
+};
+
+export const onKYCStatusChanged = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('kyc_status_changed', callback);
+  return () => socket.off('kyc_status_changed', callback);
 };
