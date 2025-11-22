@@ -80,7 +80,7 @@ const STATUS_LABELS = {
 
 export default function DriverKYCPage() {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { token, updateUser } = useAuthStore();
   const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -280,6 +280,9 @@ export default function DriverKYCPage() {
       const data = await res.json();
 
       if (res.ok) {
+        // Update user status in store
+        updateUser({ verificationStatus: 'PENDING_REVIEW' });
+
         notifications.show({
           title: 'Succès',
           message: 'Documents soumis pour vérification',

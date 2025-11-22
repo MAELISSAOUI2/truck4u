@@ -18,7 +18,7 @@ import { IconClock, IconArrowLeft } from '@tabler/icons-react';
 
 export default function DriverPendingPage() {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { token, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState('');
 
@@ -45,6 +45,9 @@ export default function DriverPendingPage() {
       if (res.ok) {
         const data = await res.json();
         setVerificationStatus(data.verificationStatus);
+
+        // Update user status in store
+        updateUser({ verificationStatus: data.verificationStatus });
 
         // Redirect to dashboard if approved
         if (data.verificationStatus === 'APPROVED') {
