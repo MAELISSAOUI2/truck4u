@@ -29,8 +29,8 @@ export default function SimpleMap({ pickup, dropoff, driverLocation, height = '4
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    // Initialize map
-    const map = L.map(containerRef.current).setView([pickup.lat, pickup.lng], 13);
+    // Initialize map centered on Tunisia
+    const map = L.map(containerRef.current).setView([36.8065, 10.1815], 12);
 
     // Add OpenStreetMap tiles (free!)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

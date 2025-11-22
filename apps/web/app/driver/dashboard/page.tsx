@@ -35,7 +35,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
-import { connectSocket, driverOnline, driverOffline, onBidAccepted } from '@/lib/socket';
+import { connectSocket, driverOnline, driverOffline, onBidAccepted, onRideRequest } from '@/lib/socket';
 
 const STATUS_COLORS: Record<string, string> = {
   DRIVER_ARRIVING: 'orange',
@@ -115,6 +115,35 @@ export default function DriverDashboard() {
       unsubscribe();
     };
   }, [token, user]);
+
+  // Listen for new ride requests in real-time
+  useEffect(() => {
+    if (!token || !user || !isOnline) return;
+
+    console.log('🎧 Setting up ride_request listener for driver:', user.id);
+
+    // Listen for new ride requests
+    const unsubscribe = onRideRequest((data: any) => {
+      console.log('🚨 New ride request received!', data);
+
+      notifications.show({
+        title: '🚛 Nouvelle course disponible!',
+        message: `${data.pickup.address} → ${data.dropoff.address} (${data.distance}km)`,
+        color: 'blue',
+        autoClose: false,
+        onClick: () => {
+          router.push('/driver/dashboard');
+        }
+      });
+
+      // Refresh available rides list
+      loadDashboardData();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [token, user, isOnline]);
 
   const loadDashboardData = async () => {
     try {
