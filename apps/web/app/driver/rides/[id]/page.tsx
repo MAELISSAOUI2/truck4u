@@ -17,6 +17,8 @@ import {
   Center,
   Stepper,
   Divider,
+  Modal,
+  Textarea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -32,9 +34,11 @@ import {
   IconMessageCircle,
   IconClock,
   IconPackage,
+  IconAlertCircle,
+  IconX,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
-import { rideApi } from '@/lib/api';
+import { rideApi, cancellationApi, driverApi } from '@/lib/api';
 import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onETAUpdated, onNotification } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -129,6 +133,10 @@ export default function DriverRideDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [driverStrikes, setDriverStrikes] = useState(0);
 
   useEffect(() => {
     if (!token) {
@@ -366,6 +374,55 @@ export default function DriverRideDetailsPage() {
     }
   };
 
+  const handleCancelRide = async () => {
+    setCancelling(true);
+    try {
+      const response = await cancellationApi.cancelAsDriver(params.id as string, cancelReason);
+
+      const { strikeCount, accountDeactivated } = response.data;
+
+      if (accountDeactivated) {
+        notifications.show({
+          title: '❌ Compte désactivé',
+          message: 'Votre compte a été désactivé après 3 annulations. Contactez le support.',
+          color: 'red',
+          autoClose: false,
+        });
+      } else if (strikeCount === 2) {
+        notifications.show({
+          title: '⚠️ Dernier avertissement!',
+          message: 'Strike 2/3. Une autre annulation désactivera votre compte!',
+          color: 'orange',
+          autoClose: 10000,
+        });
+      } else {
+        notifications.show({
+          title: 'Course annulée',
+          message: `Strike ${strikeCount}/3 enregistré.`,
+          color: 'orange',
+          autoClose: 5000,
+        });
+      }
+
+      setCancelModalOpen(false);
+      setCancelReason('');
+
+      // Redirect to dashboard
+      setTimeout(() => {
+        router.push('/driver/dashboard');
+      }, 2000);
+    } catch (error: any) {
+      console.error('Error cancelling ride:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Impossible d\'annuler la course',
+        color: 'red',
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleNextStatus = async () => {
     // Special case: DROPOFF_ARRIVED should confirm completion, not go to COMPLETED directly
     if (ride.status === 'DROPOFF_ARRIVED') {
@@ -537,6 +594,31 @@ export default function DriverRideDetailsPage() {
                     </Group>
                   </Paper>
                 )}
+              </Stack>
+            </Card>
+          )}
+
+          {/* Cancel Button - Show when cancellable */}
+          {ride && !['COMPLETED', 'CANCELLED', 'PENDING_BIDS'].includes(ride.status) && (
+            <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#FA5252' }}>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <div>
+                    <Text fw={600} size="lg" c="red">⚠️ Annuler la course</Text>
+                    <Text size="sm" c="dimmed">
+                      {driverStrikes === 0 && 'Strike 1/3 sera enregistré'}
+                      {driverStrikes === 1 && '⚠️ Strike 2/3 - Attention!'}
+                      {driverStrikes === 2 && '🚨 DERNIER AVERTISSEMENT - Strike 3/3 = Désactivation'}
+                    </Text>
+                  </div>
+                  <Button
+                    color="red"
+                    variant="light"
+                    onClick={() => setCancelModalOpen(true)}
+                  >
+                    Annuler
+                  </Button>
+                </Group>
               </Stack>
             </Card>
           )}
@@ -745,6 +827,116 @@ export default function DriverRideDetailsPage() {
           token={token!}
         />
       )}
+
+      {/* Cancel Ride Modal */}
+      <Modal
+        opened={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title={
+          <Group gap="xs">
+            <IconAlertCircle size={24} color="#FA5252" />
+            <Text fw={600} size="lg">Annuler la course</Text>
+          </Group>
+        }
+        size="md"
+        centered
+      >
+        <Stack gap="md">
+          {/* Strike Warning */}
+          {driverStrikes === 0 && (
+            <Paper p="md" radius="md" style={{ backgroundColor: '#fff3cd', border: '1px solid #ffc107' }}>
+              <Group gap="xs" align="flex-start">
+                <IconAlertCircle size={20} color="#ff9800" />
+                <div style={{ flex: 1 }}>
+                  <Text size="sm" fw={600} c="#856404">Strike 1/3 sera enregistré</Text>
+                  <Text size="xs" c="#856404">
+                    Cette annulation comptera comme votre premier avertissement.
+                  </Text>
+                </div>
+              </Group>
+            </Paper>
+          )}
+
+          {driverStrikes === 1 && (
+            <Paper p="md" radius="md" style={{ backgroundColor: '#ffe0b2', border: '1px solid #ff9800' }}>
+              <Group gap="xs" align="flex-start">
+                <IconAlertCircle size={20} color="#f57c00" />
+                <div style={{ flex: 1 }}>
+                  <Text size="sm" fw={600} c="#e65100">⚠️ Strike 2/3 - Attention!</Text>
+                  <Text size="xs" c="#e65100">
+                    Vous avez déjà 1 strike. Cette annulation en ajoutera un deuxième.
+                  </Text>
+                </div>
+              </Group>
+            </Paper>
+          )}
+
+          {driverStrikes === 2 && (
+            <Paper p="md" radius="md" style={{ backgroundColor: '#ffcdd2', border: '2px solid #f44336' }}>
+              <Group gap="xs" align="flex-start">
+                <IconX size={20} color="#d32f2f" />
+                <div style={{ flex: 1 }}>
+                  <Text size="sm" fw={700} c="#b71c1c">🚨 DERNIER AVERTISSEMENT!</Text>
+                  <Text size="xs" c="#b71c1c" fw={600}>
+                    Vous avez déjà 2 strikes. Cette annulation désactivera AUTOMATIQUEMENT votre compte!
+                  </Text>
+                </div>
+              </Group>
+            </Paper>
+          )}
+
+          {/* Consequences */}
+          <Paper p="md" radius="md" withBorder>
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>Conséquences de l'annulation:</Text>
+              <Text size="xs" c="dimmed">
+                • Le client sera remboursé intégralement
+              </Text>
+              <Text size="xs" c="dimmed">
+                • Un strike sera enregistré sur votre compte
+              </Text>
+              <Text size="xs" c="dimmed">
+                • Les strikes se réinitialisent chaque mois
+              </Text>
+              {driverStrikes === 2 && (
+                <Text size="xs" c="red" fw={600}>
+                  • Votre compte sera DÉSACTIVÉ immédiatement
+                </Text>
+              )}
+            </Stack>
+          </Paper>
+
+          {/* Reason */}
+          <Textarea
+            label="Raison de l'annulation (optionnel)"
+            placeholder="Ex: Problème technique, urgence personnelle..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.currentTarget.value)}
+            minRows={3}
+            maxRows={5}
+          />
+
+          {/* Actions */}
+          <Group justify="space-between" mt="md">
+            <Button
+              variant="light"
+              color="gray"
+              onClick={() => setCancelModalOpen(false)}
+              disabled={cancelling}
+            >
+              Retour
+            </Button>
+            <Button
+              color="red"
+              onClick={handleCancelRide}
+              loading={cancelling}
+              leftSection={<IconX size={16} />}
+            >
+              {driverStrikes === 2 ? 'Confirmer et désactiver compte' : 'Confirmer l\'annulation'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </div>
   );
 }
