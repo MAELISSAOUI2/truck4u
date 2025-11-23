@@ -39,7 +39,7 @@ import {
   IconCheck,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
-import { rideApi } from '@/lib/api';
+import { rideApi, pricingApi } from '@/lib/api';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import SimpleMap from '@/components/SimpleMap';
 import { notifications } from '@mantine/notifications';
@@ -62,6 +62,10 @@ export default function NewRidePage() {
   const [error, setError] = useState('');
   const [distance, setDistance] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  // Price estimation
+  const [priceEstimate, setPriceEstimate] = useState<any>(null);
+  const [estimating, setEstimating] = useState(false);
 
   // Photos
   const [photos, setPhotos] = useState<File[]>([]);
@@ -149,27 +153,60 @@ export default function NewRidePage() {
     setActiveStep(prev => prev + 1);
   };
 
-  const calculatePrice = () => {
-    const vehicle = VEHICLE_TYPES.find(v => v.value === formData.vehicleType);
-    if (!vehicle) return { basePrice: 0, expressFee: 0, total: 0 };
-
-    let basePrice = vehicle.basePrice;
-    basePrice += distance * 1.5; // 1.5 DT per km
-    basePrice += formData.numberOfHelpers * 15; // 15 DT per helper
-    basePrice += (formData.numberOfTrips - 1) * 10; // 10 DT per additional trip
-
-    // Express fee calculation (10-15 DT based on distance)
-    let expressFee = 0;
-    if (formData.isExpress) {
-      expressFee = distance < 10 ? 10 : distance < 30 ? 12 : 15;
+  const calculatePriceEstimate = async () => {
+    // Ne pas calculer si pas assez de données
+    if (!distance || !duration || distance === 0) {
+      setPriceEstimate(null);
+      return;
     }
 
-    return {
-      basePrice: Math.round(basePrice),
-      expressFee,
-      total: Math.round(basePrice + expressFee)
-    };
+    setEstimating(true);
+    try {
+      // Mapper les paramètres du formulaire vers l'API
+      const tripType = formData.numberOfTrips > 1 ? 'ALLER_RETOUR' : 'ALLER_SIMPLE';
+      const hasConvoyeur = formData.numberOfHelpers > 0;
+      const departureTime = formData.schedulingType === 'scheduled' && formData.scheduledDate
+        ? formData.scheduledDate.toISOString()
+        : new Date().toISOString();
+
+      // Trafic par défaut moyen, ou dense si express
+      const trafficLevel = formData.isExpress ? 'DENSE' : 'MOYEN';
+
+      const response = await pricingApi.estimate({
+        vehicleType: formData.vehicleType as any,
+        distance,
+        duration,
+        tripType: tripType as any,
+        hasConvoyeur,
+        departureTime,
+        trafficLevel: trafficLevel as any,
+      });
+
+      setPriceEstimate(response.data.estimate);
+    } catch (error: any) {
+      console.error('Error calculating price estimate:', error);
+      // En cas d'erreur, garder l'ancienne estimation
+    } finally {
+      setEstimating(false);
+    }
   };
+
+  // Recalculer l'estimation quand les paramètres changent
+  useEffect(() => {
+    if (distance > 0 && duration > 0) {
+      calculatePriceEstimate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    distance,
+    duration,
+    formData.vehicleType,
+    formData.numberOfHelpers,
+    formData.numberOfTrips,
+    formData.isExpress,
+    formData.schedulingType,
+    formData.scheduledDate,
+  ]);
 
   const handleSubmit = async () => {
     if (!formData.cargoDescription) {
@@ -608,16 +645,35 @@ export default function NewRidePage() {
                     <Group justify="space-between" align="center">
                       <div>
                         <Text size="sm" c="dimmed" mb={4}>Prix estimé</Text>
-                        <Title order={2} size="2rem">{calculatePrice().total} DT</Title>
-                        {formData.isExpress && (
-                          <Group gap="xs" mt={4}>
-                            <Text size="xs" c="dimmed">Base: {calculatePrice().basePrice} DT</Text>
-                            <Text size="xs" c="orange" fw={600}>+ Express: {calculatePrice().expressFee} DT</Text>
-                          </Group>
+                        {estimating ? (
+                          <Text size="lg" c="dimmed">Calcul en cours...</Text>
+                        ) : priceEstimate ? (
+                          <>
+                            <Title order={2} size="2rem">{priceEstimate.finalPrice.toFixed(2)} DT</Title>
+                            <Group gap="xs" mt={4}>
+                              <Text size="xs" c="dimmed">
+                                {distance.toFixed(1)} km • {duration} min
+                              </Text>
+                              {formData.numberOfHelpers > 0 && (
+                                <Badge size="sm" variant="light" color="orange">
+                                  +{formData.numberOfHelpers} convoyeur(s)
+                                </Badge>
+                              )}
+                              {formData.numberOfTrips > 1 && (
+                                <Badge size="sm" variant="light" color="blue">
+                                  Aller-retour
+                                </Badge>
+                              )}
+                            </Group>
+                            <Text size="xs" c="dimmed" mt={4}>
+                              Prix estimé selon la configuration actuelle
+                            </Text>
+                          </>
+                        ) : (
+                          <Text size="lg" c="dimmed">
+                            Sélectionnez les adresses pour voir le prix
+                          </Text>
                         )}
-                        <Text size="xs" c="dimmed" mt={4}>
-                          Le prix final sera confirmé par le transporteur
-                        </Text>
                       </div>
                       <Button
                         size="xl"
