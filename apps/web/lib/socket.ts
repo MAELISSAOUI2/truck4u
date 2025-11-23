@@ -102,6 +102,12 @@ export const onRideStatusChanged = (callback: (data: any) => void) => {
   return () => socket.off('ride_status_changed', callback);
 };
 
+export const onETAUpdated = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('eta_updated', callback);
+  return () => socket.off('eta_updated', callback);
+};
+
 // Driver socket events
 export const driverOnline = (driverId: string, location: { lat: number; lng: number }) => {
   const socket = getSocket();
