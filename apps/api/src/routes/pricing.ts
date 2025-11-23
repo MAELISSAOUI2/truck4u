@@ -355,7 +355,7 @@ router.get('/config', async (req, res) => {
 router.put('/config', verifyToken, requireAdmin, async (req, res) => {
   try {
     const data = pricingConfigSchema.parse(req.body);
-    const adminId = (req as any).user.id;
+    const adminId = (req as any).userId;
 
     // Mettre à jour ou créer la config par défaut
     const config = await prisma.pricingConfig.upsert({
@@ -433,7 +433,7 @@ router.put('/vehicle/:type', verifyToken, requireAdmin, async (req, res) => {
  */
 router.post('/init-defaults', verifyToken, requireAdmin, async (req, res) => {
   try {
-    const adminId = (req as any).user.id;
+    const adminId = (req as any).userId;
 
     // Créer les tarifs par défaut pour chaque véhicule
     const vehiclePricings = [
