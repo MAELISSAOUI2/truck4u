@@ -328,6 +328,42 @@ export default function DriverRideDetailsPage() {
     bounds.extend([ride.pickup.lng, ride.pickup.lat]);
     bounds.extend([ride.dropoff.lng, ride.dropoff.lat]);
     map.current.fitBounds(bounds, { padding: 50 });
+
+    // Draw route
+    drawRoute();
+  };
+
+  const drawRoute = async () => {
+    if (!map.current || !ride) return;
+
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${ride.pickup.lng},${ride.pickup.lat};${ride.dropoff.lng},${ride.dropoff.lat}?geometries=geojson&access_token=${mapboxgl.accessToken}`
+      );
+      const data = await response.json();
+
+      if (data.routes && data.routes[0]) {
+        const geojson = {
+          type: 'Feature' as const,
+          properties: {},
+          geometry: data.routes[0].geometry,
+        };
+
+        if (map.current.getSource('route')) {
+          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData(geojson as any);
+        } else {
+          map.current.addLayer({
+            id: 'route',
+            type: 'line',
+            source: { type: 'geojson', data: geojson as any },
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: { 'line-color': '#228BE6', 'line-width': 5, 'line-opacity': 0.75 },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error drawing route:', error);
+    }
   };
 
   const handleNextStatus = async () => {
