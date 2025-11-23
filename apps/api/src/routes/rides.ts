@@ -23,7 +23,8 @@ const estimateSchema = z.object({
   }),
   vehicleType: z.enum(['CAMIONNETTE', 'FOURGON', 'CAMION_3_5T', 'CAMION_LOURD']),
   loadAssistance: z.boolean().default(false),
-  numberOfTrips: z.number().min(1).max(5).default(1)
+  numberOfTrips: z.number().min(1).max(5).default(1),
+  isExpress: z.boolean().default(false)
 });
 
 const createRideSchema = estimateSchema.extend({
@@ -65,8 +66,29 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 }
 
+// Helper: Calculate ETA based on distance (returns minutes)
+function calculateETA(distanceKm: number): number {
+  // Average speed in city: 30 km/h
+  // Average speed on highway: 60 km/h
+  // Use a mixed average of 40 km/h for realistic urban/highway mix
+  const AVERAGE_SPEED_KMH = 40;
+  const timeHours = distanceKm / AVERAGE_SPEED_KMH;
+  const timeMinutes = Math.round(timeHours * 60);
+
+  // Add buffer time for traffic, loading, etc (15% of time)
+  const bufferMinutes = Math.round(timeMinutes * 0.15);
+
+  return timeMinutes + bufferMinutes;
+}
+
+// Helper: Calculate estimated DateTime from now + minutes
+function calculateEstimatedTime(minutesFromNow: number): Date {
+  const now = new Date();
+  return new Date(now.getTime() + minutesFromNow * 60000);
+}
+
 // Helper: Estimate price based on distance and options
-function estimatePrice(distance: number, vehicleType: string, loadAssistance: boolean, numberOfTrips: number) {
+function estimatePrice(distance: number, vehicleType: string, loadAssistance: boolean, numberOfTrips: number, isExpress: boolean = false) {
   const baseRates = {
     CAMIONNETTE: 0.8,
     FOURGON: 1.2,
@@ -76,13 +98,20 @@ function estimatePrice(distance: number, vehicleType: string, loadAssistance: bo
 
   let basePrice = distance * (baseRates[vehicleType as keyof typeof baseRates] || 1);
   basePrice += 5; // Flat fee
-  
+
   if (loadAssistance) basePrice += 15;
   if (numberOfTrips > 1) basePrice *= numberOfTrips * 0.9; // 10% discount for multiple trips
 
+  // Express delivery fee (10-15 DT based on distance)
+  let expressFee = 0;
+  if (isExpress) {
+    expressFee = distance < 10 ? 10 : distance < 30 ? 12 : 15;
+  }
+
   return {
     min: Math.round(basePrice * 0.85),
-    max: Math.round(basePrice * 1.15)
+    max: Math.round(basePrice * 1.15),
+    expressFee: expressFee
   };
 }
 
@@ -172,6 +201,8 @@ async function dispatchToDrivers(rideId: string, pickup: any, vehicleType: strin
         vehicleType: ride.vehicleType,
         loadAssistance: ride.loadAssistance,
         numberOfTrips: ride.numberOfTrips,
+        isExpress: ride.isExpress,
+        expressFee: ride.expressFee,
         estimatedMinPrice: ride.estimatedMinPrice,
         estimatedMaxPrice: ride.estimatedMaxPrice,
         estimatedDuration: ride.estimatedDuration,
@@ -208,8 +239,11 @@ router.post('/estimate', verifyToken, requireCustomer, async (req: AuthRequest, 
       distance,
       data.vehicleType,
       data.loadAssistance,
-      data.numberOfTrips
+      data.numberOfTrips,
+      data.isExpress
     );
+
+    const estimatedDuration = calculateETA(distance);
 
     // Count available drivers
     const availableDriversCount = await prisma.driver.count({
@@ -222,8 +256,10 @@ router.post('/estimate', verifyToken, requireCustomer, async (req: AuthRequest, 
 
     res.json({
       distance: Math.round(distance * 10) / 10,
-      estimatedDuration: Math.ceil(distance / 0.5), // Assuming 30km/h avg speed
+      estimatedDuration,
       estimatedPrice,
+      expressFee: estimatedPrice.expressFee,
+      isExpress: data.isExpress,
       availableDriversCount
     });
   } catch (error) {
@@ -247,8 +283,11 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
       distance,
       data.vehicleType,
       data.loadAssistance,
-      data.numberOfTrips
+      data.numberOfTrips,
+      data.isExpress
     );
+
+    const estimatedDuration = calculateETA(distance);
 
     const ride = await prisma.ride.create({
       data: {
@@ -257,7 +296,7 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
         pickup: data.pickup,
         dropoff: data.dropoff,
         distance,
-        estimatedDuration: Math.ceil(distance / 0.5),
+        estimatedDuration,
         vehicleType: data.vehicleType,
         loadAssistance: data.loadAssistance,
         numberOfTrips: data.numberOfTrips,
@@ -265,6 +304,8 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
         description: data.description,
         serviceType: data.serviceType,
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
+        isExpress: data.isExpress,
+        expressFee: estimatedPrice.expressFee || 0,
         estimatedMinPrice: estimatedPrice.min,
         estimatedMaxPrice: estimatedPrice.max
       }
@@ -558,6 +599,27 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
       : Math.round(bid.proposedPrice * 0.15 * 100) / 100;
     const driverAmount = bid.proposedPrice - platformFee;
 
+    // Calculate ETA to pickup based on driver's current location
+    const driverLocation = bid.driver.currentLocation as any;
+    const pickup = bid.ride.pickup as any;
+    let estimatedPickupTime = null;
+    let estimatedDeliveryTime = null;
+
+    if (driverLocation && driverLocation.lat && driverLocation.lng && pickup && pickup.lat && pickup.lng) {
+      const distanceToPickup = calculateDistance(
+        driverLocation.lat,
+        driverLocation.lng,
+        pickup.lat,
+        pickup.lng
+      );
+      const etaMinutesToPickup = calculateETA(distanceToPickup);
+      estimatedPickupTime = calculateEstimatedTime(etaMinutesToPickup);
+
+      // Calculate ETA to delivery (pickup time + ride duration)
+      const rideETAMinutes = calculateETA(bid.ride.distance);
+      estimatedDeliveryTime = calculateEstimatedTime(etaMinutesToPickup + rideETAMinutes);
+    }
+
     // Update bid, ride, and set driver as unavailable (payment created later when customer pays)
     await prisma.$transaction([
       prisma.bid.update({
@@ -572,7 +634,9 @@ router.post('/:id/accept-bid', verifyToken, requireCustomer, async (req: AuthReq
           winningBidId: bidId,
           finalPrice: bid.proposedPrice,
           platformFee,
-          driverEarnings: driverAmount
+          driverEarnings: driverAmount,
+          estimatedPickupTime,
+          estimatedDeliveryTime
         }
       }),
       prisma.bid.updateMany({
@@ -650,12 +714,31 @@ router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequ
 
     const oldStatus = ride.status;
 
+    // Prepare update data
+    const updateData: any = { status };
+
+    // Set actualPickupTime when arriving at pickup
+    if (status === 'PICKUP_ARRIVED' && !ride.actualPickupTime) {
+      updateData.actualPickupTime = new Date();
+
+      // Recalculate estimatedDeliveryTime based on current time + ride duration
+      const rideETAMinutes = calculateETA(ride.distance);
+      updateData.estimatedDeliveryTime = calculateEstimatedTime(rideETAMinutes);
+    }
+
+    // Set actualDeliveryTime when completing delivery
+    if (status === 'DROPOFF_ARRIVED' && !ride.actualDeliveryTime) {
+      updateData.actualDeliveryTime = new Date();
+    }
+
+    // Set completedAt for completed rides
+    if (status === 'COMPLETED') {
+      updateData.completedAt = new Date();
+    }
+
     const updatedRide = await prisma.ride.update({
       where: { id: req.params.id },
-      data: {
-        status,
-        ...(status === 'COMPLETED' && { completedAt: new Date() })
-      }
+      data: updateData
     });
 
     // Notify via Socket.io
@@ -673,6 +756,87 @@ router.patch('/:id/status', verifyToken, requireDriverAuth, async (req: AuthRequ
     }
 
     res.json(updatedRide);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/rides/:id/update-eta - Update ETA based on current driver location
+router.put('/:id/update-eta', verifyToken, requireDriverAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const { currentLat, currentLng } = z.object({
+      currentLat: z.number(),
+      currentLng: z.number()
+    }).parse(req.body);
+
+    const ride = await prisma.ride.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!ride || ride.driverId !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const pickup = ride.pickup as any;
+    const dropoff = ride.dropoff as any;
+    const updateData: any = {};
+
+    // If driver hasn't arrived at pickup yet, update estimatedPickupTime
+    if (ride.status === 'DRIVER_ARRIVING' || ride.status === 'BID_ACCEPTED') {
+      if (pickup && pickup.lat && pickup.lng) {
+        const distanceToPickup = calculateDistance(
+          currentLat,
+          currentLng,
+          pickup.lat,
+          pickup.lng
+        );
+        const etaMinutesToPickup = calculateETA(distanceToPickup);
+        updateData.estimatedPickupTime = calculateEstimatedTime(etaMinutesToPickup);
+
+        // Also update estimatedDeliveryTime
+        const rideETAMinutes = calculateETA(ride.distance);
+        updateData.estimatedDeliveryTime = calculateEstimatedTime(etaMinutesToPickup + rideETAMinutes);
+      }
+    }
+    // If driver is heading to delivery, update estimatedDeliveryTime
+    else if (ride.status === 'IN_TRANSIT' || ride.status === 'LOADING') {
+      if (dropoff && dropoff.lat && dropoff.lng) {
+        const distanceToDropoff = calculateDistance(
+          currentLat,
+          currentLng,
+          dropoff.lat,
+          dropoff.lng
+        );
+        const etaMinutesToDropoff = calculateETA(distanceToDropoff);
+        updateData.estimatedDeliveryTime = calculateEstimatedTime(etaMinutesToDropoff);
+      }
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      const updatedRide = await prisma.ride.update({
+        where: { id: req.params.id },
+        data: updateData
+      });
+
+      // Notify customer of updated ETA via Socket.io
+      const io = req.app.get('io') as Server;
+      io.to(`customer:${ride.customerId}`).emit('eta_updated', {
+        rideId: ride.id,
+        estimatedPickupTime: updatedRide.estimatedPickupTime,
+        estimatedDeliveryTime: updatedRide.estimatedDeliveryTime
+      });
+
+      res.json({
+        estimatedPickupTime: updatedRide.estimatedPickupTime,
+        estimatedDeliveryTime: updatedRide.estimatedDeliveryTime
+      });
+    } else {
+      res.json({
+        message: 'No ETA update needed for current status',
+        estimatedPickupTime: ride.estimatedPickupTime,
+        estimatedDeliveryTime: ride.estimatedDeliveryTime
+      });
+    }
   } catch (error) {
     next(error);
   }

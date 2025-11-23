@@ -255,8 +255,13 @@ router.get('/available-rides', verifyToken, requireDriverAuth, async (req: AuthR
       };
     });
 
-    // Sort by distance (closest first)
+    // Sort by priority: Express rides first, then by distance (closest first)
     ridesWithDistance.sort((a, b) => {
+      // Express rides have priority
+      if (a.isExpress && !b.isExpress) return -1;
+      if (!a.isExpress && b.isExpress) return 1;
+
+      // If both are express or both are not express, sort by distance
       if (a.distanceToPickup === null) return 1;
       if (b.distanceToPickup === null) return -1;
       return a.distanceToPickup - b.distanceToPickup;

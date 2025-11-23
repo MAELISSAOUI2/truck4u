@@ -129,10 +129,16 @@ model Ride {
   // Timing
   serviceType          ServiceType @default(IMMEDIATE)
   scheduledFor         DateTime?
+  isExpress            Boolean   @default(false)  // Priority/Express delivery
+  estimatedPickupTime  DateTime? // ETA to pickup location
+  estimatedDeliveryTime DateTime? // ETA to delivery location
+  actualPickupTime     DateTime? // Actual arrival time at pickup
+  actualDeliveryTime   DateTime? // Actual delivery time
 
   // Pricing
   estimatedMinPrice    Float?
   estimatedMaxPrice    Float?
+  expressFee           Float?    // Additional fee for express delivery (10-15 DT)
   winningBidId         String?   @unique
   finalPrice           Float?
   platformFee          Float?
