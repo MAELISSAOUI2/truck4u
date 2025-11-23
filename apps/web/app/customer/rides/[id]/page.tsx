@@ -37,7 +37,7 @@ import {
   IconBell,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
-import { rideApi, paymentApi } from '@/lib/api';
+import { rideApi, paymentApi, cancellationApi } from '@/lib/api';
 import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged, onETAUpdated, onNotification } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -144,6 +144,9 @@ export default function RideDetailsPage() {
   const [newBidIds, setNewBidIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [gracePeriodRemaining, setGracePeriodRemaining] = useState<number | null>(null);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingPunctuality, setRatingPunctuality] = useState(5);
   const [ratingCare, setRatingCare] = useState(5);
@@ -290,6 +293,29 @@ export default function RideDetailsPage() {
       unsubscribe();
     };
   }, [params.id]);
+
+  // Calculate grace period remaining time
+  useEffect(() => {
+    if (!ride || ride.status === 'PENDING_BIDS' || ride.status === 'COMPLETED' || ride.status === 'CANCELLED') {
+      setGracePeriodRemaining(null);
+      return;
+    }
+
+    // Use ride.updatedAt as approximate bid acceptance time
+    const bidAcceptedAt = new Date(ride.updatedAt);
+    const fiveMinutesLater = new Date(bidAcceptedAt.getTime() + 5 * 60 * 1000);
+
+    const updateTimer = () => {
+      const now = new Date();
+      const remaining = Math.max(0, fiveMinutesLater.getTime() - now.getTime());
+      setGracePeriodRemaining(Math.floor(remaining / 1000)); // in seconds
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [ride]);
 
   // Listen for driver completion confirmation
   useEffect(() => {
@@ -577,13 +603,31 @@ export default function RideDetailsPage() {
   };
 
   const handleCancelRide = async () => {
+    setCancelling(true);
     try {
-      await rideApi.cancel(params.id as string);
+      const response = await cancellationApi.cancelAsCustomer(params.id as string, cancelReason);
+
+      notifications.show({
+        title: 'Course annulée',
+        message: response.data.message,
+        color: response.data.cancellation.wasWithinGracePeriod ? 'green' : 'orange',
+        autoClose: 5000,
+      });
+
       setCancelModalOpen(false);
-      router.push('/customer/dashboard');
+      setCancelReason('');
+
+      // Reload ride details to show cancelled status
+      await loadRideDetails();
     } catch (error: any) {
       console.error('Error cancelling ride:', error);
-      alert(error.response?.data?.message || 'Erreur lors de l\'annulation');
+      notifications.show({
+        title: 'Erreur',
+        message: error.response?.data?.error || 'Impossible d\'annuler la course',
+        color: 'red',
+      });
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -691,6 +735,36 @@ export default function RideDetailsPage() {
                   <Stepper.Step label="Terminé" description="Course complétée" />
                 </Stepper>
               </Card>
+
+              {/* Cancel Button - Show when cancellable */}
+              {ride && !['COMPLETED', 'CANCELLED', 'PENDING_BIDS'].includes(ride.status) && (
+                <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#FA5252' }}>
+                  <Stack gap="md">
+                    <Group justify="space-between">
+                      <div>
+                        <Text fw={600} size="lg">Annuler la course</Text>
+                        {gracePeriodRemaining !== null && gracePeriodRemaining > 0 && (
+                          <Text size="sm" c="green">
+                            ✓ Annulation gratuite • Encore {Math.floor(gracePeriodRemaining / 60)}:{(gracePeriodRemaining % 60).toString().padStart(2, '0')}
+                          </Text>
+                        )}
+                        {gracePeriodRemaining !== null && gracePeriodRemaining <= 0 && (
+                          <Text size="sm" c="orange">
+                            ⚠️ Frais d'annulation: 5 DT
+                          </Text>
+                        )}
+                      </div>
+                      <Button
+                        color="red"
+                        variant="light"
+                        onClick={() => setCancelModalOpen(true)}
+                      >
+                        Annuler
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Card>
+              )}
 
               {/* ETA Card - Show when ride is in progress */}
               {ride && ['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT'].includes(ride.status) && (
@@ -1025,15 +1099,81 @@ export default function RideDetailsPage() {
         onClose={() => setCancelModalOpen(false)}
         title="Annuler la course"
         centered
+        size="lg"
       >
-        <Stack gap="md">
+        <Stack gap="lg">
+          {/* Grace period timer */}
+          {gracePeriodRemaining !== null && gracePeriodRemaining > 0 && (
+            <Paper p="md" withBorder style={{ backgroundColor: '#E7F5FF', borderColor: '#228BE6' }}>
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <IconClock size={20} color="#228BE6" />
+                  <Text fw={600} c="blue">Période de grâce active</Text>
+                </Group>
+                <Text size="lg" fw={700} c="blue" ta="center">
+                  {Math.floor(gracePeriodRemaining / 60)}:{(gracePeriodRemaining % 60).toString().padStart(2, '0')}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Annulation gratuite pendant encore {Math.floor(gracePeriodRemaining / 60)} min {gracePeriodRemaining % 60} sec
+                </Text>
+              </Stack>
+            </Paper>
+          )}
+
+          {/* Warning about fees */}
+          {gracePeriodRemaining !== null && gracePeriodRemaining <= 0 && (
+            <Paper p="md" withBorder style={{ backgroundColor: '#FFF3E0', borderColor: '#FF9800' }}>
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <IconAlertCircle size={20} color="#FF9800" />
+                  <Text fw={600} c="orange">Frais d'annulation tardive</Text>
+                </Group>
+                <Text size="sm">
+                  La période de grâce de 5 minutes est terminée. <strong>5 DT</strong> seront prélevés comme frais d'annulation.
+                </Text>
+              </Stack>
+            </Paper>
+          )}
+
+          {/* Confirmation text */}
           <Text>Êtes-vous sûr de vouloir annuler cette course ?</Text>
+
+          {/* Reason (optional) */}
+          <Textarea
+            label="Raison (optionnel)"
+            placeholder="Ex: Changement de plan, problème de disponibilité..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={3}
+          />
+
+          {/* Refund info */}
+          <Paper p="sm" withBorder style={{ backgroundColor: '#F8F9FA' }}>
+            <Text size="sm" c="dimmed">
+              {gracePeriodRemaining && gracePeriodRemaining > 0
+                ? "✓ Remboursement intégral des frais de plateforme (20 DT)"
+                : "✓ Remboursement: 20 DT - 5 DT = 15 DT"}
+            </Text>
+          </Paper>
+
           <Group justify="flex-end" gap="xs">
-            <Button variant="subtle" onClick={() => setCancelModalOpen(false)}>
-              Non, garder
+            <Button
+              variant="subtle"
+              onClick={() => {
+                setCancelModalOpen(false);
+                setCancelReason('');
+              }}
+              disabled={cancelling}
+            >
+              Annuler l'annulation
             </Button>
-            <Button color="red" onClick={handleCancelRide}>
-              Oui, annuler
+            <Button
+              color="red"
+              onClick={handleCancelRide}
+              loading={cancelling}
+              leftSection={<IconX size={18} />}
+            >
+              Confirmer l'annulation
             </Button>
           </Group>
         </Stack>
