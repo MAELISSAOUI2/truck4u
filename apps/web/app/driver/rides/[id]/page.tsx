@@ -30,10 +30,12 @@ import {
   IconPackageExport,
   IconRoute,
   IconMessageCircle,
+  IconClock,
+  IconPackage,
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
-import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onNotification } from '@/lib/socket';
+import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onETAUpdated, onNotification } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ChatBox from '@/components/ChatBox';
@@ -86,6 +88,33 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; action: string }
     icon: IconCheck,
     action: '',
   },
+};
+
+// Helper functions for ETA display
+const formatETA = (datetime: string | null): string => {
+  if (!datetime) return 'Non disponible';
+
+  const eta = new Date(datetime);
+  const now = new Date();
+  const diffMs = eta.getTime() - now.getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+
+  if (diffMinutes < 0) {
+    return 'Maintenant';
+  } else if (diffMinutes === 0) {
+    return 'Moins d\'une minute';
+  } else if (diffMinutes < 60) {
+    return `Dans ${diffMinutes} min`;
+  } else {
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+    return `Dans ${hours}h${minutes > 0 ? ` ${minutes}min` : ''}`;
+  }
+};
+
+const formatTime = (datetime: string | null): string => {
+  if (!datetime) return '--:--';
+  return new Date(datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
 export default function DriverRideDetailsPage() {
@@ -202,6 +231,25 @@ export default function DriverRideDetailsPage() {
       unsubscribe();
     };
   }, [user, token]);
+
+  // Listen for ETA updates
+  useEffect(() => {
+    if (!params.id) return;
+
+    const unsubscribe = onETAUpdated((etaData: any) => {
+      console.log('⏱️ ETA updated:', etaData);
+
+      setRide((prev: any) => ({
+        ...prev,
+        estimatedPickupTime: etaData.estimatedPickupTime,
+        estimatedDeliveryTime: etaData.estimatedDeliveryTime,
+      }));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id]);
 
   const loadRideDetails = async () => {
     try {
@@ -396,6 +444,66 @@ export default function DriverRideDetailsPage() {
               style={{ width: '100%', height: 300, borderRadius: '8px' }}
             />
           </Card>
+
+          {/* ETA Card - Show when ride is in progress */}
+          {ride && ['BID_ACCEPTED', 'DRIVER_ARRIVING', 'PICKUP_ARRIVED', 'LOADING', 'IN_TRANSIT'].includes(ride.status) && (
+            <Card shadow="sm" padding="xl" radius="lg" withBorder style={{ backgroundColor: '#E7F5FF' }}>
+              <Title order={3} size="1.25rem" mb="md">Temps estimés ⏱️</Title>
+              <Stack gap="md">
+                {/* Pickup ETA - Show until pickup is complete */}
+                {!ride.actualPickupTime && ride.estimatedPickupTime && (
+                  <Paper p="md" radius="md" withBorder style={{ backgroundColor: 'white' }}>
+                    <Group justify="space-between">
+                      <div>
+                        <Text size="xs" c="dimmed" mb={4}>Votre arrivée au point de départ</Text>
+                        <Group gap="xs">
+                          <IconClock size={20} color="#228BE6" />
+                          <Text size="lg" fw={600} c="blue">
+                            {formatETA(ride.estimatedPickupTime)}
+                          </Text>
+                        </Group>
+                      </div>
+                      <Badge size="lg" variant="light" color="blue">
+                        {formatTime(ride.estimatedPickupTime)}
+                      </Badge>
+                    </Group>
+                  </Paper>
+                )}
+
+                {/* Delivery ETA - Show after pickup */}
+                {ride.estimatedDeliveryTime && (
+                  <Paper p="md" radius="md" withBorder style={{ backgroundColor: 'white' }}>
+                    <Group justify="space-between">
+                      <div>
+                        <Text size="xs" c="dimmed" mb={4}>
+                          {ride.actualPickupTime ? 'Livraison estimée' : 'Arrivée finale estimée'}
+                        </Text>
+                        <Group gap="xs">
+                          <IconPackage size={20} color="#40C057" />
+                          <Text size="lg" fw={600} c="green">
+                            {formatETA(ride.estimatedDeliveryTime)}
+                          </Text>
+                        </Group>
+                      </div>
+                      <Badge size="lg" variant="light" color="green">
+                        {formatTime(ride.estimatedDeliveryTime)}
+                      </Badge>
+                    </Group>
+                  </Paper>
+                )}
+
+                {/* Show Express badge if applicable */}
+                {ride.isExpress && (
+                  <Paper p="sm" radius="md" style={{ backgroundColor: '#FFF3E0', borderLeft: '4px solid #FF9800' }}>
+                    <Group gap="xs">
+                      <Text size="sm" fw={600} c="orange">⚡ Livraison Express</Text>
+                      <Text size="sm" c="dimmed">Priorité maximale</Text>
+                    </Group>
+                  </Paper>
+                )}
+              </Stack>
+            </Card>
+          )}
 
           {/* Progress Stepper */}
           <Card shadow="sm" padding="xl" radius="lg" withBorder>
