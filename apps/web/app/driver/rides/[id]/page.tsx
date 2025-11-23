@@ -39,7 +39,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi, cancellationApi, driverApi } from '@/lib/api';
-import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onETAUpdated, onNotification } from '@/lib/socket';
+import { updateDriverLocation, connectSocket, onPaymentConfirmed, onRideRated, onETAUpdated, onNotification, onRideCancelled } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ChatBox from '@/components/ChatBox';
@@ -258,6 +258,32 @@ export default function DriverRideDetailsPage() {
       unsubscribe();
     };
   }, [params.id]);
+
+  // Listen for ride cancellation by customer
+  useEffect(() => {
+    if (!params.id || !user) return;
+
+    const unsubscribe = onRideCancelled((data: any) => {
+      console.log('🚫 Ride cancelled by customer:', data);
+
+      // Show notification to driver
+      notifications.show({
+        title: '⚠️ Course annulée',
+        message: 'Le client a annulé la course.',
+        color: 'orange',
+        autoClose: 5000,
+      });
+
+      // Redirect to dashboard after 2 seconds
+      setTimeout(() => {
+        router.push('/driver/dashboard');
+      }, 2000);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id, user]);
 
   const loadRideDetails = async () => {
     try {

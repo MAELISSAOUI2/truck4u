@@ -181,3 +181,34 @@ export const onNotification = (callback: (data: any) => void) => {
   socket.on('notification', callback);
   return () => socket.off('notification', callback);
 };
+
+// Cancellation events
+export const onRideCancelled = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('ride_cancelled', callback);
+  return () => socket.off('ride_cancelled', callback);
+};
+
+export const onCancellationConfirmed = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('cancellation_confirmed', callback);
+  return () => socket.off('cancellation_confirmed', callback);
+};
+
+export const onStrikeGiven = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('strike_given', callback);
+  return () => socket.off('strike_given', callback);
+};
+
+export const onStrikeWarning = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('strike_warning', callback);
+  return () => socket.off('strike_warning', callback);
+};
+
+export const onAccountDeactivated = (callback: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('account_deactivated', callback);
+  return () => socket.off('account_deactivated', callback);
+};

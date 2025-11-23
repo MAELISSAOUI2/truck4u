@@ -38,7 +38,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi, paymentApi, cancellationApi } from '@/lib/api';
-import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged, onETAUpdated, onNotification } from '@/lib/socket';
+import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged, onETAUpdated, onNotification, onRideCancelled } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import ChatBox from '@/components/ChatBox';
@@ -344,6 +344,32 @@ export default function RideDetailsPage() {
     };
   }, [params.id, user, token]);
 
+  // Listen for ride cancellation by driver
+  useEffect(() => {
+    if (!params.id || !user) return;
+
+    const unsubscribe = onRideCancelled((data: any) => {
+      console.log('🚫 Ride cancelled by driver:', data);
+
+      // Show notification to customer
+      notifications.show({
+        title: '⚠️ Course annulée',
+        message: 'Le chauffeur a annulé la course. Vous serez remboursé intégralement.',
+        color: 'orange',
+        autoClose: 7000,
+      });
+
+      // Redirect to dashboard after 3 seconds
+      setTimeout(() => {
+        router.push('/customer/dashboard');
+      }, 3000);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [params.id, user]);
+
   // Listen for intelligent GPS notifications
   useEffect(() => {
     if (!user || !token) return;
@@ -617,8 +643,10 @@ export default function RideDetailsPage() {
       setCancelModalOpen(false);
       setCancelReason('');
 
-      // Reload ride details to show cancelled status
-      await loadRideDetails();
+      // Redirect to dashboard after 2 seconds
+      setTimeout(() => {
+        router.push('/customer/dashboard');
+      }, 2000);
     } catch (error: any) {
       console.error('Error cancelling ride:', error);
       notifications.show({
