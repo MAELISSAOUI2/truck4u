@@ -116,11 +116,9 @@ export default function PaymentPage() {
     }
   };
 
-  const calculateCommission = () => {
-    if (!bid) return 0;
-    // Commission: 10% du montant
-    const price = bid.proposedPrice || bid.amount || 0;
-    return Math.round(price * 0.1);
+  const calculatePlatformFee = () => {
+    // Platform fee is fixed at 20 DT
+    return 20;
   };
 
   const handlePayment = async () => {
@@ -185,7 +183,7 @@ export default function PaymentPage() {
     );
   }
 
-  const commission = calculateCommission();
+  const platformFee = calculatePlatformFee();
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
@@ -203,7 +201,7 @@ export default function PaymentPage() {
             </ActionIcon>
             <div>
               <Text size="sm" c="dimmed">Paiement sécurisé</Text>
-              <Text fw={700}>Commission de service</Text>
+              <Text fw={700}>Frais de plateforme</Text>
             </div>
           </Group>
         </Container>
@@ -283,8 +281,8 @@ export default function PaymentPage() {
                   <Text fw={700}>{bid.proposedPrice || bid.amount} DT</Text>
                 </Group>
                 <Group justify="space-between" mt="xs">
-                  <Text size="sm" c="dimmed">Commission plateforme (10%)</Text>
-                  <Text fw={700} c="blue">{commission} DT</Text>
+                  <Text size="sm" c="dimmed">Frais plateforme</Text>
+                  <Text fw={700} c="blue">{platformFee} DT</Text>
                 </Group>
               </div>
             </Stack>
@@ -348,7 +346,7 @@ export default function PaymentPage() {
                 <Text fw={700} c="blue">Comment ça fonctionne ?</Text>
               </Group>
               <Text size="sm" c="dimmed">
-                1. Votre paiement de <strong>{commission} DT</strong> est bloqué en sécurité
+                1. Votre paiement de <strong>{platformFee} DT</strong> est bloqué en sécurité
               </Text>
               <Text size="sm" c="dimmed">
                 2. Le transporteur effectue la livraison
@@ -367,7 +365,7 @@ export default function PaymentPage() {
             <Group justify="space-between" align="center">
               <div>
                 <Text size="sm" c="dimmed" mb={4}>Total à payer maintenant</Text>
-                <Title order={2} size="2.5rem" c="blue">{commission} DT</Title>
+                <Title order={2} size="2.5rem" c="blue">{platformFee} DT</Title>
                 <Text size="xs" c="dimmed" mt={4}>
                   La course sera payée au transporteur ({bid.proposedPrice || bid.amount} DT) à la fin
                 </Text>
@@ -381,7 +379,7 @@ export default function PaymentPage() {
                 disabled={!paymentMethod}
                 leftSection={<IconCheck size={20} />}
               >
-                Payer {commission} DT
+                Payer {platformFee} DT
               </Button>
             </Group>
           </Paper>

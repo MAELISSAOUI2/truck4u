@@ -41,6 +41,14 @@ model Driver {
   homeLocation         Json?     // Driver's base/home location: {lat, lng, address}
   weeklySchedule       Json?     // Weekly availability schedule: { monday: [{start: "08:00", end: "18:00"}], tuesday: [...], ... }
   scheduleExceptions   Json?     // One-time exceptions: [{date: "2024-01-15", available: false, reason: "Vacation"}]
+
+  // Cancellation strikes system
+  cancellationStrikes  Int       @default(0)   // Number of active strikes
+  lastStrikeResetAt    DateTime  @default(now()) // Last monthly reset date
+  isDeactivated        Boolean   @default(false) // Account deactivated after 3 strikes
+  deactivatedAt        DateTime? // When account was deactivated
+  deactivationReason   String?   @db.Text
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -48,6 +56,7 @@ model Driver {
   rides                Ride[]    @relation("CompletedRides")
   earnings             DriverEarnings[]
   kycDocuments         KYCDocument[]
+  cancellations        Cancellation[]
 
   @@index([verificationStatus])
   @@index([isAvailable, vehicleType])
@@ -169,6 +178,7 @@ model Ride {
   driver               Driver?   @relation("CompletedRides", fields: [driverId], references: [id])
   bids                 Bid[]
   payment              Payment?
+  cancellation         Cancellation?
   winningBid           Bid?      @relation("WinningBid", fields: [winningBidId], references: [id])
   chatMessages         ChatMessage[]
 
@@ -210,10 +220,51 @@ model Payment {
   metadata             Json?     // Payment gateway specific data
   completedAt          DateTime?
   createdAt            DateTime  @default(now())
-  
+
   ride                 Ride      @relation(fields: [rideId], references: [id])
-  
+
   @@index([status, createdAt])
+}
+
+model Cancellation {
+  id                   String    @id @default(uuid())
+  rideId               String    @unique
+
+  // Who cancelled
+  cancelledBy          CancellationInitiator // CUSTOMER or DRIVER
+  customerId           String? // If cancelled by customer
+  driverId             String? // If cancelled by driver
+
+  // Cancellation details
+  reason               String?   @db.Text
+  cancelledAt          DateTime  @default(now())
+  bidAcceptedAt        DateTime? // When bid was accepted (to calculate 5-min window)
+
+  // Financial impact (for customer cancellations)
+  wasWithinGracePeriod Boolean   @default(true) // Was it within 5 minutes?
+  cancellationFee      Float     @default(0.0) // 0 DT if within grace, 5 DT if late
+  refundAmount         Float     @default(0.0) // Amount refunded to customer
+  refundStatus         RefundStatus @default(PENDING)
+  refundProcessedAt    DateTime?
+
+  // Driver strikes (for driver cancellations)
+  strikeGiven          Boolean   @default(false) // Was a strike given?
+  strikeCount          Int       @default(0) // Strike number (1st, 2nd, or 3rd)
+  accountDeactivated   Boolean   @default(false) // Was account deactivated?
+
+  // Email notifications
+  customerNotified     Boolean   @default(false)
+  driverNotified       Boolean   @default(false)
+  emailSentAt          DateTime?
+
+  // Relations
+  ride                 Ride      @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  driver               Driver?   @relation(fields: [driverId], references: [id])
+
+  @@index([cancelledBy, cancelledAt])
+  @@index([driverId, cancelledAt])
+  @@index([refundStatus])
+  @@index([cancelledAt])
 }
 
 model B2BSubscription {
@@ -374,4 +425,16 @@ enum DriverTier {
   BRONZE
   SILVER
   GOLD
+}
+
+enum CancellationInitiator {
+  CUSTOMER
+  DRIVER
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
