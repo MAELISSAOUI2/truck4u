@@ -30,6 +30,8 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { driverApi } from '@/lib/api';
+import { connectSocket, onRideRequest } from '@/lib/socket';
+import { notifications } from '@mantine/notifications';
 
 const VEHICLE_LABELS: Record<string, string> = {
   CAMIONNETTE: 'Camionnette',
@@ -40,7 +42,7 @@ const VEHICLE_LABELS: Record<string, string> = {
 
 export default function AvailableRidesPage() {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [rides, setRides] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -54,10 +56,42 @@ export default function AvailableRidesPage() {
 
     loadAvailableRides();
 
-    // Refresh every 30 seconds
+    // Refresh every 30 seconds as fallback
     const interval = setInterval(loadAvailableRides, 30000);
     return () => clearInterval(interval);
   }, [token]);
+
+  // Socket.io real-time updates for new rides
+  useEffect(() => {
+    if (!user || !token) return;
+
+    // Connect socket
+    connectSocket(user.id, 'driver', token);
+
+    // Listen for new ride requests
+    const unsubscribe = onRideRequest((rideData: any) => {
+      console.log('🚀 New ride request received:', rideData);
+
+      // Show notification to driver
+      const pickupAddress = rideData.pickup?.address || 'Adresse non spécifiée';
+      const dropoffAddress = rideData.dropoff?.address || 'Adresse non spécifiée';
+      const distance = rideData.distance || 0;
+
+      notifications.show({
+        title: rideData.isExpress ? '⚡ Nouvelle course EXPRESS disponible !' : '🚀 Nouvelle course disponible !',
+        message: `${pickupAddress.substring(0, 40)}... → ${dropoffAddress.substring(0, 40)}... (${distance} km)`,
+        color: rideData.isExpress ? 'orange' : 'green',
+        autoClose: 8000,
+      });
+
+      // Reload available rides to include the new one
+      loadAvailableRides();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user, token]);
 
   const loadAvailableRides = async () => {
     try {
