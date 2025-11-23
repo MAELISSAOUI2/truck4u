@@ -13,6 +13,14 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
+      // Check for admin token first
+      const adminToken = localStorage.getItem('adminToken');
+      if (adminToken) {
+        config.headers.Authorization = `Bearer ${adminToken}`;
+        return config;
+      }
+
+      // Then check for customer/driver token
       const authStore = localStorage.getItem('truck4u-auth');
       if (authStore) {
         const { token } = JSON.parse(authStore).state;
