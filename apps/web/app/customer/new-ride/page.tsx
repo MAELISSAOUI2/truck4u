@@ -383,6 +383,32 @@ export default function NewRidePage() {
                     icon={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
                   />
 
+                  {/* Distance and Duration Estimate - Real-time display */}
+                  {distance > 0 && duration > 0 && (
+                    <Paper p="lg" radius="lg" withBorder style={{ backgroundColor: '#E7F5FF' }}>
+                      <Group justify="space-between">
+                        <div>
+                          <Group gap="xs" mb={8}>
+                            <IconNavigation size={20} color="#228BE6" />
+                            <Text size="sm" fw={600}>Estimation du trajet</Text>
+                          </Group>
+                          <Group gap="xl">
+                            <div>
+                              <Text size="xs" c="dimmed">Distance</Text>
+                              <Text size="lg" fw={700} c="blue">{distance} km</Text>
+                            </div>
+                            <div>
+                              <Text size="xs" c="dimmed">Durée estimée</Text>
+                              <Text size="lg" fw={700} c="blue">
+                                {duration < 60 ? `${duration} min` : `${Math.floor(duration / 60)}h ${duration % 60}min`}
+                              </Text>
+                            </div>
+                          </Group>
+                        </div>
+                      </Group>
+                    </Paper>
+                  )}
+
                   <Button
                     size="xl"
                     radius="lg"

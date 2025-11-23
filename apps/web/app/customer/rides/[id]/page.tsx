@@ -859,12 +859,14 @@ export default function RideDetailsPage() {
                                   </Text>
                                 </Group>
                                 <Group gap="md" mt="sm">
-                                  <Group gap={4}>
-                                    <IconClock size={14} />
-                                    <Text size="xs" c="dimmed">
-                                      ETA: {bid.estimatedDuration || 'N/A'} min
-                                    </Text>
-                                  </Group>
+                                  <Badge
+                                    size="lg"
+                                    variant="light"
+                                    color="blue"
+                                    leftSection={<IconClock size={14} />}
+                                  >
+                                    Arrivée: {bid.estimatedDuration || 'N/A'} min
+                                  </Badge>
                                   {bid.driver?.vehicleType && (
                                     <Group gap={4}>
                                       <IconTruck size={14} />

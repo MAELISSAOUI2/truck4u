@@ -99,6 +99,21 @@ export default function AvailableRideDetailsPage() {
     return calculateDistance(ride.pickup, ride.dropoff);
   }, [ride]);
 
+  // Calculate suggested arrival time based on distance (40 km/h average + 15% buffer)
+  const suggestedArrivalTime = useMemo(() => {
+    if (distance === 0) return 30;
+    const timeHours = distance / 40; // 40 km/h average speed
+    const timeMinutes = Math.round(timeHours * 60 * 1.15); // Add 15% buffer
+    return Math.max(5, timeMinutes); // At least 5 minutes
+  }, [distance]);
+
+  // Auto-set suggested time when ride loads
+  useEffect(() => {
+    if (ride && suggestedArrivalTime > 0) {
+      setEstimatedArrival(suggestedArrivalTime);
+    }
+  }, [ride, suggestedArrivalTime]);
+
   const loadRideDetails = async () => {
     try {
       const response = await rideApi.getById(params.id as string);
@@ -384,6 +399,14 @@ export default function AvailableRideDetailsPage() {
                 value={estimatedArrival}
                 onChange={setEstimatedArrival}
                 leftSection={<IconClock size={18} />}
+                description={
+                  <Text size="sm" c="dimmed">
+                    Suggestion basée sur {distance}km: <Text span fw={600} c="blue">{suggestedArrivalTime} min</Text>
+                    {estimatedArrival !== suggestedArrivalTime && (
+                      <Text span c="orange"> • Vous avez ajusté le temps</Text>
+                    )}
+                  </Text>
+                }
               />
 
               <Textarea
