@@ -183,9 +183,33 @@ export const subscriptionApi = {
 export const customerApi = {
   getProfile: () =>
     api.get('/customers/profile'),
-  
+
   updateProfile: (data: any) =>
     api.patch('/customers/profile', data),
+};
+
+// Cancellation APIs
+export const cancellationApi = {
+  // Customer cancels a ride
+  cancelAsCustomer: (rideId: string, reason?: string) =>
+    api.post(`/cancellations/customer/${rideId}`, { reason }),
+
+  // Driver cancels a ride
+  cancelAsDriver: (rideId: string, reason?: string) =>
+    api.post(`/cancellations/driver/${rideId}`, { reason }),
+
+  // Get cancellation history
+  getHistory: (userType?: 'customer' | 'driver', limit = 50, offset = 0) => {
+    const params = new URLSearchParams();
+    if (userType) params.append('userType', userType);
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+    return api.get(`/cancellations/history?${params.toString()}`);
+  },
+
+  // Get cancellation statistics
+  getStats: (period = 30) =>
+    api.get(`/cancellations/stats?period=${period}`),
 };
 
 export default api;
