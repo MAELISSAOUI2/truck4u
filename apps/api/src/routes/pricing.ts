@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma';
+import { prisma } from '@truck4u/database';
 import { authenticateToken, requireAdmin } from '../middleware/auth';
 
 const router = express.Router();

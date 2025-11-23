@@ -22,6 +22,7 @@ import {
   IconTruck,
   IconChartBar,
   IconLogout,
+  IconCoin,
 } from '@tabler/icons-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/kyc', label: 'Vérification KYC', icon: IconCheckupList },
     { href: '/admin/drivers', label: 'Conducteurs', icon: IconUsers },
     { href: '/admin/rides', label: 'Courses', icon: IconTruck },
+    { href: '/admin/pricing', label: 'Configuration Prix', icon: IconCoin },
     { href: '/admin/analytics', label: 'Analytiques', icon: IconChartBar },
   ];
 
