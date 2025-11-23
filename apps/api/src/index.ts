@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
 import kycRoutes from './routes/kyc';
 import chatRoutes from './routes/chat';
+import pricingRoutes from './routes/pricing';
 import { errorHandler } from './middleware/error';
 import { rateLimiter } from './middleware/rateLimit';
 import path from 'path';
@@ -64,6 +65,7 @@ app.use('/api/cancellations', cancellationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/pricing', pricingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/webhooks', webhookRoutes);
 

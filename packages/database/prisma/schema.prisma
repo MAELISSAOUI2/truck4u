@@ -438,3 +438,110 @@ enum RefundStatus {
   COMPLETED
   FAILED
 }
+
+enum TripType {
+  ALLER_SIMPLE
+  ALLER_RETOUR
+}
+
+enum TrafficLevel {
+  FLUIDE
+  MOYEN
+  DENSE
+}
+
+enum TimeSlotType {
+  NORMAL
+  HEURES_PLEINES
+  HEURES_NUIT
+  WEEKEND
+}
+
+// Configuration des tarifs par type de véhicule
+model VehiclePricing {
+  id              String      @id @default(uuid())
+  vehicleType     VehicleType @unique
+
+  // Tarifs de base
+  pricePerKm      Float       // Prix au kilomètre (DT)
+  pricePerHour    Float       // Prix à l'heure (DT)
+  minimumPrice    Float       // Prix minimum pour ce véhicule (DT)
+
+  // Métadonnées
+  description     String?     @db.Text
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([vehicleType])
+}
+
+// Configuration globale du système de pricing
+model PricingConfig {
+  id              String   @id @default(uuid())
+  configKey       String   @unique // Clé unique pour identifier la config
+
+  // Prix fixe convoyeur
+  convoyeurPrice  Float    @default(50.0) // Prix fixe pour un convoyeur (DT)
+
+  // Coefficients de type de voyage
+  tripSimpleCoeff Float    @default(1.0)  // Aller simple
+  tripReturnCoeff Float    @default(1.6)  // Aller-retour
+
+  // Coefficients horaires (peuvent se cumuler)
+  peakHoursCoeff  Float    @default(1.3)  // Heures pleines
+  nightHoursCoeff Float    @default(1.2)  // Heures de nuit
+  weekendCoeff    Float    @default(1.1)  // Week-end
+
+  // Définition des plages horaires (format JSON)
+  // Ex: {"peakHours": [{"start": "07:00", "end": "09:00"}, {"start": "17:00", "end": "19:00"}],
+  //      "nightHours": [{"start": "22:00", "end": "06:00"}]}
+  timeSlots       Json?
+
+  // Coefficients de trafic
+  trafficFluidCoeff  Float @default(1.0)   // Trafic fluide
+  trafficMoyenCoeff  Float @default(1.05)  // Trafic moyen
+  trafficDenseCoeff  Float @default(1.15)  // Trafic dense
+
+  // Métadonnées
+  isActive        Boolean  @default(true)
+  lastModifiedBy  String?  // Admin ID qui a modifié
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([configKey])
+}
+
+// Historique des estimations de prix (pour analytics)
+model PriceEstimate {
+  id              String       @id @default(uuid())
+
+  // Paramètres d'entrée
+  vehicleType     VehicleType
+  distance        Float        // en km
+  duration        Float        // en minutes
+  tripType        TripType
+  hasConvoyeur    Boolean
+  departureTime   DateTime?
+  trafficLevel    TrafficLevel
+
+  // Détail du calcul (pour transparence)
+  basePrice       Float        // Étape 1
+  afterTripType   Float        // Étape 2
+  afterTimeSlot   Float        // Étape 3
+  afterTraffic    Float        // Étape 4
+  convoyeurFee    Float        // Étape 5
+  finalPrice      Float        // Étape 6 (après vérification minimum)
+
+  // Breakdown pour affichage client
+  breakdown       Json?        // Détail complet du calcul en JSON
+
+  // Métadonnées
+  customerId      String?      // Si estimé par un client connecté
+  rideId          String?      // Si converti en course réelle
+  createdAt       DateTime     @default(now())
+
+  @@index([vehicleType])
+  @@index([customerId])
+  @@index([createdAt])
+}

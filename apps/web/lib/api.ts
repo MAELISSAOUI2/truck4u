@@ -212,4 +212,39 @@ export const cancellationApi = {
     api.get(`/cancellations/stats?period=${period}`),
 };
 
+// Pricing APIs
+export const pricingApi = {
+  // Calculate price estimate
+  estimate: (params: {
+    vehicleType: 'CAMIONNETTE' | 'FOURGON' | 'CAMION_3_5T' | 'CAMION_LOURD';
+    distance: number;
+    duration: number;
+    tripType: 'ALLER_SIMPLE' | 'ALLER_RETOUR';
+    hasConvoyeur: boolean;
+    departureTime?: string;
+    trafficLevel: 'FLUIDE' | 'MOYEN' | 'DENSE';
+  }) =>
+    api.post('/pricing/estimate', params),
+
+  // Get all vehicle pricing configurations
+  getVehicleConfigs: () =>
+    api.get('/pricing/vehicle-configs'),
+
+  // Get global pricing configuration
+  getConfig: () =>
+    api.get('/pricing/config'),
+
+  // Update global pricing configuration (admin only)
+  updateConfig: (data: any) =>
+    api.put('/pricing/config', data),
+
+  // Update vehicle pricing (admin only)
+  updateVehiclePricing: (vehicleType: string, data: any) =>
+    api.put(`/pricing/vehicle/${vehicleType}`, data),
+
+  // Initialize default configurations (admin only)
+  initDefaults: () =>
+    api.post('/pricing/init-defaults'),
+};
+
 export default api;
