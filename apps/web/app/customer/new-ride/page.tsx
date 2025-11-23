@@ -80,7 +80,7 @@ export default function NewRidePage() {
     cargoWeight: '',
     numberOfHelpers: 0,
     numberOfTrips: 1,
-    isUrgent: false,
+    isExpress: false,
   });
 
   useEffect(() => {
@@ -151,15 +151,24 @@ export default function NewRidePage() {
 
   const calculatePrice = () => {
     const vehicle = VEHICLE_TYPES.find(v => v.value === formData.vehicleType);
-    if (!vehicle) return 0;
+    if (!vehicle) return { basePrice: 0, expressFee: 0, total: 0 };
 
-    let price = vehicle.basePrice;
-    price += distance * 1.5; // 1.5 DT per km
-    price += formData.numberOfHelpers * 15; // 15 DT per helper
-    price += (formData.numberOfTrips - 1) * 10; // 10 DT per additional trip
-    if (formData.isUrgent) price *= 1.2; // +20% for urgent
+    let basePrice = vehicle.basePrice;
+    basePrice += distance * 1.5; // 1.5 DT per km
+    basePrice += formData.numberOfHelpers * 15; // 15 DT per helper
+    basePrice += (formData.numberOfTrips - 1) * 10; // 10 DT per additional trip
 
-    return Math.round(price);
+    // Express fee calculation (10-15 DT based on distance)
+    let expressFee = 0;
+    if (formData.isExpress) {
+      expressFee = distance < 10 ? 10 : distance < 30 ? 12 : 15;
+    }
+
+    return {
+      basePrice: Math.round(basePrice),
+      expressFee,
+      total: Math.round(basePrice + expressFee)
+    };
   };
 
   const handleSubmit = async () => {
@@ -191,6 +200,7 @@ export default function NewRidePage() {
         vehicleType: formData.vehicleType,
         loadAssistance: formData.numberOfHelpers > 0,
         numberOfTrips: formData.numberOfTrips,
+        isExpress: formData.isExpress,
         itemPhotos: photoUrls,
         description: formData.cargoDescription,
         serviceType: formData.schedulingType === 'immediate' ? 'IMMEDIATE' : 'SCHEDULED',
@@ -497,16 +507,21 @@ export default function NewRidePage() {
                     </Group>
                   </div>
 
-                  <Paper p="md" radius="lg" withBorder>
+                  <Paper p="md" radius="lg" withBorder style={{ backgroundColor: formData.isExpress ? '#fff3e0' : 'transparent' }}>
                     <Checkbox
                       label={
                         <div>
-                          <Text fw={600}>Course urgente</Text>
-                          <Text size="sm" c="dimmed">Priorité maximale</Text>
+                          <Group gap="xs">
+                            <Text fw={600}>Livraison Express ⚡</Text>
+                            <Badge color="orange" variant="light">
+                              +{distance < 10 ? 10 : distance < 30 ? 12 : 15} DT
+                            </Badge>
+                          </Group>
+                          <Text size="sm" c="dimmed">Priorité maximale • Livraison dans l'heure</Text>
                         </div>
                       }
-                      checked={formData.isUrgent}
-                      onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
+                      checked={formData.isExpress}
+                      onChange={(e) => setFormData({ ...formData, isExpress: e.target.checked })}
                       size="md"
                     />
                   </Paper>
@@ -567,7 +582,13 @@ export default function NewRidePage() {
                     <Group justify="space-between" align="center">
                       <div>
                         <Text size="sm" c="dimmed" mb={4}>Prix estimé</Text>
-                        <Title order={2} size="2rem">{calculatePrice()} DT</Title>
+                        <Title order={2} size="2rem">{calculatePrice().total} DT</Title>
+                        {formData.isExpress && (
+                          <Group gap="xs" mt={4}>
+                            <Text size="xs" c="dimmed">Base: {calculatePrice().basePrice} DT</Text>
+                            <Text size="xs" c="orange" fw={600}>+ Express: {calculatePrice().expressFee} DT</Text>
+                          </Group>
+                        )}
                         <Text size="xs" c="dimmed" mt={4}>
                           Le prix final sera confirmé par le transporteur
                         </Text>

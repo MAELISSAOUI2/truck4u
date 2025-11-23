@@ -208,6 +208,11 @@ export default function AvailableRidesPage() {
                           <Badge variant="dot" color="green" size="lg">
                             NOUVELLE
                           </Badge>
+                          {ride.isExpress && (
+                            <Badge variant="filled" color="orange" size="lg">
+                              ⚡ EXPRESS
+                            </Badge>
+                          )}
                           <Text size="xs" c="dimmed">
                             Il y a {timeAgo} min
                           </Text>
