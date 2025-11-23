@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { prisma } from '@truck4u/database';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { verifyToken, requireAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -352,7 +352,7 @@ router.get('/config', async (req, res) => {
  * PUT /api/pricing/config (ADMIN ONLY)
  * Met à jour la configuration globale
  */
-router.put('/config', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/config', verifyToken, requireAdmin, async (req, res) => {
   try {
     const data = pricingConfigSchema.parse(req.body);
     const adminId = (req as any).user.id;
@@ -389,7 +389,7 @@ router.put('/config', authenticateToken, requireAdmin, async (req, res) => {
  * PUT /api/pricing/vehicle/:type (ADMIN ONLY)
  * Met à jour les tarifs d'un type de véhicule
  */
-router.put('/vehicle/:type', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/vehicle/:type', verifyToken, requireAdmin, async (req, res) => {
   try {
     const vehicleType = req.params.type as any;
     const data = vehiclePricingSchema.parse(req.body);
@@ -431,7 +431,7 @@ router.put('/vehicle/:type', authenticateToken, requireAdmin, async (req, res) =
  * POST /api/pricing/init-defaults (ADMIN ONLY)
  * Initialise les configurations par défaut
  */
-router.post('/init-defaults', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/init-defaults', verifyToken, requireAdmin, async (req, res) => {
   try {
     const adminId = (req as any).user.id;
 
