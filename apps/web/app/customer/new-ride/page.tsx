@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Container,
   Stack,
@@ -41,10 +42,15 @@ import {
 import { useAuthStore } from '@/lib/store';
 import { rideApi, pricingApi } from '@/lib/api';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
-import SimpleMap from '@/components/SimpleMap';
 import { notifications } from '@mantine/notifications';
 import '@mantine/dates/styles.css';
 import '@mantine/dropzone/styles.css';
+
+// Dynamic import to avoid SSR issues with Leaflet
+const SimpleMap = dynamic(() => import('@/components/SimpleMap'), {
+  ssr: false,
+  loading: () => <div style={{ height: '400px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement de la carte...</div>
+});
 
 const VEHICLE_TYPES = [
   { value: 'CAMIONNETTE', label: 'Camionnette', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
