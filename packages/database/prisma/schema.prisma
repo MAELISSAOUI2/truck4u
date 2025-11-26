@@ -38,6 +38,8 @@ model Driver {
   platformFeeRate      Float     @default(0.10) // Platform fee percentage (10% default, varies by tier)
   totalEarnings        Float     @default(0.0)
   currentLocation      Json?     // {lat, lng, timestamp}
+  currentLat           Float?    // Position GPS actuelle (pour auto-confirmation paiement)
+  currentLng           Float?    // Position GPS actuelle (pour auto-confirmation paiement)
   homeLocation         Json?     // Driver's base/home location: {lat, lng, address}
   weeklySchedule       Json?     // Weekly availability schedule: { monday: [{start: "08:00", end: "18:00"}], tuesday: [...], ... }
   scheduleExceptions   Json?     // One-time exceptions: [{date: "2024-01-15", available: false, reason: "Vacation"}]
@@ -49,6 +51,10 @@ model Driver {
   deactivatedAt        DateTime? // When account was deactivated
   deactivationReason   String?   @db.Text
 
+  // Subscription premium (priorité + profil boosté)
+  hasActiveSubscription Boolean  @default(false) // A un abonnement actif
+  subscriptionTier     DriverSubscriptionTier? // Niveau d'abonnement actuel
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -57,9 +63,11 @@ model Driver {
   earnings             DriverEarnings[]
   kycDocuments         KYCDocument[]
   cancellations        Cancellation[]
+  subscription         DriverSubscription? // Relation one-to-one avec abonnement
 
   @@index([verificationStatus])
   @@index([isAvailable, vehicleType])
+  @@index([hasActiveSubscription, rating]) // Index pour priorisation offres
 }
 
 model KYCDocument {
@@ -307,6 +315,40 @@ model DriverEarnings {
   @@index([driverId, paidAt])
 }
 
+model DriverSubscription {
+  id                   String    @id @default(uuid())
+  driverId             String    @unique
+  tier                 DriverSubscriptionTier
+  status               SubscriptionStatus @default(ACTIVE)
+
+  // Pricing
+  monthlyFee           Float     // Prix mensuel (ex: 49 DT pour PREMIUM)
+
+  // Benefits
+  priorityMultiplier   Float     @default(1.5)  // Multiplicateur de priorité sur les offres
+  profileBoost         Int       @default(100)  // % de boost de visibilité du profil
+  reducedPlatformFee   Float?    // Réduction commission plateforme (ex: 0.08 au lieu de 0.10)
+  earlyAccessMinutes   Int       @default(0)    // Minutes d'accès anticipé aux nouvelles courses
+
+  // Billing
+  startDate            DateTime  @default(now())
+  endDate              DateTime  // Date de fin d'abonnement
+  renewalDate          DateTime  // Date de renouvellement automatique
+  lastPaymentDate      DateTime?
+  lastPaymentAmount    Float?
+  paymentMethod        PaymentMethod?
+
+  // Metadata
+  metadata             Json?     // Infos supplémentaires (historique, promo codes, etc.)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  driver               Driver    @relation(fields: [driverId], references: [id])
+
+  @@index([status, endDate])
+  @@index([tier, status])
+}
+
 model ChatMessage {
   id                   String    @id @default(uuid())
   rideId               String
@@ -432,6 +474,12 @@ enum DriverTier {
   BRONZE
   SILVER
   GOLD
+}
+
+enum DriverSubscriptionTier {
+  STANDARD      // Gratuit - Aucun avantage
+  PREMIUM       // 49 DT/mois - Priorité moyenne + 50% boost
+  ELITE         // 99 DT/mois - Priorité haute + 100% boost + commission réduite
 }
 
 enum CancellationInitiator {

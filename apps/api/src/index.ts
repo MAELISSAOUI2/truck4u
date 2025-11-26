@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { setupSocketHandlers } from './socket';
 import { initNotificationService } from './services/notifications';
 import { startAutoConfirmationBatch } from './services/paymentAutoConfirmation';
+import { startSubscriptionExpirationBatch } from './services/subscriptionExpiration';
 import authRoutes from './routes/auth';
 import driverRoutes from './routes/drivers';
 import customerRoutes from './routes/customers';
@@ -14,6 +15,7 @@ import rideRoutes from './routes/rides';
 import paymentRoutes from './routes/payments';
 import cancellationRoutes from './routes/cancellations';
 import subscriptionRoutes from './routes/subscriptions';
+import driverSubscriptionRoutes from './routes/driverSubscriptions';
 import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
 import kycRoutes from './routes/kyc';
@@ -64,6 +66,7 @@ app.use('/api/rides', rideRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/cancellations', cancellationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/driver-subscriptions', driverSubscriptionRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/pricing', pricingRoutes);
@@ -80,12 +83,16 @@ initNotificationService(io);
 setupSocketHandlers(io);
 
 // Start payment auto-confirmation batch job
-const stopBatchJob = startAutoConfirmationBatch(io);
+const stopPaymentBatchJob = startAutoConfirmationBatch(io);
+
+// Start subscription expiration batch job
+const stopSubscriptionBatchJob = startSubscriptionExpirationBatch(io);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
-  stopBatchJob();
+  stopPaymentBatchJob();
+  stopSubscriptionBatchJob();
   httpServer.close(() => {
     console.log('HTTP server closed');
   });
@@ -97,6 +104,7 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io ready for connections`);
   console.log(`⏰ Payment auto-confirmation batch job started`);
+  console.log(`💎 Subscription expiration batch job started`);
 });
 
 export { io };
