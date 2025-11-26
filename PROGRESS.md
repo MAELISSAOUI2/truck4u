@@ -1,9 +1,9 @@
 # PROGRESS.md - Journal de Session
 
 **Date :** 2025-11-26
-**Durée estimée :** ~4 heures
+**Durée estimée :** ~6 heures
 **Session ID :** 018mXHM8CxWHpUfvhfS9qeqK
-**Dernière mise à jour :** 2025-11-26 (Session 2)
+**Dernière mise à jour :** 2025-11-26 (Session 3)
 
 ---
 
@@ -16,6 +16,9 @@ claude/kyc-admin-mantine-018mXHM8CxWHpUfvhfS9qeqK
 
 ### Historique des Commits (20 derniers)
 ```
+87ba6ce feat: Implement B2B backend API with matching engine
+41f5c39 feat: Add B2B database schema
+faa14c5 docs: Add comprehensive B2B module documentation
 c122e6d feat: Add driver subscription system with priority and profile boosting
 843d20e docs: Update documentation for Session 2 (payment auto-confirm + KYC fixes)
 2807f08 feat: Add automatic payment confirmation batch job and improve KYC admin
@@ -33,9 +36,6 @@ ec93ec6 feat: Add bidirectional cancellation notifications and redirects
 2048f95 feat: Complete driver cancellation UI with strike system
 502c94d feat: Interface annulation client avec timer 5 minutes
 ec991e0 feat: API complète d'annulation de course
-2405149 feat: Système d'annulation complet - Schéma DB
-b0068a3 feat: Notifications temps réel pour nouvelles courses (driver)
-29e06b8 feat: Amélioration affichage temps/distance estimés
 ```
 
 ### Git Status
@@ -447,69 +447,391 @@ try {
 
 ---
 
+### 6. Module B2B - Business Orders (SESSION 3)
+
+#### A. Documentation et Planification
+**Fichiers créés :**
+- `B2B_PLAN.md` (1005+ lignes) - Plan d'implémentation complet
+- Mise à jour de `CLAUDE.md` avec section B2B
+
+Architecture Decisions (ADRs):
+- ADR-001: Business séparé de Customer (workflows différents)
+- ADR-002: BusinessOrder séparé de Ride (matching automatique vs bidding)
+- ADR-003: Extension Driver pour B2B (pas nouveau modèle)
+- ADR-004: Matching à 2 rounds (réguliers prioritaires, puis tous)
+
+Public cible:
+- Commerces de proximité (épiceries, boutiques, pharmacies)
+- Vendeurs en ligne (Facebook/Instagram sellers)
+- PME locales
+- Restaurants et traiteurs
+
+#### B. Base de Données - Modèle B2B
+**Fichier modifié :** `packages/database/prisma/schema.prisma` (+389 lignes)
+
+**Nouveau modèle Business:**
+- Infos de base: businessName, businessType, phone
+- Localisation: gouvernorat, delegation, addressLine, coordinates
+- Trust Level: STARTER → VERIFIED → PRO → ENTERPRISE
+- Limites dynamiques: maxDailyCOD, maxSingleOrderCOD, maxDailyOrders
+- Vérification: cinFront, cinBack, cinSelfie, verificationStatus
+- COD Payout: codPayoutMethod (D17/FLOUCI/BANK/CASH), détails bancaires
+- Stats: totalOrders, completedOrders, totalCODCollected, rating
+
+**Trust Levels avec limites:**
+- STARTER: 300 DT COD/jour, 100 DT/ordre, 5 ordres/jour, délai payout 72h
+- VERIFIED: 1000 DT COD/jour, 300 DT/ordre, 20 ordres/jour, délai 48h
+- PRO: 5000 DT COD/jour, 1000 DT/ordre, 100 ordres/jour, -15% discount, délai 24h
+- ENTERPRISE: Limites custom, account manager dédié, -20% discount, délai 12h
+
+**Nouveau modèle BusinessOrder:**
+- Destinataire: recipientName, phone, address, coordinates, notes
+- Pickup: pickupContact, address (défaut = adresse business)
+- Colis: cargoType, description, weight, size
+- COD: hasCOD, codAmount, codStatus
+- Matching: matchingStatus (PENDING/SEARCHING/MATCHED/NO_DRIVER), matchingRound (1 ou 2)
+- Proof of Delivery: podPhoto, podSignature, podRecipientName, podTimestamp, podLocation
+- Status: DRAFT → SEARCHING_DRIVER → DRIVER_ASSIGNED → ... → DELIVERED
+- Order number: TRK-YYYYMMDD-XXXX
+
+**Nouveau modèle BusinessAddress (carnet d'adresses):**
+- nickname, contactName, contactPhone
+- gouvernorat, delegation, addressLine, coordinates
+- notes, isDefault, usageCount, lastUsedAt
+
+**Nouveau modèle DriverBusinessRelation:**
+- Suivi relation conducteur-business
+- totalDeliveries, completedDeliveries, averageRating
+- totalRevenue, lastDeliveryAt
+
+**Nouveau modèle BusinessFavoriteDriver:**
+- Liste des conducteurs favoris d'un business
+- addedAt timestamp
+
+**Nouveau modèle BusinessOrderStatusHistory:**
+- Timeline complète d'une commande
+- status, timestamp, notes
+
+**Extension modèle Driver:**
+- b2bLevel (1-4) : Niveau d'habilitation B2B
+- b2bLevelUpdatedAt
+- b2bHabilitation (JSON): { minDeliveries, minRating, insuranceValid, codTrainingPassed }
+- b2bPreferences (JSON): { acceptsB2B, workingZones, acceptsCOD, maxCODAmount }
+- totalB2BDeliveries, completedB2BDeliveries
+- Relations vers: businessOrders, businessRelations, favoritedByBusinesses
+
+**Nouveaux enums:**
+- BusinessType: LOCAL_SHOP, SOCIAL_SELLER, SME, RESTAURANT
+- TrustLevel: STARTER, VERIFIED, PRO, ENTERPRISE
+- CODPayoutMethod: D17, FLOUCI, BANK_TRANSFER, CASH_PICKUP
+- MatchingStatus: PENDING, SEARCHING, MATCHED, NO_DRIVER, TIMEOUT
+- BusinessOrderStatus: DRAFT, PENDING_PAYMENT, SEARCHING_DRIVER, DRIVER_ASSIGNED, etc.
+- CargoType: DOCUMENT, PETIT_COLIS, MOYEN_COLIS, GROS_COLIS, etc.
+- CargoSize: TRES_PETIT, PETIT, MOYEN, GRAND, TRES_GRAND
+- CODStatus: PENDING, COLLECTED, PAID_OUT, CANCELLED, NOT_APPLICABLE
+- BusinessVerificationStatus: NONE, PENDING, APPROVED, REJECTED
+
+#### C. Backend - Middleware Authentication
+**Fichier modifié :** `apps/api/src/middleware/auth.ts`
+
+Extensions:
+- AuthRequest.userType étendu pour inclure 'business'
+- Nouveau middleware: requireBusiness
+- generateToken supporte maintenant 'business' userType
+- JWT tokens business valides 7 jours comme les autres
+
+#### D. Backend - Routes Business Auth
+**Fichier créé :** `apps/api/src/routes/business.ts` (360+ lignes)
+
+Endpoints:
+- `POST /api/business/register` - Inscription business (Step 1: infos de base)
+  - Validation: businessName, businessType, phone (+216XXXXXXXX), localisation
+  - Création avec STARTER trust level par défaut
+  - TODO: Envoi SMS code vérification (actuellement mock)
+
+- `POST /api/business/verify-phone` - Vérifier téléphone avec code SMS
+  - Validation code 6 chiffres (mock accepte "123456")
+  - Mise à jour phoneVerified + génération JWT token
+
+- `GET /api/business/profile` - Profil business
+  - Include counts: orders, addresses, favoriteDrivers
+  - Masque champs sensibles (CIN photos)
+
+- `PUT /api/business/profile` - Mise à jour profil
+  - Update infos générales, localisation, COD payout config
+
+- `GET /api/business/limits` - Limites trust level + usage quotidien
+  - Calcul usage aujourd'hui (orders count, COD sum)
+  - Retourne limites, usage actuel, disponible
+  - Config: codPayoutDelay, requiredDriverLevel, discount
+
+- `GET /api/business/upgrade-eligibility` - Éligibilité upgrade
+  - STARTER → VERIFIED: 3+ orders, phone vérifié, CIN uploadé
+  - VERIFIED → PRO: 30+ orders, rating ≥4.5, verification approved
+
+Validation avec Zod schemas complets
+
+#### E. Backend - Routes Business Orders
+**Fichier créé :** `apps/api/src/routes/businessOrders.ts` (650+ lignes)
+
+Endpoints:
+- `POST /api/business/orders` - Créer commande (DRAFT)
+  - Validation destinataire, pickup (défaut = adresse business), colis
+  - Check limites quotidiennes (orders + COD)
+  - Validation COD amount vs trust level limits
+  - Support saved address (carnet d'adresses)
+  - Génération order number: TRK-YYYYMMDD-XXXX
+  - Création status history entry
+
+- `GET /api/business/orders` - Liste commandes avec pagination
+  - Filtres: status
+  - Include driver info (name, phone, rating, GPS)
+  - Sort: createdAt DESC
+  - Pagination: page, limit, total, pages
+
+- `GET /api/business/orders/:id` - Détails commande
+  - Include driver complet + statusHistory
+  - Vérification ownership (businessId)
+
+- `POST /api/business/orders/:id/submit` - Soumettre pour matching
+  - DRAFT → SEARCHING_DRIVER
+  - Déclenche matching engine (asynchrone)
+  - Création status history
+
+- `POST /api/business/orders/:id/cancel` - Annuler commande
+  - Statuts annulables: DRAFT, SEARCHING_DRIVER, DRIVER_ASSIGNED, DRIVER_EN_ROUTE
+  - Enregistre cancellationReason
+  - TODO: Notifier driver si assigned
+
+- `POST /api/business/orders/:id/rate` - Noter commande livrée
+  - Rating 1-5 + comment optionnel
+  - Update driver rating (calcul moyenne pondérée)
+  - Update/create DriverBusinessRelation (historique)
+
+- `GET /api/business/orders/:id/tracking` - Tracking temps réel
+  - Retourne: status, driver GPS, pickup/destination, timeline, ETA
+
+Helpers:
+- generateOrderNumber(): TRK-YYYYMMDD-XXXX
+- checkDailyLimits(): Vérifie usage vs limites trust level
+
+#### F. Backend - Routes Business Addresses
+**Fichier créé :** `apps/api/src/routes/businessAddresses.ts` (260+ lignes)
+
+Carnet d'adresses pour destinations fréquentes:
+- `POST /api/business/addresses` - Créer adresse
+- `GET /api/business/addresses` - Liste toutes (sort: default, usage, date)
+- `GET /api/business/addresses/recent` - Récentes (lastUsedAt DESC)
+- `GET /api/business/addresses/frequent` - Fréquentes (usageCount DESC)
+- `GET /api/business/addresses/:id` - Détails
+- `PUT /api/business/addresses/:id` - Modifier
+- `DELETE /api/business/addresses/:id` - Supprimer
+- `POST /api/business/addresses/:id/set-default` - Définir par défaut
+
+Features:
+- Gestion adresse par défaut (auto-unset des autres)
+- Tracking usage count et lastUsedAt
+- Validation: nickname, contact, localisation complète
+
+#### G. Backend - Routes Business Drivers
+**Fichier créé :** `apps/api/src/routes/businessDrivers.ts` (220+ lignes)
+
+Gestion relation business-conducteurs:
+- `GET /api/business/drivers` - Liste tous les conducteurs travaillés
+  - Include: driver info (rating, deliveries, b2bLevel)
+  - Sort: lastDeliveryAt DESC
+
+- `GET /api/business/drivers/:driverId` - Détails + historique
+  - Relation: totalDeliveries, averageRating, totalRevenue
+  - Recent orders (10 derniers)
+
+- `GET /api/business/drivers/favorites/list` - Liste favoris
+  - Include driver complet avec GPS
+
+- `POST /api/business/drivers/:driverId/favorite` - Ajouter favori
+  - Validation: driver exists, pas déjà favori
+
+- `DELETE /api/business/drivers/:driverId/favorite` - Retirer favori
+
+- `GET /api/business/drivers/:driverId/is-favorite` - Check si favori
+
+- `GET /api/business/drivers/stats/summary` - Stats conducteurs
+  - Total drivers travaillés, favoris count
+  - Top 3 drivers by delivery count
+
+#### H. Backend - Service Matching Engine
+**Fichier créé :** `apps/api/src/services/matchingEngine.ts` (520+ lignes)
+
+Algorithme de matching à 2 rounds avec scoring:
+
+**Configuration:**
+- Round 1: 60s, réguliers uniquement (favoris + 2+ livraisons)
+- Round 2: 90s, tous les conducteurs éligibles
+- Distance max: 50 km, idéale: 5 km
+
+**Poids du scoring (total = 100%):**
+- Distance: 25%
+- Availability: 20%
+- Rating: 15%
+- Experience: 5%
+- Relationship: 35% (poids le plus élevé)
+
+**Fonctions principales:**
+
+1. `matchOrder(orderId)` - Fonction principale
+   - Vérifie statut order = SEARCHING_DRIVER
+   - Lance Round 1 (regulars only)
+   - Si échec, lance Round 2 (all eligible)
+   - Update order status, assign driver
+   - Crée status history avec score
+
+2. `filterEligibleDrivers(order, regularsOnly)` - Filtre conducteurs
+   - Statut: APPROVED, available
+   - b2bLevel ≥ requiredLevel (selon trust level business)
+   - b2bPreferences: acceptsB2B, acceptsCOD, maxCODAmount
+   - Si round 1: filtre sur isRegularDriver()
+
+3. `calculateDriverScore(driver, order, businessId)` - Calcul score
+   - Distance score: 100 si ≤5km, décroissant jusqu'à 50km
+   - Availability score: 100 si available, 0 sinon
+   - Rating score: (rating/5) × 100
+   - Experience score: B2B deliveries + completion rate
+   - Relationship score: 50 pts si favori + 30 pts max deliveries + 20 pts rating
+
+4. `isRegularDriver(driverId, businessId)` - Check régulier
+   - True si: favori OU 2+ completed deliveries
+
+5. `calculateRelationshipScore(driverId, businessId)` - Score relation
+   - Favori: +50 points
+   - Completed deliveries: +3 pts chacune (max 30)
+   - Average rating from business: max 20 pts
+
+6. `calculateDistance(lat1, lng1, lat2, lng2)` - Haversine formula
+   - Calcul distance GPS en km
+   - Formule trigonométrique avec rayon Terre = 6371 km
+
+**Logs détaillés:**
+- `[Matching Engine] Starting match for order TRK-...`
+- `[Matching Engine] Round 1: Found X regular drivers`
+- `[Matching Engine] Round 1 - Best driver: Name (score: XX.XX)`
+- `[Matching Engine] Order assigned to driver`
+
+**TODO (Phase 2):**
+- Implémenter envoi offres à top 5/10 drivers (actuellement auto-assign au meilleur)
+- Système d'acceptation/refus avec timeout
+- Notifications Socket.io en temps réel
+
+#### I. Intégration Serveur
+**Fichier modifié :** `apps/api/src/index.ts`
+
+Ajout imports et enregistrement routes:
+- `import businessRoutes from './routes/business'`
+- `import businessOrderRoutes from './routes/businessOrders'`
+- `import businessAddressRoutes from './routes/businessAddresses'`
+- `import businessDriverRoutes from './routes/businessDrivers'`
+
+Routes enregistrées:
+- `app.use('/api/business', businessRoutes)`
+- `app.use('/api/business/orders', businessOrderRoutes)`
+- `app.use('/api/business/addresses', businessAddressRoutes)`
+- `app.use('/api/business/drivers', businessDriverRoutes)`
+
+---
+
 ## 📝 Fichiers Créés ou Modifiés (Session complète)
 
 ### Fichiers Créés (nouveaux)
-1. `apps/api/src/routes/pricing.ts` (540 lignes)
-2. `apps/web/app/admin/pricing/page.tsx` (802 lignes)
+1. `apps/api/src/routes/pricing.ts` (540 lignes) - SESSION 1
+2. `apps/web/app/admin/pricing/page.tsx` (802 lignes) - SESSION 1
 3. `apps/api/src/services/paymentAutoConfirmation.ts` (280 lignes) - SESSION 2
 4. `apps/api/src/routes/driverSubscriptions.ts` (320 lignes) - SESSION 2
 5. `apps/api/src/services/subscriptionExpiration.ts` (110 lignes) - SESSION 2
-6. `CLAUDE.md` (documentation permanente)
-7. `PROGRESS.md` (ce fichier)
-8. `TODO.md` (backlog)
+6. `B2B_PLAN.md` (1005+ lignes) - SESSION 3
+7. `apps/api/src/routes/business.ts` (360+ lignes) - SESSION 3
+8. `apps/api/src/routes/businessOrders.ts` (650+ lignes) - SESSION 3
+9. `apps/api/src/routes/businessAddresses.ts` (260+ lignes) - SESSION 3
+10. `apps/api/src/routes/businessDrivers.ts` (220+ lignes) - SESSION 3
+11. `apps/api/src/services/matchingEngine.ts` (520+ lignes) - SESSION 3
+12. `CLAUDE.md` (documentation permanente)
+13. `PROGRESS.md` (ce fichier)
+14. `TODO.md` (backlog)
 
 ### Fichiers Modifiés
 1. `packages/database/prisma/schema.prisma`
-   - Ajout modèles : VehiclePricing, PricingConfig, PriceEstimate
-   - Ajout enums : TripType, TrafficLevel, TimeSlotType
+   - SESSION 1: Ajout modèles VehiclePricing, PricingConfig, PriceEstimate
+   - SESSION 1: Ajout enums TripType, TrafficLevel, TimeSlotType
    - SESSION 2: Extension Payment (onHoldAt, autoConfirmedAt, confirmedByBatch)
    - SESSION 2: Extension Driver (currentLat/Lng, hasActiveSubscription, subscriptionTier)
    - SESSION 2: Nouveau modèle DriverSubscription
    - SESSION 2: Nouvel enum DriverSubscriptionTier
+   - SESSION 3: Nouveaux modèles B2B (+389 lignes):
+     * Business, BusinessOrder, BusinessAddress
+     * DriverBusinessRelation, BusinessFavoriteDriver
+     * BusinessOrderStatusHistory
+   - SESSION 3: Extension Driver pour B2B (b2bLevel, b2bHabilitation, b2bPreferences, stats B2B)
+   - SESSION 3: Nouveaux enums B2B (+9):
+     * BusinessType, TrustLevel, CODPayoutMethod
+     * MatchingStatus, BusinessOrderStatus
+     * CargoType, CargoSize, CODStatus
+     * BusinessVerificationStatus
 
 2. `apps/api/src/index.ts`
-   - Enregistrement route `/api/pricing`
+   - SESSION 1: Enregistrement route `/api/pricing`
    - SESSION 2: Import et démarrage batch job payment auto-confirmation
    - SESSION 2: Enregistrement route `/api/driver-subscriptions`
    - SESSION 2: Import et démarrage batch job subscription expiration
    - SESSION 2: Graceful shutdown pour les deux batch jobs
+   - SESSION 3: Import et enregistrement routes B2B:
+     * `/api/business` (auth)
+     * `/api/business/orders` (commandes)
+     * `/api/business/addresses` (carnet)
+     * `/api/business/drivers` (relations)
 
-3. `apps/api/src/routes/payments.ts` - SESSION 2
+3. `apps/api/src/middleware/auth.ts`
+   - SESSION 3: Extension AuthRequest.userType pour 'business'
+   - SESSION 3: Ajout middleware requireBusiness
+   - SESSION 3: Update generateToken pour supporter 'business'
+
+4. `apps/api/src/routes/payments.ts` - SESSION 2
    - Nouvel endpoint: `POST /api/payments/:id/hold`
    - Modification endpoint: `POST /api/payments/:id/confirm-cash` (accepte client + conducteur)
 
-4. `apps/web/lib/api.ts`
+5. `apps/web/lib/api.ts` - SESSION 1
    - Ajout `pricingApi` object avec toutes les méthodes
    - Fix interceptor pour support token admin
 
-5. `apps/web/app/admin/layout.tsx`
+6. `apps/web/app/admin/layout.tsx` - SESSION 1
    - Ajout entrée menu "Configuration Prix"
 
-6. `apps/web/app/customer/new-ride/page.tsx`
+7. `apps/web/app/customer/new-ride/page.tsx` - SESSION 1
    - Import dynamique SimpleMap
    - Intégration estimation prix temps réel
    - Hook useEffect pour auto-calcul
 
-7. `apps/web/app/admin/kyc/page.tsx` - SESSION 2
+8. `apps/web/app/admin/kyc/page.tsx` - SESSION 2
    - Ajout try/catch pour gestion d'erreurs
    - Ajout notifications Mantine
    - Ajout console.log pour debug
 
-8. `apps/web/package.json`
+9. `apps/web/package.json` - SESSION 1
    - Pin React à 18.2.0
    - Ajout overrides
    - Mise à jour Mantine vers 8.3.9
 
-9. `apps/web/app/providers.tsx`
+10. `apps/web/app/providers.tsx` - SESSION 1
    - Nettoyage imports CSS
+
+11. `CLAUDE.md` - SESSION 3
+   - Ajout section complète B2B dans description projet
+   - Ajout routes B2B dans structure architecture
+   - Ajout section 10: B2B Module avec Trust Levels, matching, COD
 
 ---
 
 ## 🐛 Problèmes en Cours / Non Résolus
 
 ### 1. Migrations Base de Données Non Exécutées
-**Statut :** ⚠️ BLOQUANT pour utilisation pricing + payment auto-confirm + subscriptions
+**Statut :** ⚠️ BLOQUANT pour utilisation pricing + payment auto-confirm + subscriptions + B2B
 
 **Problème :**
 - Les migrations Prisma n'ont pas été exécutées en environnement de développement
@@ -517,15 +839,17 @@ try {
   - Pricing system (VehiclePricing, PricingConfig, PriceEstimate)
   - Payment auto-confirmation (ON_HOLD status, onHoldAt, autoConfirmedAt)
   - Driver subscriptions (DriverSubscription model, subscriptionTier)
+  - **B2B Module (SESSION 3)**: 6 nouveaux modèles + 9 enums + extension Driver
 
 **Impact :**
 - Les tables n'existent pas en DB
 - Les appels API retournent des erreurs
+- Le module B2B est complètement non fonctionnel
 
 **Action requise utilisateur :**
 ```bash
 cd packages/database
-npx prisma migrate dev --name add_payment_auto_confirm_and_subscriptions
+npx prisma migrate dev --name add_b2b_module
 ```
 
 Cette commande va :
@@ -578,42 +902,78 @@ ls packages/database/prisma/migrations/
    npm list react react-dom  # Doit afficher 18.2.0
    ```
 3. ✅ Vérifier que l'app démarre : `npm run dev`
-4. ⚠️ Exécuter migration Prisma : `cd packages/database && npx prisma migrate dev --name add_payment_auto_confirm_and_subscriptions`
+4. ⚠️ **CRITIQUE**: Exécuter migration Prisma : `cd packages/database && npx prisma migrate dev --name add_b2b_module`
 5. ⚠️ Initialiser configs pricing via admin UI
 6. ⚠️ Redémarrer serveur API : `cd apps/api && npm run dev` - Vérifier logs batch jobs
 
 ### Important (Cette semaine)
-7. Tester le système d'auto-confirmation des paiements
+7. **Tester le module B2B via API (Postman)**:
+   - Créer business test
+   - Vérifier code SMS (mock "123456")
+   - Créer commande DRAFT
+   - Soumettre commande → vérifier matching engine logs
+   - Vérifier assignation conducteur
+8. **Implémenter frontend B2B (Phase 1 MVP - 6-8h estimé)**:
+   - Page `/business/register` - Wizard 3 étapes
+   - Page `/business/dashboard` - Overview + stats
+   - Page `/business/orders/new` - Créer commande
+   - Page `/business/orders` - Liste commandes
+   - Page `/business/orders/:id` - Détails + tracking
+9. Tester le système d'auto-confirmation des paiements
    - Créer paiement test, mettre onHoldAt à -20min
    - Attendre 2-3 minutes (batch s'exécute)
    - Vérifier status → COMPLETED
-8. Tester le système d'abonnement conducteurs
-   - Tester souscription PREMIUM/ELITE
-   - Vérifier gains enregistrés avec commission réduite (ELITE)
-   - Tester expiration abonnement (modifier endDate en DB)
-9. Tester le système de pricing end-to-end
-10. Vérifier les notifications de cancellation
-11. Tester le système de strikes conducteurs
-12. Vérifier le paiement (bug "5ft" au lieu de "20 dt" ?)
+10. Tester le système d'abonnement conducteurs
+    - Tester souscription PREMIUM/ELITE
+    - Vérifier gains enregistrés avec commission réduite (ELITE)
+    - Tester expiration abonnement (modifier endDate en DB)
+11. Tester le système de pricing end-to-end
+12. Vérifier les notifications de cancellation
+13. Tester le système de strikes conducteurs
+14. Vérifier le paiement (bug "5ft" au lieu de "20 dt" ?)
 
 ### Nice-to-have (Backlog)
-13. Créer interface frontend pour abonnements conducteurs
+15. **Interface B2B Phase 2 (Advanced Features)**:
+    - Page `/business/verification` - Upload CIN pour upgrade VERIFIED
+    - Page `/business/upgrade-pro` - Upload RC/Patente pour PRO
+    - Page `/business/addresses` - CRUD carnet d'adresses
+    - Page `/business/drivers` - Liste conducteurs + favoris
+    - Page `/business/settings` - Config COD payout
+16. **B2B Driver Side**:
+    - Page `/driver/b2b` - Toggle acceptsB2B, config preferences
+    - Notifications temps réel pour B2B orders (Socket.io)
+    - Interface acceptation/refus offres B2B
+17. **B2B Admin Interface**:
+    - Page `/admin/businesses` - Liste businesses + verification
+    - Page `/admin/b2b-orders` - Vue globale commandes B2B
+    - Approve/Reject business verification (CIN)
+    - Analytics B2B (GMV, COD collected, top businesses)
+18. **Matching Engine Phase 2**:
+    - Envoi offres à top 5/10 drivers (actuellement auto-assign)
+    - Système acceptation/refus avec timeout
+    - Notifications Socket.io en temps réel
+    - Re-matching si refus (fallback to next driver)
+19. **SMS Integration**:
+    - Intégrer provider SMS (Twilio, Africa's Talking, etc.)
+    - Remplacer mock code "123456" par vraie vérification
+20. Créer interface frontend pour abonnements conducteurs
     - Page `/driver/subscription` avec affichage des plans
     - Bouton de souscription avec sélection paiement
     - Affichage abonnement actuel et statistiques
     - Bouton d'annulation
-14. Implémenter logique de priorité dans notifications de courses
+21. Implémenter logique de priorité dans notifications de courses
     - ELITE: notification immédiate
     - PREMIUM: notification après 5 minutes
     - STANDARD: notification après 15 minutes
-15. Implémenter boost de profil dans listings conducteurs
+22. Implémenter boost de profil dans listings conducteurs
     - Appliquer profileBoost% au score de ranking
     - Afficher badge PREMIUM/ELITE sur profils
-16. Ajouter analytics pour le pricing (prix moyen, estimations par véhicule)
-17. Exporter historique des estimations
-18. Dashboard admin avec stats pricing et subscriptions
-19. Tests unitaires pour l'algorithme de pricing
-20. Tests unitaires pour batch jobs (auto-confirm, subscription expiration)
+23. Ajouter analytics pour le pricing (prix moyen, estimations par véhicule)
+24. Exporter historique des estimations
+25. Dashboard admin avec stats pricing et subscriptions
+26. Tests unitaires pour l'algorithme de pricing
+27. Tests unitaires pour batch jobs (auto-confirm, subscription expiration)
+28. Tests unitaires pour matching engine B2B
 
 ---
 
@@ -635,13 +995,21 @@ ls packages/database/prisma/migrations/
 - **Bugs corrigés :** 1 (KYC admin details)
 - **Features implémentées :** 2 systèmes complets (payment auto-confirm, driver subscriptions)
 
-**Total Sessions 1+2:**
-- **Commits créés :** 12
-- **Fichiers créés :** 8
-- **Fichiers modifiés :** 11
-- **Lignes de code ajoutées :** ~2210
+**Session 3:**
+- **Commits créés :** 3
+- **Fichiers créés :** 6 (B2B_PLAN.md, business.ts, businessOrders.ts, businessAddresses.ts, businessDrivers.ts, matchingEngine.ts)
+- **Fichiers modifiés :** 4 (schema.prisma, index.ts, auth.ts, CLAUDE.md)
+- **Lignes de code ajoutées :** ~2400
+- **Bugs corrigés :** 0
+- **Features implémentées :** 1 système complet (B2B module backend)
+
+**Total Sessions 1+2+3:**
+- **Commits créés :** 15
+- **Fichiers créés :** 14
+- **Fichiers modifiés :** 11 (unique)
+- **Lignes de code ajoutées :** ~4610
 - **Bugs corrigés :** 7
-- **Features implémentées :** 3 systèmes complets
+- **Features implémentées :** 4 systèmes complets
 
 ---
 
@@ -664,6 +1032,11 @@ ls packages/database/prisma/migrations/
 12. `843d20e` - docs: Update documentation for Session 2 (payment auto-confirm + KYC fixes)
 13. `c122e6d` - feat: Add driver subscription system with priority and profile boosting
 
+**Session 3:**
+14. `faa14c5` - docs: Add comprehensive B2B module documentation
+15. `41f5c39` - feat: Add B2B database schema
+16. `87ba6ce` - feat: Implement B2B backend API with matching engine
+
 ---
 
 ## 💡 Notes pour la Prochaine Session
@@ -672,14 +1045,18 @@ ls packages/database/prisma/migrations/
 - Le système de pricing est **complet** côté code
 - Le système d'auto-confirmation paiements est **complet** côté code (batch s'exécute toutes les 2min)
 - Le système d'abonnement conducteurs est **complet** côté backend (batch s'exécute toutes les heures)
-- Il faut **migrer la DB** pour activer toutes ces fonctionnalités
+- **Le module B2B backend est complet** (Session 3): Auth, Orders, Addresses, Drivers, Matching Engine
+- Il faut **migrer la DB** pour activer toutes ces fonctionnalités (pricing + payments + subscriptions + B2B)
 - React **DOIT** rester à 18.2.0 (Mantine incompatible avec v19)
 - Tous les commits sont sur `claude/kyc-admin-mantine-018mXHM8CxWHpUfvhfS9qeqK`
 
 ### Vérifications à faire :
 - Confirmer que React 18.2.0 est bien installé
 - Vérifier que l'app démarre sans erreur MantineProvider
-- Exécuter la migration Prisma (pricing + payment + subscriptions)
+- **Exécuter la migration Prisma (pricing + payment + subscriptions + B2B)**
+  ```bash
+  cd packages/database && npx prisma migrate dev --name add_b2b_module
+  ```
 - Redémarrer le serveur API et vérifier les logs des batch jobs:
   - "⏰ Payment auto-confirmation batch job started"
   - "💎 Subscription expiration batch job started"
@@ -687,6 +1064,12 @@ ls packages/database/prisma/migrations/
 - Tester l'estimation de prix dans l'interface client
 - Tester l'auto-confirmation des paiements (simulation: modifier onHoldAt en DB)
 - Tester la souscription à un abonnement conducteur via API
+- **Tester les endpoints B2B via Postman/Insomnia:**
+  - POST /api/business/register
+  - POST /api/business/verify-phone (code "123456")
+  - GET /api/business/profile
+  - POST /api/business/orders (créer commande DRAFT)
+  - POST /api/business/orders/:id/submit (déclencher matching)
 
 ### Si problèmes :
 - **MantineProvider error** → Vérifier version React (doit être 18.2.0)
