@@ -7,11 +7,16 @@
 
 ## 📋 Description du Projet
 
-**Truck4u** est une plateforme de mise en relation entre clients et transporteurs pour le transport de marchandises en Tunisie. Le système fonctionne selon un modèle de mise aux enchères (bidding) inspiré d'inDrive.
+**Truck4u** est une plateforme de mise en relation entre clients et transporteurs pour le transport de marchandises en Tunisie.
+
+### Deux modèles de service :
+- **B2C** : Système de mise aux enchères (bidding) inspiré d'inDrive
+- **B2B** : Matching automatique pour commerces et PME
 
 ### Objectifs principaux :
-- Permettre aux clients de créer des demandes de transport avec estimation de prix
-- Permettre aux conducteurs de soumissionner sur les courses
+- **B2C** : Permettre aux particuliers de créer des demandes de transport avec système de bidding
+- **B2B** : Permettre aux commerces de commander des livraisons rapides avec COD et matching automatique
+- Conducteurs peuvent accepter courses B2C ET B2B selon leur habilitation
 - Système d'annulation avec pénalités (client: 5 DT après 5 min, conducteur: système de strikes)
 - Administration complète (KYC, gestion conducteurs, tarification, analytics)
 - Notifications temps réel via Socket.io
@@ -60,10 +65,17 @@ truck4u/
 │   │   │   │   ├── rides/     # Gestion courses
 │   │   │   │   ├── pricing/   # Configuration tarification ⭐
 │   │   │   │   └── analytics/
-│   │   │   ├── customer/      # Interface client
+│   │   │   ├── customer/      # Interface client B2C
 │   │   │   │   ├── new-ride/  # Création course + estimation prix
 │   │   │   │   ├── rides/     # Liste et détails courses
 │   │   │   │   └── payment/   # Paiement
+│   │   │   ├── business/      # Interface business B2B ⭐
+│   │   │   │   ├── register/  # Inscription progressive
+│   │   │   │   ├── dashboard/ # Dashboard business
+│   │   │   │   ├── orders/    # Commandes B2B
+│   │   │   │   ├── addresses/ # Carnet d'adresses
+│   │   │   │   ├── drivers/   # Conducteurs favoris
+│   │   │   │   └── settings/  # Paramètres & vérification
 │   │   │   ├── driver/        # Interface conducteur
 │   │   │   │   ├── dashboard/
 │   │   │   │   ├── available-rides/
@@ -80,15 +92,19 @@ truck4u/
 │   └── api/                   # Backend Express
 │       └── src/
 │           ├── routes/
-│           │   ├── pricing.ts      # API estimation prix ⭐
+│           │   ├── pricing.ts           # API estimation prix ⭐
+│           │   ├── business.ts          # API Business B2B ⭐
+│           │   ├── businessOrders.ts    # API Commandes B2B ⭐
 │           │   ├── cancellations.ts
 │           │   ├── rides.ts
 │           │   ├── admin.ts
 │           │   └── auth.ts
 │           ├── middleware/
-│           │   └── auth.ts         # verifyToken, requireAdmin
+│           │   └── auth.ts              # verifyToken, requireAdmin, requireBusiness
 │           ├── services/
-│           │   └── notifications.ts
+│           │   ├── notifications.ts
+│           │   ├── matchingEngine.ts    # Matching B2B ⭐
+│           │   └── paymentAutoConfirmation.ts
 │           └── socket.ts
 │
 └── packages/
@@ -215,6 +231,18 @@ truck4u/
 - Service : `apps/api/src/services/subscriptionExpiration.ts`
 - Routes API : `apps/api/src/routes/driverSubscriptions.ts`
 - Le batch démarre automatiquement au lancement du serveur
+
+### 10. B2B Module (Business Orders)
+- **Modèle séparé** : `Business` et `BusinessOrder` distincts de `Customer` et `Ride`
+- **Trust Levels** : STARTER (300 DT COD/jour) → VERIFIED (1000 DT) → PRO → ENTERPRISE
+- **Onboarding progressif** : Inscription 2 min, vérification à la demande
+- **Matching automatique** : 2 rounds (réguliers puis autres), scoring basé sur relation
+- **COD simplifié** : 70-80% des commandes, payout D17/Flouci/Bank
+- **Carnet d'adresses** : Sauvegarder destinations fréquentes
+- **Conducteurs habilités** : Niveau 2+ requis (10+ courses, rating 4.2+)
+- Service : `apps/api/src/services/matchingEngine.ts`
+- Routes API : `apps/api/src/routes/business.ts`, `apps/api/src/routes/businessOrders.ts`
+- Documentation complète : `B2B_PLAN.md`
 
 ---
 
