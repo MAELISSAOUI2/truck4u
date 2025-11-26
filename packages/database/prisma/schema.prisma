@@ -55,6 +55,36 @@ model Driver {
   hasActiveSubscription Boolean  @default(false) // A un abonnement actif
   subscriptionTier     DriverSubscriptionTier? // Niveau d'abonnement actuel
 
+  // === B2B HABILITATION ===
+  b2bLevel             Int       @default(1)  // Niveau B2B: 1-4
+  b2bLevelUpdatedAt    DateTime?
+
+  // Critères et préférences B2B stockés en JSON pour flexibilité
+  b2bHabilitation      Json?
+  // {
+  //   minDeliveries: 10,
+  //   minRating: 4.2,
+  //   insuranceValid: true,
+  //   codTrainingPassed: false,
+  //   level2Achieved: false,
+  //   level3Achieved: false,
+  //   level4Achieved: false
+  // }
+
+  b2bPreferences       Json?
+  // {
+  //   acceptsB2B: true,
+  //   workingZones: ["TUNIS", "ARIANA"],
+  //   acceptsIntercity: false,
+  //   acceptsNightDelivery: false,
+  //   acceptsCOD: true,
+  //   maxCODAmount: 500
+  // }
+
+  // B2B Stats
+  totalB2BDeliveries   Int       @default(0)
+  completedB2BDeliveries Int     @default(0)
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -65,9 +95,15 @@ model Driver {
   cancellations        Cancellation[]
   subscription         DriverSubscription? // Relation one-to-one avec abonnement
 
+  // B2B Relations
+  businessOrders       BusinessOrder[] @relation("BusinessOrders")
+  businessRelations    DriverBusinessRelation[] @relation("DriverBusinessRelations")
+  favoritedByBusinesses BusinessFavoriteDriver[] @relation("BusinessFavorites")
+
   @@index([verificationStatus])
   @@index([isAvailable, vehicleType])
   @@index([hasActiveSubscription, rating]) // Index pour priorisation offres
+  @@index([b2bLevel, isAvailable]) // Index pour matching B2B
 }
 
 model KYCDocument {
@@ -599,4 +635,357 @@ model PriceEstimate {
   @@index([vehicleType])
   @@index([customerId])
   @@index([createdAt])
+}
+
+// ============================================
+// B2B MODULE - Business Orders
+// ============================================
+
+// Business model - Commerces et PME
+model Business {
+  id                   String    @id @default(uuid())
+
+  // === INFOS DE BASE ===
+  businessName         String
+  businessType         BusinessType
+  ownerFirstName       String
+  phone                String    @unique
+  phoneVerified        Boolean   @default(false)
+  phoneVerifiedAt      DateTime?
+
+  // Localisation
+  gouvernorat          String
+  delegation           String
+  addressLine          String
+  coordinates          Json?     // {lat, lng}
+
+  // === TRUST LEVEL ===
+  trustLevel           TrustLevel @default(STARTER)
+  trustLevelUpdatedAt  DateTime  @default(now())
+
+  // Limites selon Trust Level (calculées dynamiquement mais stockées pour perf)
+  maxDailyCOD          Float     @default(300)   // 300 DT pour STARTER
+  maxSingleOrderCOD    Float     @default(100)   // 100 DT pour STARTER
+  maxDailyOrders       Int       @default(5)     // 5 commandes pour STARTER
+
+  // === VÉRIFICATION (étape 2) ===
+  verificationStatus   BusinessVerificationStatus @default(NONE)
+  cinFront             String?   // URL S3
+  cinBack              String?   // URL S3
+  cinSelfie            String?   // URL S3
+  cinNumber            String?
+  verifiedAt           DateTime?
+  rejectionReason      String?   @db.Text
+
+  // === COD PAYOUT ===
+  codPayoutMethod      CODPayoutMethod?
+  codPayoutPhone       String?   // Pour D17/Flouci
+  codPayoutBankRib     String?
+  codPayoutBankName    String?
+
+  // === PRÉFÉRENCES ===
+  useBusinessAddressAsDefault Boolean @default(true)
+  language             String    @default("FR") // FR ou AR
+  notificationChannels Json?     // ["PUSH", "SMS", "WHATSAPP"]
+
+  // === STATS ===
+  totalOrders          Int       @default(0)
+  completedOrders      Int       @default(0)
+  cancelledOrders      Int       @default(0)
+  totalCODCollected    Float     @default(0)
+  averageOrderValue    Float     @default(0)
+  rating               Float     @default(0.0)  // Note par conducteurs
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  lastOrderAt          DateTime?
+
+  // Relations
+  orders               BusinessOrder[]
+  addresses            BusinessAddress[]
+  driverRelations      DriverBusinessRelation[]
+  favoriteDrivers      BusinessFavoriteDriver[]
+
+  @@index([trustLevel])
+  @@index([phone])
+  @@index([businessType])
+  @@index([gouvernorat, delegation])
+  @@index([verificationStatus])
+}
+
+// Commandes B2B avec COD et matching automatique
+model BusinessOrder {
+  id                   String    @id @default(uuid())
+  businessId           String
+  orderNumber          String    @unique // Format: TRK-YYYYMMDD-XXXX
+
+  // === DESTINATAIRE ===
+  recipientName        String
+  recipientPhone       String
+  recipientGouvernorat String
+  recipientDelegation  String
+  recipientAddress     String
+  recipientCoordinates Json?     // {lat, lng}
+  recipientNotes       String?   @db.Text
+  savedAddressId       String?   // Si depuis carnet d'adresses
+
+  // === POINT D'ENLÈVEMENT ===
+  pickupContactName    String
+  pickupContactPhone   String
+  pickupGouvernorat    String
+  pickupDelegation     String
+  pickupAddress        String
+  pickupCoordinates    Json      // {lat, lng}
+
+  // === COLIS ===
+  cargoType            CargoType
+  cargoDescription     String?   @db.Text
+  estimatedWeight      Float?    // kg
+  estimatedSize        CargoSize?
+
+  // === VÉHICULE & SERVICE ===
+  requiredVehicle      VehicleType
+  distance             Float     // km (calculé via OSRM)
+  estimatedDuration    Int       // minutes
+
+  // === COD ===
+  hasCOD               Boolean   @default(false)
+  codAmount            Float?
+  codStatus            CODStatus @default(PENDING)
+  codCollectedAt       DateTime?
+
+  // === PRICING ===
+  baseFee              Float     // Tarif de base
+  distanceFee          Float     // Frais distance
+  serviceFee           Float     // Frais plateforme
+  discount             Float     @default(0)
+  totalPrice           Float     // Total final
+
+  // === MATCHING ===
+  matchingStatus       MatchingStatus @default(PENDING)
+  matchingStartedAt    DateTime?
+  matchingRound        Int?      // 1 (réguliers) ou 2 (autres)
+  matchedAt            DateTime?
+  matchingAttempts     Int       @default(0)
+
+  // === CONDUCTEUR ===
+  driverId             String?
+  driverAcceptedAt     DateTime?
+
+  // === STATUT ===
+  status               BusinessOrderStatus @default(DRAFT)
+
+  // === PROOF OF DELIVERY ===
+  podPhoto             String?   // URL S3
+  podSignature         String?   // URL S3 ou base64
+  podRecipientName     String?   // Nom du receveur
+  podTimestamp         DateTime?
+  podLocation          Json?     // {lat, lng}
+
+  // === ÉVALUATIONS ===
+  businessRating       Int?      // 1-5
+  businessReview       String?   @db.Text
+  driverRating         Int?      // 1-5
+  driverReview         String?   @db.Text
+
+  // === TIMING ===
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  submittedAt          DateTime? // Quand soumise pour matching
+  scheduledFor         DateTime? // Si programmée
+  estimatedDeliveryAt  DateTime?
+  actualPickupAt       DateTime?
+  actualDeliveryAt     DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  cancellationReason   String?   @db.Text
+
+  // Relations
+  business             Business  @relation(fields: [businessId], references: [id])
+  driver               Driver?   @relation("BusinessOrders", fields: [driverId], references: [id])
+  savedAddress         BusinessAddress? @relation(fields: [savedAddressId], references: [id])
+  statusHistory        BusinessOrderStatusHistory[]
+
+  @@index([businessId, createdAt])
+  @@index([status])
+  @@index([matchingStatus])
+  @@index([driverId, status])
+  @@index([orderNumber])
+  @@index([submittedAt])
+}
+
+// Carnet d'adresses business (destinations fréquentes)
+model BusinessAddress {
+  id                   String    @id @default(uuid())
+  businessId           String
+
+  label                String    // Ex: "Client Habib - Bab Bhar"
+  recipientName        String
+  recipientPhone       String
+  gouvernorat          String
+  delegation           String
+  addressLine          String
+  coordinates          Json?     // {lat, lng}
+  notes                String?   @db.Text
+
+  // Stats d'utilisation
+  usageCount           Int       @default(0)
+  lastUsedAt           DateTime?
+
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  orders               BusinessOrder[]
+
+  @@index([businessId, isActive])
+  @@index([businessId, lastUsedAt])
+  @@index([businessId, usageCount])
+}
+
+// Relations conducteur-business (historique et stats)
+model DriverBusinessRelation {
+  id                   String    @id @default(uuid())
+  driverId             String
+  businessId           String
+
+  // Stats relation
+  totalDeliveries      Int       @default(0)
+  completedDeliveries  Int       @default(0)
+  cancelledDeliveries  Int       @default(0)
+
+  // Scores
+  averageRating        Float     @default(0)
+  totalCODCollected    Float     @default(0)
+
+  // Timing
+  firstDeliveryAt      DateTime?
+  lastDeliveryAt       DateTime?
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  driver               Driver    @relation("DriverBusinessRelations", fields: [driverId], references: [id], onDelete: Cascade)
+  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, businessId])
+  @@index([businessId, totalDeliveries])
+  @@index([driverId, totalDeliveries])
+}
+
+// Conducteurs favoris d'un business
+model BusinessFavoriteDriver {
+  id                   String    @id @default(uuid())
+  businessId           String
+  driverId             String
+
+  addedAt              DateTime  @default(now())
+
+  business             Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  driver               Driver    @relation("BusinessFavorites", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, driverId])
+  @@index([businessId])
+  @@index([driverId])
+}
+
+// Historique des statuts de commande (timeline)
+model BusinessOrderStatusHistory {
+  id                   String    @id @default(uuid())
+  orderId              String
+
+  status               BusinessOrderStatus
+  timestamp            DateTime  @default(now())
+  location             Json?     // {lat, lng}
+  note                 String?   @db.Text
+  actor                HistoryActor // SYSTEM, BUSINESS, DRIVER, RECIPIENT
+
+  order                BusinessOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, timestamp])
+}
+
+// ============================================
+// B2B ENUMS
+// ============================================
+
+enum BusinessType {
+  LOCAL_SHOP      // Commerce de proximité (épicerie, boutique, pharmacie)
+  SOCIAL_SELLER   // Vendeur en ligne (Facebook, Instagram, marketplace)
+  SME             // PME / E-commerce
+  RESTAURANT      // Restaurant, traiteur, dark kitchen
+}
+
+enum TrustLevel {
+  STARTER         // Débutant: phone vérifié, 300 DT COD/jour
+  VERIFIED        // Vérifié: CIN + COD config, 1000 DT COD/jour
+  PRO             // Pro: RC/Patente, 5000 DT COD/jour, tarifs préférentiels
+  ENTERPRISE      // Enterprise: sur dossier, limites custom
+}
+
+enum BusinessVerificationStatus {
+  NONE            // Aucune vérification
+  PENDING         // Documents soumis, en attente validation
+  APPROVED        // Vérifié
+  REJECTED        // Rejeté
+}
+
+enum CODPayoutMethod {
+  D17             // D17 (mobile money)
+  FLOUCI          // Flouci (mobile money)
+  BANK_TRANSFER   // Virement bancaire
+  CASH_PICKUP     // Retrait en espèces
+}
+
+enum CargoType {
+  SMALL           // Petit colis
+  MEDIUM          // Colis moyen
+  LARGE           // Grand colis
+  FRAGILE         // Fragile (verre, électronique)
+  FOOD            // Alimentaire (nécessite attention)
+}
+
+enum CargoSize {
+  S               // Small: < 30x30x30cm
+  M               // Medium: < 50x50x50cm
+  L               // Large: < 80x80x80cm
+  XL              // Extra Large: > 80x80x80cm
+}
+
+enum CODStatus {
+  PENDING         // En attente collecte par conducteur
+  COLLECTED       // Collecté par conducteur
+  DEPOSITED       // Déposé par conducteur (chez plateforme)
+  PAID_OUT        // Reversé au business
+}
+
+enum MatchingStatus {
+  PENDING         // Pas encore démarré
+  SEARCHING       // En cours de recherche
+  MATCHED         // Conducteur trouvé et assigné
+  NO_DRIVER       // Aucun conducteur disponible
+  TIMEOUT         // Timeout (après 2 rounds)
+}
+
+enum BusinessOrderStatus {
+  DRAFT               // Brouillon (pas encore soumise)
+  PENDING_PAYMENT     // En attente paiement
+  SEARCHING_DRIVER    // Recherche conducteur en cours
+  DRIVER_ASSIGNED     // Conducteur assigné
+  DRIVER_EN_ROUTE     // Conducteur en route vers pickup
+  AT_PICKUP           // Arrivé au point d'enlèvement
+  PICKED_UP           // Colis récupéré
+  IN_DELIVERY         // En livraison vers destination
+  ARRIVED_DESTINATION // Arrivé à destination
+  DELIVERED           // Livré avec succès
+  FAILED              // Échec de livraison
+  CANCELLED           // Annulé
+}
+
+enum HistoryActor {
+  SYSTEM          // Action automatique du système
+  BUSINESS        // Action du business
+  DRIVER          // Action du conducteur
+  RECIPIENT       // Action du destinataire
 }
