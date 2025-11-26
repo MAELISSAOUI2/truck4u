@@ -208,6 +208,14 @@ truck4u/
 - Service : `apps/api/src/services/paymentAutoConfirmation.ts`
 - Le batch démarre automatiquement au lancement du serveur
 
+### 9. Driver Subscription System
+- **Tiers d'abonnement :** STANDARD (gratuit), PREMIUM (49 DT/mois), ELITE (99 DT/mois)
+- **Avantages :** Priorité sur offres, profil boosté, accès anticipé, commission réduite (ELITE)
+- **Batch job expiration** s'exécute toutes les heures
+- Service : `apps/api/src/services/subscriptionExpiration.ts`
+- Routes API : `apps/api/src/routes/driverSubscriptions.ts`
+- Le batch démarre automatiquement au lancement du serveur
+
 ---
 
 ## 🗄️ Schéma Base de Données (Modèles Principaux)
@@ -255,6 +263,28 @@ Cancellation {
 DriverStrike {
   driver, cancellation, isActive
 }
+```
+
+### Driver Subscription System
+```prisma
+DriverSubscription {
+  tier (STANDARD, PREMIUM, ELITE),
+  status (ACTIVE, EXPIRED, CANCELLED),
+  monthlyFee, priorityMultiplier, profileBoost,
+  reducedPlatformFee, earlyAccessMinutes,
+  startDate, endDate, renewalDate,
+  lastPaymentDate, lastPaymentAmount, paymentMethod
+}
+
+Driver {
+  hasActiveSubscription, subscriptionTier,
+  currentLat, currentLng (for payment auto-confirmation)
+}
+
+Subscription Tiers:
+- STANDARD: Free, no benefits, priorityMultiplier=1.0
+- PREMIUM: 49 DT/month, priorityMultiplier=1.5, profileBoost=50%, earlyAccess=5min
+- ELITE: 99 DT/month, priorityMultiplier=2.5, profileBoost=100%, earlyAccess=15min, reducedFee=8%
 ```
 
 ### Core Models
@@ -323,6 +353,13 @@ git push -u origin claude/<feature>-018mXHM8CxWHpUfvhfS9qeqK
 - `GET /api/admin/kyc/pending` - KYC en attente
 - `GET /api/admin/kyc/driver/:id` - Détails KYC conducteur
 - `PUT /api/admin/drivers/:id/status` - Modifier statut conducteur
+
+### Driver Subscriptions
+- `GET /api/driver-subscriptions/plans` - Liste des plans disponibles
+- `GET /api/driver-subscriptions/current` - Abonnement actuel du conducteur
+- `POST /api/driver-subscriptions/subscribe` - Souscrire à un plan (PREMIUM/ELITE)
+- `POST /api/driver-subscriptions/cancel` - Annuler abonnement
+- `GET /api/driver-subscriptions/stats` - Statistiques abonnement
 
 ---
 
