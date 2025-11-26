@@ -1,13 +1,38 @@
 # TODO.md - Backlog Priorisé Truck4u
 
-**Dernière mise à jour :** 2025-11-26
+**Dernière mise à jour :** 2025-11-26 (Session 2)
 **Session :** 018mXHM8CxWHpUfvhfS9qeqK
 
 ---
 
 ## 🔴 URGENT - À faire IMMÉDIATEMENT
 
-### 1. ⚠️ Fixer l'environnement de développement
+### 1. ⚠️ Migrer la base de données pour Payment Auto-Confirmation
+**Priorité :** CRITIQUE | **Temps estimé :** 5 min | **Statut :** ⚠️ BLOQUANT
+
+- [ ] Exécuter la migration Prisma
+  ```bash
+  cd packages/database
+  npx prisma migrate dev --name add_payment_auto_confirm
+  ```
+
+- [ ] Vérifier que la migration est créée
+  ```bash
+  ls prisma/migrations/
+  # Devrait contenir : YYYYMMDDHHMMSS_add_payment_auto_confirm/
+  ```
+
+- [ ] Redémarrer le serveur API pour activer le batch job
+  ```bash
+  cd apps/api && npm run dev
+  # Vérifier log : ⏰ Payment auto-confirmation batch job started
+  ```
+
+**Critère de succès :** Le serveur démarre et affiche le message du batch job
+
+---
+
+### 2. ⚠️ Fixer l'environnement de développement (React 18.2.0)
 **Priorité :** CRITIQUE | **Temps estimé :** 15 min
 
 - [ ] Récupérer les derniers commits
@@ -38,8 +63,8 @@
 
 ---
 
-### 2. ⚠️ Migrer la base de données (Pricing System)
-**Priorité :** BLOQUANT | **Temps estimé :** 5 min
+### 3. ⚠️ Migrer la base de données (Pricing System)
+**Priorité :** BLOQUANT | **Temps estimé :** 5 min | **Statut :** ⏳ En attente
 
 - [ ] Exécuter la migration Prisma
   ```bash
@@ -62,7 +87,7 @@
 
 ---
 
-### 3. ⚠️ Initialiser les configurations de pricing
+### 4. ⚠️ Initialiser les configurations de pricing
 **Priorité :** BLOQUANT | **Temps estimé :** 2 min
 
 - [ ] Se connecter à l'admin : `/admin/login`
@@ -75,7 +100,44 @@
 
 ---
 
-### 4. ✅ Tester le pricing end-to-end
+### 5. ✅ Tester le système d'auto-confirmation des paiements
+**Priorité :** CRITIQUE | **Temps estimé :** 20 min | **Statut :** 🆕 Nouveau
+
+**Test 1 : Vérifier que le batch job démarre**
+- [ ] Démarrer le serveur API : `cd apps/api && npm run dev`
+- [ ] Vérifier les logs de démarrage :
+  ```
+  ⏰ Payment auto-confirmation batch job started
+  [Auto-Confirm] Starting batch job (runs every 2 minutes)...
+  [Auto-Confirm] Batch completed: 0 confirmed, 0 failed, 0 total
+  ```
+
+**Test 2 : Auto-confirmation manuelle (simulation)**
+- [ ] Créer un paiement de test avec statut ON_HOLD en DB
+- [ ] Modifier `onHoldAt` pour être 20 minutes dans le passé
+- [ ] Attendre 2-3 minutes (prochaine exécution du batch)
+- [ ] Vérifier dans les logs :
+  ```
+  [Auto-Confirm] Checking 1 payments...
+  [Auto-Confirm] ✅ Payment auto-confirmed for ride XXX
+  ```
+- [ ] Vérifier en DB : `status` = COMPLETED, `confirmedByBatch` = true
+
+**Test 3 : Workflow complet**
+- [ ] Créer une course complète (client → conducteur)
+- [ ] Client initie paiement : `POST /api/payments/initiate` → PENDING
+- [ ] Conducteur arrive : `POST /api/payments/:id/hold` → ON_HOLD
+- [ ] Vérifier notification client : "Conducteur arrivé, confirmez"
+- [ ] Attendre 16 minutes sans confirmer
+- [ ] Vérifier batch auto-confirme le paiement
+- [ ] Vérifier notifications Socket.io reçues
+- [ ] Vérifier gains conducteur enregistrés en DB
+
+**Critère de succès :** Tous les tests passent, batch fonctionne automatiquement
+
+---
+
+### 6. ✅ Tester le pricing end-to-end
 **Priorité :** CRITIQUE | **Temps estimé :** 10 min
 
 - [ ] Aller sur `/customer/new-ride`
@@ -93,7 +155,7 @@
 
 ## 🟡 IMPORTANT - Cette semaine
 
-### 5. Vérifier le bug de paiement "5ft"
+### 7. Vérifier le bug de paiement "5ft"
 **Priorité :** HAUTE | **Temps estimé :** 30 min | **Statut :** 🔍 À investiguer
 
 **Problème rapporté :** Sur la page payment, affichage de "5ft" au lieu de "20 dt"
@@ -111,7 +173,7 @@
 
 ---
 
-### 6. Tester le système d'annulation complet
+### 8. Tester le système d'annulation complet
 **Priorité :** HAUTE | **Temps estimé :** 20 min | **Statut :** ✅ Code implémenté, à tester
 
 **Client - Annulation :**
@@ -139,7 +201,7 @@
 
 ---
 
-### 7. Tester les notifications temps réel
+### 9. Tester les notifications temps réel
 **Priorité :** MOYENNE | **Temps estimé :** 15 min | **Statut :** ✅ Code implémenté, à tester
 
 **À tester :**
@@ -154,7 +216,8 @@
 
 ---
 
-### 8. Vérifier le système KYC admin
+### 10. Vérifier le système KYC admin
+**Priorité :** MOYENNE | **Temps estimé :** 10 min | **Statut :** ✅ Amélioré (à tester)
 **Priorité :** MOYENNE | **Temps estimé :** 15 min | **Statut :** ✅ Code implémenté, à tester
 
 - [ ] Un conducteur soumet ses documents KYC
@@ -171,7 +234,22 @@
 
 ## 🟢 NICE-TO-HAVE - Backlog
 
-### 9. Analytics Pricing
+### 11. Admin Dashboard - Métriques Batch Auto-Confirmation
+**Priorité :** BASSE | **Temps estimé :** 2h | **Statut :** 🆕 Nouveau
+
+- [ ] Créer page `/admin/payments/auto-confirm-stats`
+- [ ] Afficher statistiques :
+  - Nombre total de paiements auto-confirmés
+  - Paiements auto-confirmés aujourd'hui/cette semaine
+  - Temps moyen avant auto-confirmation
+  - Taux de confirmation manuelle vs automatique
+  - Graphique évolution dans le temps
+- [ ] Table avec liste des derniers auto-confirmations
+  - Date/heure, Ride ID, Montant, Distance conducteur
+
+---
+
+### 12. Analytics Pricing
 **Priorité :** BASSE | **Temps estimé :** 2h
 
 - [ ] Créer page `/admin/pricing/analytics`
@@ -185,7 +263,7 @@
 
 ---
 
-### 10. Export Historique Estimations
+### 13. Export Historique Estimations
 **Priorité :** BASSE | **Temps estimé :** 1h
 
 - [ ] Bouton "Exporter" sur `/admin/pricing`
@@ -195,7 +273,7 @@
 
 ---
 
-### 11. Dashboard Admin - Stats Pricing
+### 14. Dashboard Admin - Stats Pricing
 **Priorité :** BASSE | **Temps estimé :** 3h
 
 - [ ] Widget "Revenus estimés ce mois" sur `/admin/dashboard`
@@ -205,7 +283,7 @@
 
 ---
 
-### 12. Tests Unitaires Pricing
+### 15. Tests Unitaires Pricing
 **Priorité :** BASSE | **Temps estimé :** 4h
 
 - [ ] Tests pour l'algorithme de calcul (6 étapes)
@@ -220,7 +298,7 @@
 
 ---
 
-### 13. Améliorer UX Client - Pricing
+### 16. Améliorer UX Client - Pricing
 **Priorité :** BASSE | **Temps estimé :** 2h
 
 - [ ] Afficher breakdown détaillé du prix (popup ou collapse)
@@ -235,7 +313,7 @@
 
 ---
 
-### 14. Optimisations Performance
+### 17. Optimisations Performance
 **Priorité :** BASSE | **Temps estimé :** 3h
 
 **Frontend :**
@@ -250,7 +328,7 @@
 
 ---
 
-### 15. Documentation Utilisateur
+### 18. Documentation Utilisateur
 **Priorité :** BASSE | **Temps estimé :** 2h
 
 - [ ] Page `/help` ou `/faq` pour clients
@@ -265,6 +343,9 @@
 
 ## 🔵 BUGS CONNUS (À corriger)
 
+### ✅ Bug #1-6 : Bugs Session 1
+Tous résolus - voir PROGRESS.md pour détails
+
 ### ✅ Bug #1 : MantineProvider not found
 **Statut :** ✅ RÉSOLU (commit 98fabb1)
 **Solution :** Pin React à 18.2.0
@@ -277,7 +358,11 @@
 **Statut :** ✅ RÉSOLU (commits d6b2ab1, 8a8f52b, 4470da1)
 
 ### 🔍 Bug #7 : Paiement affiche "5ft" au lieu de "20 dt"
-**Statut :** 🔍 À INVESTIGUER (voir tâche #5)
+**Statut :** 🔍 À INVESTIGUER (voir tâche #7)
+
+### ✅ Bug #8 : KYC admin - détails ne s'affichent pas
+**Statut :** ✅ RÉSOLU (Session 2)
+**Solution :** Ajout meilleure gestion d'erreurs et logging debug
 
 ---
 

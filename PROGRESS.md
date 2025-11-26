@@ -1,8 +1,9 @@
 # PROGRESS.md - Journal de Session
 
 **Date :** 2025-11-26
-**Durée estimée :** ~3 heures
+**Durée estimée :** ~4 heures
 **Session ID :** 018mXHM8CxWHpUfvhfS9qeqK
+**Dernière mise à jour :** 2025-11-26 (Session 2)
 
 ---
 

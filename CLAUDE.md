@@ -201,6 +201,13 @@ truck4u/
 - Configs par défaut doivent être initialisées via admin UI
 - Algorithme en 6 étapes (voir `apps/api/src/routes/pricing.ts`)
 
+### 8. Payment Auto-Confirmation
+- **Batch job** s'exécute toutes les 2 minutes
+- Confirme automatiquement les paiements `ON_HOLD` après 15 minutes
+- Vérifie la position GPS du conducteur (< 100m de destination)
+- Service : `apps/api/src/services/paymentAutoConfirmation.ts`
+- Le batch démarre automatiquement au lancement du serveur
+
 ---
 
 ## 🗄️ Schéma Base de Données (Modèles Principaux)
@@ -223,6 +230,21 @@ PriceEstimate {
 }
 ```
 
+### Payment System
+```prisma
+Payment {
+  status (PENDING, ON_HOLD, COMPLETED, FAILED, REFUNDED),
+  onHoldAt, autoConfirmedAt, confirmedByBatch,
+  totalAmount, platformFee, driverAmount
+}
+
+PaymentStatus:
+- PENDING: Paiement initié mais pas encore confirmé
+- ON_HOLD: En attente de confirmation (conducteur arrivé)
+- COMPLETED: Paiement confirmé et gains enregistrés
+- FAILED/REFUNDED: États d'échec ou remboursement
+```
+
 ### Cancellations
 ```prisma
 Cancellation {
@@ -237,7 +259,7 @@ DriverStrike {
 
 ### Core Models
 ```prisma
-User, Driver, Ride, Bid, KYCDocument, Payment
+User, Driver, Ride, Bid, KYCDocument
 ```
 
 ---
@@ -286,6 +308,12 @@ git push -u origin claude/<feature>-018mXHM8CxWHpUfvhfS9qeqK
 - `PUT /api/pricing/vehicle/:type` - Modifier tarif véhicule (admin)
 - `POST /api/pricing/init-defaults` - Initialiser valeurs par défaut (admin)
 
+### Payments
+- `POST /api/payments/initiate` - Initier paiement (CASH, CARD, FLOUCI)
+- `POST /api/payments/:id/hold` - Mettre en attente (conducteur arrive)
+- `POST /api/payments/:id/confirm-cash` - Confirmer paiement (client ou conducteur)
+- `GET /api/payments/:rideId` - Statut paiement
+
 ### Rides
 - `POST /api/rides` - Créer course
 - `GET /api/rides/:id` - Détails course
@@ -293,6 +321,7 @@ git push -u origin claude/<feature>-018mXHM8CxWHpUfvhfS9qeqK
 
 ### Admin
 - `GET /api/admin/kyc/pending` - KYC en attente
+- `GET /api/admin/kyc/driver/:id` - Détails KYC conducteur
 - `PUT /api/admin/drivers/:id/status` - Modifier statut conducteur
 
 ---
