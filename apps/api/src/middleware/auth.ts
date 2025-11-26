@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 export interface AuthRequest extends Request {
   userId?: string;
-  userType?: 'customer' | 'driver' | 'admin';
+  userType?: 'customer' | 'driver' | 'admin' | 'business';
 }
 
 export const verifyToken = async (
@@ -23,7 +23,7 @@ export const verifyToken = async (
 
     const decoded = jwt.verify(token, JWT_SECRET) as {
       userId: string;
-      userType: 'customer' | 'driver' | 'admin';
+      userType: 'customer' | 'driver' | 'admin' | 'business';
     };
 
     req.userId = decoded.userId;
@@ -91,6 +91,17 @@ export const requireAdmin = (
   next();
 };
 
-export const generateToken = (userId: string, userType: 'customer' | 'driver' | 'admin') => {
+export const requireBusiness = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.userType !== 'business') {
+    return res.status(403).json({ error: 'Business access required' });
+  }
+  next();
+};
+
+export const generateToken = (userId: string, userType: 'customer' | 'driver' | 'admin' | 'business') => {
   return jwt.sign({ userId, userType }, JWT_SECRET, { expiresIn: '7d' });
 };
