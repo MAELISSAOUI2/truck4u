@@ -239,8 +239,8 @@ router.post('/initiate', verifyToken, requireCustomer, async (req: AuthRequest, 
   }
 });
 
-// POST /api/payments/:id/confirm-cash - Driver confirms cash receipt
-router.post('/:id/confirm-cash', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
+// POST /api/payments/:id/hold - Mettre le paiement en attente (quand conducteur arrive)
+router.post('/:id/hold', verifyToken, requireDriver, async (req: AuthRequest, res, next) => {
   try {
     const payment = await prisma.payment.findUnique({
       where: { id: req.params.id },
@@ -253,42 +253,126 @@ router.post('/:id/confirm-cash', verifyToken, requireDriver, async (req: AuthReq
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    if (payment.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Payment is not pending' });
+    }
+
+    // Mettre en ON_HOLD quand le conducteur arrive à destination
+    await prisma.payment.update({
+      where: { id: req.params.id },
+      data: {
+        status: 'ON_HOLD',
+        onHoldAt: new Date()
+      }
+    });
+
+    // Notifier le client
+    const io = req.app.get('io') as Server;
+    if (payment.ride.customerId) {
+      io.to(`customer:${payment.ride.customerId}`).emit('payment_on_hold', {
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        message: 'Le conducteur est arrivé. Veuillez confirmer la livraison.'
+      });
+    }
+
+    res.json({ message: 'Payment on hold, waiting for confirmation' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/payments/:id/confirm-cash - Customer confirms delivery (or driver can confirm)
+router.post('/:id/confirm-cash', verifyToken, async (req: AuthRequest, res, next) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.id },
+      include: {
+        ride: true
+      }
+    });
+
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    // Autoriser le client ou le conducteur à confirmer
+    const isCustomer = payment.ride.customerId === req.userId;
+    const isDriver = payment.ride.driverId === req.userId;
+
+    if (!isCustomer && !isDriver) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     if (payment.method !== 'CASH') {
       return res.status(400).json({ error: 'Not a cash payment' });
     }
 
+    // Si le paiement est encore PENDING, le mettre directement en COMPLETED (ancien flow)
+    // Si ON_HOLD, confirmer et compléter
+    if (payment.status !== 'PENDING' && payment.status !== 'ON_HOLD') {
+      return res.status(400).json({ error: 'Payment already processed' });
+    }
+
     // Update payment status
-    await prisma.payment.update({
-      where: { id: req.params.id },
-      data: {
-        status: 'COMPLETED',
-        completedAt: new Date()
-      }
-    });
-
-    // Record driver earnings
-    await prisma.driverEarnings.create({
-      data: {
-        driverId: req.userId!,
-        rideId: payment.rideId,
-        grossAmount: payment.totalAmount,
-        platformFee: payment.platformFee,
-        netEarnings: payment.driverAmount
-      }
-    });
-
-    // Update driver total earnings
-    await prisma.driver.update({
-      where: { id: req.userId },
-      data: {
-        totalEarnings: {
-          increment: payment.driverAmount
-        },
-        totalRides: {
-          increment: 1
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: req.params.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
         }
+      });
+
+      // Vérifier si les gains n'ont pas déjà été enregistrés
+      const existingEarnings = await tx.driverEarnings.findFirst({
+        where: { rideId: payment.rideId }
+      });
+
+      if (!existingEarnings && payment.ride.driverId) {
+        // Record driver earnings
+        await tx.driverEarnings.create({
+          data: {
+            driverId: payment.ride.driverId,
+            rideId: payment.rideId,
+            grossAmount: payment.totalAmount,
+            platformFee: payment.platformFee,
+            netEarnings: payment.driverAmount
+          }
+        });
+
+        // Update driver total earnings
+        await tx.driver.update({
+          where: { id: payment.ride.driverId },
+          data: {
+            totalEarnings: {
+              increment: payment.driverAmount
+            },
+            totalRides: {
+              increment: 1
+            }
+          }
+        });
       }
     });
+
+    // Notifier les deux parties
+    const io = req.app.get('io') as Server;
+    if (payment.ride.customerId) {
+      io.to(`customer:${payment.ride.customerId}`).emit('payment_confirmed', {
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        message: 'Paiement confirmé avec succès'
+      });
+    }
+    if (payment.ride.driverId) {
+      io.to(`driver:${payment.ride.driverId}`).emit('payment_confirmed', {
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        amount: payment.driverAmount,
+        message: 'Paiement confirmé, gains enregistrés'
+      });
+    }
 
     res.json({ message: 'Cash payment confirmed' });
   } catch (error) {

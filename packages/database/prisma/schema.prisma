@@ -221,9 +221,15 @@ model Payment {
   completedAt          DateTime?
   createdAt            DateTime  @default(now())
 
+  // Auto-confirmation après 15 min si conducteur à destination
+  onHoldAt             DateTime? // Quand le paiement passe en ON_HOLD
+  autoConfirmedAt      DateTime? // Si confirmé automatiquement par batch
+  confirmedByBatch     Boolean   @default(false)
+
   ride                 Ride      @relation(fields: [rideId], references: [id])
 
   @@index([status, createdAt])
+  @@index([status, onHoldAt]) // Pour le batch job
 }
 
 model Cancellation {
@@ -398,6 +404,7 @@ enum PaymentMethod {
 
 enum PaymentStatus {
   PENDING
+  ON_HOLD        // En attente de confirmation d'arrivée du conducteur
   COMPLETED
   FAILED
   REFUNDED

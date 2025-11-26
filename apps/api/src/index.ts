@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { setupSocketHandlers } from './socket';
 import { initNotificationService } from './services/notifications';
+import { startAutoConfirmationBatch } from './services/paymentAutoConfirmation';
 import authRoutes from './routes/auth';
 import driverRoutes from './routes/drivers';
 import customerRoutes from './routes/customers';
@@ -78,11 +79,24 @@ initNotificationService(io);
 // Setup Socket.io handlers
 setupSocketHandlers(io);
 
+// Start payment auto-confirmation batch job
+const stopBatchJob = startAutoConfirmationBatch(io);
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  stopBatchJob();
+  httpServer.close(() => {
+    console.log('HTTP server closed');
+  });
+});
+
 const PORT = process.env.PORT || 4000;
 
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.io ready for connections`);
+  console.log(`⏰ Payment auto-confirmation batch job started`);
 });
 
 export { io };

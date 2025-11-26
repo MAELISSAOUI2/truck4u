@@ -166,10 +166,24 @@ export default function AdminKYCPage() {
 
       if (res.ok) {
         const data = await res.json();
+        console.log('Driver details loaded:', data.driver);
         setSelectedDriver(data.driver);
+      } else {
+        const error = await res.json();
+        console.error('Failed to load driver details:', error);
+        notifications.show({
+          title: 'Erreur',
+          message: 'Impossible de charger les détails du conducteur',
+          color: 'red'
+        });
       }
     } catch (error) {
       console.error('Failed to fetch driver details:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors du chargement des détails',
+        color: 'red'
+      });
     }
   };
 
