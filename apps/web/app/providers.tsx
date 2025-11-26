@@ -2,8 +2,6 @@
 
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import '@mantine/core/styles.css';
-import '@mantine/notifications/styles.css';
 
 // Thème Uber-style - Noir, blanc, minimaliste
 const theme = createTheme({
