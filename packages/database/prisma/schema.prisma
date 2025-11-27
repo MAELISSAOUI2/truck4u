@@ -17,6 +17,14 @@ model Driver {
   verificationNotes    String?   @db.Text
   rejectionReason      String?   @db.Text
   hasBusinessLicense   Boolean   @default(false)
+
+  // === PATENTE (Document Professionnel) ===
+  hasPatenteOption     Boolean   @default(false)  // Conducteur a coché "Je dispose d'une patente"
+  patenteUrl           String?                     // URL du document patente uploadé
+  patenteVerified      Boolean   @default(false)  // Patente validée par admin
+  patenteVerifiedAt    DateTime?                   // Date de validation patente
+  patenteRejectionReason String? @db.Text         // Raison de rejet si refusé
+
   isAvailable          Boolean   @default(false)
   vehicleType          VehicleType
   vehiclePlate         String?
