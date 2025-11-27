@@ -1,9 +1,9 @@
 # PROGRESS.md - Journal de Session
 
-**Date :** 2025-11-26
-**Durée estimée :** ~6 heures
+**Date :** 2025-11-27
+**Durée estimée :** ~8 heures (Sessions 1-4)
 **Session ID :** 018mXHM8CxWHpUfvhfS9qeqK
-**Dernière mise à jour :** 2025-11-26 (Session 3)
+**Dernière mise à jour :** 2025-11-27 (Session 4)
 
 ---
 
@@ -828,6 +828,202 @@ Routes enregistrées:
 
 ---
 
+### 7. Frontend B2B - Pages Client Business (SESSION 4)
+
+#### A. Page Inscription Business
+**Fichier créé :** `apps/web/app/business/register/page.tsx` (328 lignes)
+
+Features:
+- Wizard 3 étapes (Mantine Stepper component)
+- Step 1: Informations business (name, type, localisation, contact)
+- Step 2: Téléphone +216XXXXXXXX
+- Step 3: Vérification SMS (mock code "123456")
+- Token stocké dans `localStorage.businessToken`
+- Redirect vers `/business/dashboard` après succès
+
+#### B. Page Dashboard Business
+**Fichier créé :** `apps/web/app/business/dashboard/page.tsx` (186 lignes)
+
+Features:
+- Stats cards: total orders, completed, COD collected, rating
+- Trust Level badge (STARTER/VERIFIED/PRO/ENTERPRISE)
+- Daily limits avec progress bars (COD + orders)
+- Quick actions: Nouvelle commande, Mes commandes
+
+API calls:
+- `GET /api/business/profile` - Profil complet
+- `GET /api/business/limits` - Limites + usage quotidien
+
+#### C. Page Liste Commandes
+**Fichier créé :** `apps/web/app/business/orders/page.tsx` (231 lignes)
+
+Features:
+- Table paginée (Mantine Table)
+- Filtres par status (dropdown avec tous les statuts)
+- Colonnes: N° commande, destinataire, date, COD, statut, livreur, actions
+- Status badges colorés (DRAFT=gray, SEARCHING_DRIVER=blue, DELIVERED=green, etc.)
+- Click sur "Voir" → redirect vers détails
+
+STATUS_COLORS mapping:
+- DRAFT: gray, SEARCHING_DRIVER: blue, DRIVER_ASSIGNED: cyan
+- PICKED_UP: lime, IN_DELIVERY: teal, DELIVERED: green
+- CANCELLED/FAILED: red
+
+#### D. Page Nouvelle Commande
+**Fichier créé :** `apps/web/app/business/orders/new/page.tsx` (398 lignes)
+
+Features:
+- Wizard 3 étapes (Mantine Stepper)
+- Step 1 - Destinataire:
+  - Nom, téléphone (+216 requis), gouvernorat, délégation
+  - Adresse complète (textarea), notes optionnelles
+- Step 2 - Colis:
+  - Select type (DOCUMENT, PETIT_COLIS, MOYEN_COLIS, etc.)
+  - Poids estimé (kg), description optionnelle
+- Step 3 - COD:
+  - Checkbox "Nécessite paiement à la livraison"
+  - NumberInput montant (suffix "DT")
+  - Alert info COD payout
+
+Actions:
+- "Sauvegarder brouillon" → POST /api/business/orders (DRAFT)
+- "Créer et soumettre" → POST + POST /api/business/orders/:id/submit
+
+Validation:
+- Step 1: Tous champs required sauf notes
+- Téléphone doit commencer par +216
+- Step 2: Type de colis required
+- Step 3: Si COD coché, montant required
+
+#### E. Page Tracking Commande
+**Fichier créé :** `apps/web/app/business/orders/[id]/page.tsx` (432 lignes)
+
+Features:
+- **Timeline** (Mantine Timeline):
+  - Statuts: DRAFT → SEARCHING → ASSIGNED → EN_ROUTE → PICKUP → PICKED_UP → DELIVERY → ARRIVED → DELIVERED
+  - Couleurs par statut, icons, timestamps
+- **Infos commande**: Destinataire, pickup, colis, COD amount
+- **Infos conducteur** (si assigné):
+  - Nom, téléphone, rating, véhicule
+  - TODO: Map avec position GPS en temps réel
+- **Actions**:
+  - Bouton "Annuler" (modal avec textarea raison)
+  - Bouton "Noter" (modal avec rating 1-5 + commentaire)
+- **Auto-refresh**: setInterval 10 secondes
+
+Modals:
+- CancelModal: textarea raison, POST /api/business/orders/:id/cancel
+- RateModal: Rating component (1-5 stars), textarea comment, POST /api/business/orders/:id/rate
+
+---
+
+### 8. Driver Patente & Subscription Modal (SESSION 4)
+
+#### A. Patente Checkbox - Driver Registration
+**Fichier modifié :** `apps/web/app/driver/register/page.tsx`
+
+Modifications:
+- Import Checkbox component from Mantine
+- Ajout field `hasPatenteOption: false` dans formData state
+- Ajout Checkbox dans form (entre vehicle plate et email):
+  ```tsx
+  <Checkbox
+    label="Je dispose d'une patente professionnelle"
+    description="Vous pourrez uploader ce document lors de la vérification KYC pour devenir éligible aux livraisons B2B"
+    checked={formData.hasPatenteOption}
+    onChange={(e) => setFormData({ ...formData, hasPatenteOption: e.currentTarget.checked })}
+  />
+  ```
+- Update alert documents requis: "Patente professionnelle (optionnel, pour livraisons B2B)"
+
+**Fichier modifié :** `apps/api/src/routes/auth.ts`
+
+- Ajout `hasPatenteOption: z.boolean().default(false)` dans registerDriverSchema
+- Field envoyé au Prisma create lors de l'inscription
+
+#### B. Backend - Patente Validation Endpoint
+**Fichier modifié :** `apps/api/src/routes/admin.ts` (+109 lignes)
+
+Nouvel endpoint: `PUT /api/admin/drivers/:id/validate-patente`
+
+Body: `{ approved: boolean, reason?: string }`
+
+Logique si approved=true:
+1. Update driver:
+   - `patenteVerified = true`
+   - `patenteVerifiedAt = new Date()`
+   - `b2bLevel = 2` (auto-upgrade!)
+   - `b2bPreferences = { acceptsB2B: true, acceptsCOD: true, maxCODAmount: 500 }`
+2. Approve BUSINESS_LICENSE document (si existe)
+3. Socket.io notification: `patente_validated` avec message + b2bLevel
+
+Logique si approved=false:
+1. Update driver:
+   - `patenteVerified = false`
+   - `patenteRejectionReason = reason`
+2. Reject BUSINESS_LICENSE document (si existe)
+3. Socket.io notification: `patente_rejected` avec raison
+
+Validations:
+- Driver exists
+- Driver.hasPatenteOption === true (sinon erreur 400)
+
+#### C. Subscription Modal Component
+**Fichier créé :** `apps/web/components/SubscriptionModal.tsx` (235 lignes)
+
+Props:
+- `opened: boolean`
+- `onClose: () => void`
+- `driverId?: string`
+
+Features:
+- **3 Plans** (STANDARD, PREMIUM, ELITE):
+  - STANDARD: Gratuit, disabled (pas de bouton souscrire)
+  - PREMIUM: 49 DT/mois, icône IconRocket, couleur blue
+  - ELITE: 99 DT/mois, icône IconCrown, couleur yellow, badge "Recommandé"
+- **Features affichées**:
+  - STANDARD: Accès normal, commission 10%, support email
+  - PREMIUM: Priorité 1.5×, boost +50%, accès 5min, support prioritaire
+  - ELITE: Priorité 2.5×, boost +100%, accès 15min, commission 8%, support VIP
+- **Bouton souscrire**:
+  - Loading state pendant API call
+  - POST /api/driver-subscriptions/subscribe avec tier + paymentMethod: 'FLOUCI'
+  - Success → window.location.reload() pour rafraîchir status
+- **Note importante**: "L'abonnement n'est PAS requis pour effectuer des livraisons B2B"
+- **Bouton "Peut-être plus tard"**: Ferme modal, set localStorage flag
+
+Layout:
+- SimpleGrid cols={3} pour afficher les 3 plans côte à côte
+- Cards avec border highlight pour ELITE
+- Badge "Recommandé" positionné en absolute top-right
+- Icons colorés dans cercle
+- List avec IconCheck pour features
+
+#### D. Integration Modal - Driver Dashboard
+**Fichier modifié :** `apps/web/app/driver/dashboard/page.tsx`
+
+Modifications:
+- Import SubscriptionModal component
+- State: `subscriptionModalOpened: boolean`
+- useEffect pour afficher modal après KYC approval:
+  ```tsx
+  useEffect(() => {
+    const modalShown = localStorage.getItem('subscription-modal-shown');
+    if (user.verificationStatus === 'APPROVED' && !modalShown) {
+      setTimeout(() => setSubscriptionModalOpened(true), 1000);
+    }
+  }, [user]);
+  ```
+- Handler: `handleCloseSubscriptionModal()` → set flag localStorage
+- JSX: `<SubscriptionModal opened={...} onClose={...} driverId={...} />`
+
+Timing:
+- Modal s'affiche 1 seconde après le premier chargement du dashboard pour conducteur APPROVED
+- Ne s'affiche qu'une seule fois (localStorage flag)
+- Peut être fermé avec "Peut-être plus tard"
+
+---
+
 ## 🐛 Problèmes en Cours / Non Résolus
 
 ### 1. Migrations Base de Données Non Exécutées
@@ -1003,13 +1199,21 @@ ls packages/database/prisma/migrations/
 - **Bugs corrigés :** 0
 - **Features implémentées :** 1 système complet (B2B module backend)
 
-**Total Sessions 1+2+3:**
-- **Commits créés :** 15
-- **Fichiers créés :** 14
-- **Fichiers modifiés :** 11 (unique)
-- **Lignes de code ajoutées :** ~4610
+**Session 4:**
+- **Commits créés :** 3 (à créer)
+- **Fichiers créés :** 6 (5 pages B2B frontend + SubscriptionModal.tsx)
+- **Fichiers modifiés :** 4 (driver/register, admin.ts, auth.ts, driver/dashboard)
+- **Lignes de code ajoutées :** ~1700
+- **Bugs corrigés :** 0
+- **Features implémentées :** 2 systèmes complets (B2B frontend + Patente/Subscription)
+
+**Total Sessions 1+2+3+4:**
+- **Commits créés :** 18
+- **Fichiers créés :** 20
+- **Fichiers modifiés :** 15 (unique)
+- **Lignes de code ajoutées :** ~6310
 - **Bugs corrigés :** 7
-- **Features implémentées :** 4 systèmes complets
+- **Features implémentées :** 6 systèmes complets
 
 ---
 
