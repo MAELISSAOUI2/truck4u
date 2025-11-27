@@ -16,6 +16,7 @@ import {
   Anchor,
   List,
   ThemeIcon,
+  Checkbox,
 } from '@mantine/core';
 import {
   IconTruck,
@@ -48,6 +49,7 @@ export default function DriverRegisterPage() {
     vehicleType: 'CAMIONNETTE',
     vehiclePlate: '',
     email: '',
+    hasPatenteOption: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,6 +135,7 @@ export default function DriverRegisterPage() {
               <List.Item>Permis de conduire</List.Item>
               <List.Item>Carte grise du véhicule</List.Item>
               <List.Item>Photos du véhicule</List.Item>
+              <List.Item>Patente professionnelle (optionnel, pour livraisons B2B)</List.Item>
             </List>
           </Alert>
 
@@ -181,6 +184,18 @@ export default function DriverRegisterPage() {
                 onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value })}
                 description="Optionnel"
                 size="md"
+              />
+
+              {/* Patente Option */}
+              <Checkbox
+                label="Je dispose d'une patente professionnelle"
+                description="Vous pourrez uploader ce document lors de la vérification KYC pour devenir éligible aux livraisons B2B"
+                checked={formData.hasPatenteOption}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  hasPatenteOption: e.currentTarget.checked
+                })}
+                mt="md"
               />
 
               {/* Email */}

@@ -269,6 +269,117 @@ router.post('/kyc/driver/:id/reject', async (req, res, next) => {
   }
 });
 
+// PUT /api/admin/drivers/:id/validate-patente - Validate driver's patente
+router.put('/drivers/:id/validate-patente', async (req, res, next) => {
+  try {
+    const { approved, reason } = z.object({
+      approved: z.boolean(),
+      reason: z.string().optional()
+    }).parse(req.body);
+
+    const driver = await prisma.driver.findUnique({
+      where: { id: req.params.id },
+      include: {
+        kycDocuments: true
+      }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    if (!driver.hasPatenteOption) {
+      return res.status(400).json({ error: 'Driver did not indicate having a patente' });
+    }
+
+    if (approved) {
+      // Approve patente and auto-upgrade to b2bLevel 2
+      await prisma.driver.update({
+        where: { id: req.params.id },
+        data: {
+          patenteVerified: true,
+          patenteVerifiedAt: new Date(),
+          patenteRejectionReason: null,
+          b2bLevel: 2, // Auto-upgrade to level 2
+          b2bPreferences: {
+            acceptsB2B: true,
+            acceptsCOD: true,
+            maxCODAmount: 500, // Default 500 DT
+            preferredGouvernorats: [],
+            preferredCargoTypes: []
+          }
+        }
+      });
+
+      // Also approve BUSINESS_LICENSE document if it exists
+      const patenteDoc = driver.kycDocuments.find(doc => doc.documentType === 'BUSINESS_LICENSE');
+      if (patenteDoc) {
+        await prisma.kYCDocument.update({
+          where: { id: patenteDoc.id },
+          data: {
+            verificationStatus: 'APPROVED',
+            verifiedAt: new Date(),
+            verifiedBy: (req as AuthRequest).userId
+          }
+        });
+      }
+
+      // Notify driver via socket.io
+      const io = req.app.get('io') as any;
+      if (io) {
+        io.to(`driver:${driver.id}`).emit('patente_validated', {
+          message: 'Votre patente a été validée! Vous êtes maintenant éligible pour les livraisons B2B.',
+          b2bLevel: 2
+        });
+      }
+
+      res.json({
+        message: 'Patente approved and driver upgraded to b2bLevel 2',
+        driver: await prisma.driver.findUnique({ where: { id: req.params.id } })
+      });
+    } else {
+      // Reject patente
+      await prisma.driver.update({
+        where: { id: req.params.id },
+        data: {
+          patenteVerified: false,
+          patenteRejectionReason: reason || 'Document non valide'
+        }
+      });
+
+      // Also reject BUSINESS_LICENSE document if it exists
+      const patenteDoc = driver.kycDocuments.find(doc => doc.documentType === 'BUSINESS_LICENSE');
+      if (patenteDoc) {
+        await prisma.kYCDocument.update({
+          where: { id: patenteDoc.id },
+          data: {
+            verificationStatus: 'REJECTED',
+            verificationNotes: reason,
+            verifiedAt: new Date(),
+            verifiedBy: (req as AuthRequest).userId
+          }
+        });
+      }
+
+      // Notify driver via socket.io
+      const io = req.app.get('io') as any;
+      if (io) {
+        io.to(`driver:${driver.id}`).emit('patente_rejected', {
+          message: 'Votre patente a été rejetée. Veuillez soumettre un document valide.',
+          reason: reason || 'Document non valide'
+        });
+      }
+
+      res.json({
+        message: 'Patente rejected',
+        driver: await prisma.driver.findUnique({ where: { id: req.params.id } })
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ============================================
 // DRIVER MANAGEMENT
 // ============================================
