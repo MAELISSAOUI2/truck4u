@@ -39,6 +39,7 @@ import {
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
 import { connectSocket, driverOnline, driverOffline, onBidAccepted, onRideRequest } from '@/lib/socket';
+import { SubscriptionModal } from '@/components/SubscriptionModal';
 
 const STATUS_COLORS: Record<string, string> = {
   DRIVER_ARRIVING: 'orange',
@@ -67,6 +68,7 @@ export default function DriverDashboard() {
   });
   const [activeRides, setActiveRides] = useState<any[]>([]);
   const [availableRides, setAvailableRides] = useState<any[]>([]);
+  const [subscriptionModalOpened, setSubscriptionModalOpened] = useState(false);
 
   useEffect(() => {
     if (!token || !user) {
@@ -147,6 +149,21 @@ export default function DriverDashboard() {
       unsubscribe();
     };
   }, [token, user, isOnline]);
+
+  // Show subscription modal after KYC approval
+  useEffect(() => {
+    if (!user) return;
+
+    // Check if driver is approved and modal hasn't been shown yet
+    const modalShown = localStorage.getItem('subscription-modal-shown');
+
+    if (user.verificationStatus === 'APPROVED' && !modalShown) {
+      // Show modal after a short delay
+      setTimeout(() => {
+        setSubscriptionModalOpened(true);
+      }, 1000);
+    }
+  }, [user]);
 
   const loadDashboardData = async () => {
     try {
@@ -261,6 +278,11 @@ export default function DriverDashboard() {
     setIsOnline(false);
     logout();
     router.push('/');
+  };
+
+  const handleCloseSubscriptionModal = () => {
+    setSubscriptionModalOpened(false);
+    localStorage.setItem('subscription-modal-shown', 'true');
   };
 
   if (loading) {
@@ -651,6 +673,13 @@ export default function DriverDashboard() {
           )}
         </Stack>
       </Container>
+
+      {/* Subscription Modal */}
+      <SubscriptionModal
+        opened={subscriptionModalOpened}
+        onClose={handleCloseSubscriptionModal}
+        driverId={user?.id}
+      />
     </div>
   );
 }
