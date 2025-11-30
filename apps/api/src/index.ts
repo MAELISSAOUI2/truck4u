@@ -21,6 +21,8 @@ import webhookRoutes from './routes/webhooks';
 import kycRoutes from './routes/kyc';
 import chatRoutes from './routes/chat';
 import pricingRoutes from './routes/pricing';
+import businessRoutes from './routes/business';
+import businessOrderRoutes from './routes/businessOrders';
 import { errorHandler } from './middleware/error';
 import { rateLimiter } from './middleware/rateLimit';
 import path from 'path';
@@ -70,6 +72,8 @@ app.use('/api/driver-subscriptions', driverSubscriptionRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/business', businessRoutes);
+app.use('/api/business-orders', businessOrderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/webhooks', webhookRoutes);
 
