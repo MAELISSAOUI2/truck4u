@@ -27,10 +27,11 @@ import {
   IconFilter,
   IconChevronRight,
   IconTruck,
+  IconLogout,
 } from '@tabler/icons-react';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi } from '@/lib/api';
-import { connectSocket, onRideRequest } from '@/lib/socket';
+import { connectSocket, onRideRequest, disconnectSocket, driverOffline } from '@/lib/socket';
 import { notifications } from '@mantine/notifications';
 
 const VEHICLE_LABELS: Record<string, string> = {
@@ -42,7 +43,8 @@ const VEHICLE_LABELS: Record<string, string> = {
 
 export default function AvailableRidesPage() {
   const router = useRouter();
-  const { token, user } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
+  const { isOnline } = useDriverStore();
   const [loading, setLoading] = useState(true);
   const [rides, setRides] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -104,6 +106,16 @@ export default function AvailableRidesPage() {
     }
   };
 
+  const handleLogout = () => {
+    // Disconnect driver if online
+    if (isOnline && user) {
+      driverOffline(user.id);
+    }
+    disconnectSocket();
+    logout();
+    router.push('/');
+  };
+
   const filteredRides = rides.filter((ride) => {
     const matchesSearch =
       ride.pickup?.address?.toLowerCase().includes(search.toLowerCase()) ||
@@ -142,22 +154,31 @@ export default function AvailableRidesPage() {
       {/* Header */}
       <Paper p="xl" radius={0} withBorder>
         <Container size="lg">
-          <Group>
-            <ActionIcon
+          <Group justify="space-between">
+            <Group>
+              <ActionIcon
+                variant="subtle"
+                size="lg"
+                onClick={() => router.back()}
+              >
+                <IconArrowLeft size={20} />
+              </ActionIcon>
+              <div>
+                <Title order={1} size="2rem">
+                  Courses disponibles
+                </Title>
+                <Text c="dimmed">
+                  {filteredRides.length} demande{filteredRides.length > 1 ? 's' : ''} de transport
+                </Text>
+              </div>
+            </Group>
+            <Button
               variant="subtle"
-              size="lg"
-              onClick={() => router.back()}
+              leftSection={<IconLogout size={18} />}
+              onClick={handleLogout}
             >
-              <IconArrowLeft size={20} />
-            </ActionIcon>
-            <div>
-              <Title order={1} size="2rem">
-                Courses disponibles
-              </Title>
-              <Text c="dimmed">
-                {filteredRides.length} demande{filteredRides.length > 1 ? 's' : ''} de transport
-              </Text>
-            </div>
+              Déconnexion
+            </Button>
           </Group>
         </Container>
       </Paper>

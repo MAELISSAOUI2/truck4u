@@ -31,9 +31,11 @@ import {
   IconUsers,
   IconCalendar,
   IconCheck,
+  IconLogout,
 } from '@tabler/icons-react';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useDriverStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
+import { disconnectSocket, driverOffline } from '@/lib/socket';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -49,7 +51,8 @@ const VEHICLE_LABELS: Record<string, string> = {
 export default function AvailableRideDetailsPage() {
   const router = useRouter();
   const params = useParams();
-  const { token } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
+  const { isOnline } = useDriverStore();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -218,6 +221,16 @@ export default function AvailableRideDetailsPage() {
     }
   };
 
+  const handleLogout = () => {
+    // Disconnect driver if online
+    if (isOnline && user) {
+      driverOffline(user.id);
+    }
+    disconnectSocket();
+    logout();
+    router.push('/');
+  };
+
   if (loading) {
     return (
       <Center style={{ minHeight: '100vh' }}>
@@ -239,20 +252,29 @@ export default function AvailableRideDetailsPage() {
       {/* Header */}
       <Paper p="xl" radius={0} withBorder>
         <Container size="lg">
-          <Group>
-            <ActionIcon
+          <Group justify="space-between">
+            <Group>
+              <ActionIcon
+                variant="subtle"
+                size="lg"
+                onClick={() => router.back()}
+              >
+                <IconArrowLeft size={20} />
+              </ActionIcon>
+              <div>
+                <Title order={1} size="2rem">
+                  Détails de la course
+                </Title>
+                <Text c="dimmed">#{ride.id.slice(0, 8)}</Text>
+              </div>
+            </Group>
+            <Button
               variant="subtle"
-              size="lg"
-              onClick={() => router.back()}
+              leftSection={<IconLogout size={18} />}
+              onClick={handleLogout}
             >
-              <IconArrowLeft size={20} />
-            </ActionIcon>
-            <div>
-              <Title order={1} size="2rem">
-                Détails de la course
-              </Title>
-              <Text c="dimmed">#{ride.id.slice(0, 8)}</Text>
-            </div>
+              Déconnexion
+            </Button>
           </Group>
         </Container>
       </Paper>
