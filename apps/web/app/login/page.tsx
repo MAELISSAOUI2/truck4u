@@ -18,6 +18,7 @@ import {
   IconPackage,
   IconArrowLeft,
   IconArrowRight,
+  IconBuilding,
 } from '@tabler/icons-react';
 
 export default function LoginChoicePage() {
@@ -48,7 +49,7 @@ export default function LoginChoicePage() {
         </Stack>
 
         {/* Choice cards */}
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xl">
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xl">
           {/* Customer Card */}
           <Card
             shadow="md"
@@ -165,6 +166,66 @@ export default function LoginChoicePage() {
                 mt="md"
               >
                 Continuer en tant que transporteur
+              </Button>
+            </Stack>
+          </Card>
+
+          {/* Business Card */}
+          <Card
+            shadow="md"
+            padding="xl"
+            radius="lg"
+            withBorder
+            style={{
+              cursor: 'pointer',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.12)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '';
+            }}
+            onClick={() => router.push('/business/register')}
+          >
+            <Stack align="center" gap="md">
+              <ThemeIcon size={100} radius="xl" variant="light" color="violet">
+                <IconBuilding size={50} stroke={1.5} />
+              </ThemeIcon>
+
+              <Title order={2} size="1.75rem" ta="center">
+                Entreprise
+              </Title>
+
+              <Text c="dimmed" ta="center" size="sm">
+                Compte professionnel pour gérer vos transports B2B
+              </Text>
+
+              <Stack gap="xs" w="100%" mt="md">
+                <Group gap="xs">
+                  <Text size="sm">✓</Text>
+                  <Text size="sm">Commandes groupées et récurrentes</Text>
+                </Group>
+                <Group gap="xs">
+                  <Text size="sm">✓</Text>
+                  <Text size="sm">Tarifs préférentiels</Text>
+                </Group>
+                <Group gap="xs">
+                  <Text size="sm">✓</Text>
+                  <Text size="sm">Gestion multi-utilisateurs</Text>
+                </Group>
+              </Stack>
+
+              <Button
+                fullWidth
+                size="lg"
+                color="violet"
+                rightSection={<IconArrowRight size={20} />}
+                mt="md"
+              >
+                Continuer en tant qu'entreprise
               </Button>
             </Stack>
           </Card>
