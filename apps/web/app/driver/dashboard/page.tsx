@@ -38,7 +38,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { driverApi, rideApi } from '@/lib/api';
-import { connectSocket, driverOnline, driverOffline, onBidAccepted, onRideRequest } from '@/lib/socket';
+import { connectSocket, driverOnline, driverOffline, onBidAccepted, onRideRequest, onRideRated, disconnectSocket } from '@/lib/socket';
 
 const STATUS_COLORS: Record<string, string> = {
   DRIVER_ARRIVING: 'orange',
@@ -147,6 +147,39 @@ export default function DriverDashboard() {
       unsubscribe();
     };
   }, [token, user, isOnline]);
+
+  // Listen for ride ratings
+  useEffect(() => {
+    if (!token || !user) return;
+
+    console.log('🎧 Setting up ride_rated listener for driver:', user.id);
+
+    const unsubscribe = onRideRated((data: any) => {
+      console.log('⭐ Ride rated!', data);
+
+      // Update stats with new rating
+      setStats(prev => ({
+        ...prev,
+        rating: data.newAverageRating || prev.rating,
+      }));
+
+      // Update user rating in auth store
+      const { updateUser } = useAuthStore.getState();
+      updateUser({ rating: data.newAverageRating });
+
+      // Show notification
+      notifications.show({
+        title: '⭐ Nouvelle évaluation',
+        message: data.message || `Note : ${data.overallRating}/5`,
+        color: 'yellow',
+        autoClose: 5000,
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [token, user]);
 
   const loadDashboardData = async () => {
     try {
@@ -258,6 +291,7 @@ export default function DriverDashboard() {
     if (isOnline && user) {
       driverOffline(user.id);
     }
+    disconnectSocket();
     setIsOnline(false);
     logout();
     router.push('/');
