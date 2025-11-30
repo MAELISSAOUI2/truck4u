@@ -119,11 +119,23 @@ export default function AvailableRideDetailsPage() {
       const response = await rideApi.getById(params.id as string);
       setRide(response.data);
 
-      // Calculate suggested price (simple estimation)
-      const distance = calculateDistance(response.data.pickup, response.data.dropoff);
-      const basePricePerKm = 2.5;
-      const suggestedPrice = Math.round(distance * basePricePerKm + 10);
-      setBidAmount(suggestedPrice);
+      // Use the price estimation shown to the client
+      // Prefer estimatedMaxPrice as default, or calculate average if both min/max exist
+      if (response.data.estimatedMaxPrice) {
+        setBidAmount(response.data.estimatedMaxPrice);
+      } else if (response.data.estimatedMinPrice && response.data.estimatedMaxPrice) {
+        // Use average of min and max
+        const avgPrice = Math.round((response.data.estimatedMinPrice + response.data.estimatedMaxPrice) / 2);
+        setBidAmount(avgPrice);
+      } else if (response.data.estimatedMinPrice) {
+        setBidAmount(response.data.estimatedMinPrice);
+      } else {
+        // Fallback: calculate suggested price if no estimation available
+        const distance = calculateDistance(response.data.pickup, response.data.dropoff);
+        const basePricePerKm = 2.5;
+        const suggestedPrice = Math.round(distance * basePricePerKm + 10);
+        setBidAmount(suggestedPrice);
+      }
     } catch (error) {
       console.error('Error loading ride:', error);
       notifications.show({
