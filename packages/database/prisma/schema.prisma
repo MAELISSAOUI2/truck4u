@@ -17,6 +17,10 @@ model Driver {
   verificationNotes    String?   @db.Text
   rejectionReason      String?   @db.Text
   hasBusinessLicense   Boolean   @default(false)
+  businessLicenseNumber String?  // Numéro de patente professionnelle
+  hasPatente           Boolean   @default(false) // Conducteur professionnel avec patente
+  patenteNumber        String?   // Numéro de patente
+  patenteExpiryDate    DateTime? // Date d'expiration patente
   isAvailable          Boolean   @default(false)
   vehicleType          VehicleType
   vehiclePlate         String?
@@ -64,10 +68,12 @@ model Driver {
   kycDocuments         KYCDocument[]
   cancellations        Cancellation[]
   subscription         DriverSubscription? // Relation one-to-one avec abonnement
+  businessOrders       BusinessOrder[] // Commandes entreprise assignées
 
   @@index([verificationStatus])
   @@index([isAvailable, vehicleType])
   @@index([hasActiveSubscription, rating]) // Index pour priorisation offres
+  @@index([hasPatente]) // Index pour conducteurs professionnels
 }
 
 model KYCDocument {
@@ -599,4 +605,173 @@ model PriceEstimate {
   @@index([vehicleType])
   @@index([customerId])
   @@index([createdAt])
+}
+
+// ==========================================
+// B2B MODULE - Business Accounts & Orders
+// ==========================================
+
+model Business {
+  id                   String    @id @default(uuid())
+
+  // Authentication
+  email                String    @unique
+  phone                String    @unique
+  passwordHash         String
+
+  // Company Information
+  companyName          String
+  tradeName            String?   // Nom commercial (si différent)
+  taxId                String    @unique // Matricule fiscale
+  businessLicense      String?   // Numéro registre commerce
+  sector               String?   // Secteur d'activité
+
+  // Contact Info
+  contactName          String    // Nom du responsable
+  contactPhone         String    // Téléphone du responsable
+  contactEmail         String    // Email du responsable
+
+  // Address
+  address              Json      // {street, city, postalCode, region, lat, lng}
+  billingAddress       Json?     // Adresse de facturation si différente
+
+  // Verification
+  verificationStatus   BusinessVerificationStatus @default(PENDING)
+  verifiedAt           DateTime?
+  rejectionReason      String?   @db.Text
+
+  // Documents
+  kycDocuments         Json?     // URLs des documents KYC {registreCommerce, taxCertificate, etc.}
+
+  // Account Status
+  isActive             Boolean   @default(true)
+  subscriptionTier     BusinessSubscriptionTier @default(STANDARD)
+
+  // Stats
+  totalOrders          Int       @default(0)
+  completedOrders      Int       @default(0)
+  totalSpent           Float     @default(0.0)
+
+  // Metadata
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  lastLoginAt          DateTime?
+
+  // Relations
+  orders               BusinessOrder[]
+
+  @@index([email])
+  @@index([taxId])
+  @@index([verificationStatus])
+  @@index([isActive, subscriptionTier])
+}
+
+model BusinessOrder {
+  id                   String    @id @default(uuid())
+  businessId           String
+
+  // Order Type
+  orderType            BusinessOrderType @default(ON_DEMAND) // ON_DEMAND, RECURRING, SCHEDULED
+  frequency            OrderFrequency?   // Pour commandes récurrentes
+
+  // Route
+  pickup               Json      // {lat, lng, address, contactName, contactPhone}
+  dropoff              Json      // {lat, lng, address, contactName, contactPhone}
+  waypoints            Json?     // Points intermédiaires [{lat, lng, address}]
+  distance             Float     // en km
+  estimatedDuration    Int       // en minutes
+
+  // Service Details
+  vehicleType          VehicleType
+  loadAssistance       Boolean   @default(false)
+  requiresPatente      Boolean   @default(false) // Nécessite conducteur professionnel
+  numberOfTrips        Int       @default(1)
+  description          String?   @db.Text
+  specialInstructions  String?   @db.Text
+
+  // Scheduling
+  scheduledFor         DateTime? // Date/heure souhaitée
+  isUrgent             Boolean   @default(false)
+  deadline             DateTime? // Date limite de livraison
+
+  // Assignment
+  assignmentType       OrderAssignmentType @default(AUTO_MATCH) // AUTO_MATCH, PREFERRED_DRIVER
+  preferredDriverId    String?   // Si assignation manuelle
+  assignedDriverId     String?   // Conducteur assigné
+  assignedAt           DateTime?
+
+  // Status
+  status               BusinessOrderStatus @default(PENDING)
+
+  // Pricing
+  quotedPrice          Float?    // Prix proposé par le business
+  acceptedPrice        Float?    // Prix accepté/négocié
+  platformFee          Float?
+  driverEarnings       Float?
+  discountApplied      Float     @default(0.0)
+
+  // Proof & Rating
+  proofPhotos          Json?     // {loading: url, delivery: url, signature: url}
+  rating               Int?      // Note donnée par l'entreprise (1-5)
+  review               String?   @db.Text
+
+  // Metadata
+  internalReference    String?   // Référence interne entreprise
+  metadata             Json?     // Infos supplémentaires
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  completedAt          DateTime?
+
+  // Relations
+  business             Business  @relation(fields: [businessId], references: [id])
+  assignedDriver       Driver?   @relation(fields: [assignedDriverId], references: [id])
+
+  @@index([businessId, status])
+  @@index([assignedDriverId, status])
+  @@index([status, scheduledFor])
+  @@index([requiresPatente])
+}
+
+// Additional Enums for B2B
+
+enum BusinessVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum BusinessSubscriptionTier {
+  STANDARD      // Gratuit - commissions normales
+  PREMIUM       // 99 DT/mois - 5% commission au lieu de 10%
+  ENTERPRISE    // 299 DT/mois - 3% commission + support dédié
+}
+
+enum BusinessOrderType {
+  ON_DEMAND     // Commande ponctuelle
+  RECURRING     // Commande récurrente
+  SCHEDULED     // Commande programmée
+}
+
+enum OrderFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum OrderAssignmentType {
+  AUTO_MATCH        // Matching automatique
+  PREFERRED_DRIVER  // Conducteur préféré de l'entreprise
+  MANUAL           // Assignment manuel par admin
+}
+
+enum BusinessOrderStatus {
+  PENDING          // En attente d'assignation
+  ASSIGNED         // Assigné à un conducteur
+  CONFIRMED        // Confirmé par le conducteur
+  IN_PROGRESS      // En cours
+  COMPLETED        // Terminé
+  CANCELLED        // Annulé
+  DISPUTED         // Litige
 }
