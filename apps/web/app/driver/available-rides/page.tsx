@@ -43,7 +43,7 @@ const VEHICLE_LABELS: Record<string, string> = {
 
 export default function AvailableRidesPage() {
   const router = useRouter();
-  const { token, user, logout } = useAuthStore();
+  const { token, user, logout, _hasHydrated } = useAuthStore();
   const { isOnline } = useDriverStore();
   const [loading, setLoading] = useState(true);
   const [rides, setRides] = useState<any[]>([]);
@@ -51,6 +51,9 @@ export default function AvailableRidesPage() {
   const [filter, setFilter] = useState<string | null>('ALL');
 
   useEffect(() => {
+    // Wait for Zustand to rehydrate from localStorage
+    if (!_hasHydrated) return;
+
     if (!token) {
       router.push('/driver/login');
       return;
@@ -61,7 +64,7 @@ export default function AvailableRidesPage() {
     // Refresh every 30 seconds as fallback
     const interval = setInterval(loadAvailableRides, 30000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, _hasHydrated]);
 
   // Socket.io real-time updates for new rides
   useEffect(() => {

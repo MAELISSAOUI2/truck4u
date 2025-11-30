@@ -40,8 +40,12 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('truck4u-auth');
-        window.location.href = '/login';
+        // Don't remove auth state here - let the page's auth guard handle it
+        // This prevents clearing valid auth due to transient errors
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

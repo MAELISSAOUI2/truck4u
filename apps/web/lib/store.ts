@@ -20,6 +20,8 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  _hasHydrated: boolean;
+  setHasHydrated: (hasHydrated: boolean) => void;
   login: (user: User, token: string) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -32,6 +34,8 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
       login: (user, token) => set({ user, token, isAuthenticated: true }),
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
       updateUser: (updates) => set((state) => ({
@@ -40,6 +44,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'truck4u-auth',
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

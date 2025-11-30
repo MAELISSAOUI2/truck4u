@@ -36,7 +36,7 @@ import { NotificationBell } from '@/app/components/notifications';
 
 export default function CustomerDashboard() {
   const router = useRouter();
-  const { user, token, logout } = useAuthStore();
+  const { user, token, logout, _hasHydrated } = useAuthStore();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +46,9 @@ export default function CustomerDashboard() {
   };
 
   useEffect(() => {
+    // Wait for Zustand to rehydrate from localStorage
+    if (!_hasHydrated) return;
+
     if (!token) {
       router.push('/customer/login');
       return;
@@ -65,7 +68,7 @@ export default function CustomerDashboard() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [token]);
+  }, [token, _hasHydrated]);
 
   const loadData = async () => {
     try {

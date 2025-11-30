@@ -51,7 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DriverDashboard() {
   const router = useRouter();
-  const { user, token, logout } = useAuthStore();
+  const { user, token, logout, _hasHydrated } = useAuthStore();
   const { isOnline, setIsOnline } = useDriverStore();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -69,6 +69,9 @@ export default function DriverDashboard() {
   const [availableRides, setAvailableRides] = useState<any[]>([]);
 
   useEffect(() => {
+    // Wait for Zustand to rehydrate from localStorage before checking auth
+    if (!_hasHydrated) return;
+
     if (!token || !user) {
       router.push('/driver/login');
       return;
@@ -86,7 +89,7 @@ export default function DriverDashboard() {
     }
 
     loadDashboardData();
-  }, [token, user]);
+  }, [token, user, _hasHydrated]);
 
   // Listen for bid accepted - redirect to ride page
   useEffect(() => {
