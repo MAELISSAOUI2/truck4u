@@ -128,7 +128,11 @@ export default function AdminKYCPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
-      const endpoint = '/api/admin/kyc/pending';
+
+      // Use different endpoints based on active tab
+      const endpoint = activeTab === 'pending'
+        ? '/api/admin/kyc/pending'
+        : '/api/admin/drivers';
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         headers: {
@@ -139,6 +143,14 @@ export default function AdminKYCPage() {
       if (res.ok) {
         const data = await res.json();
         setDrivers(data.drivers || []);
+      } else {
+        const error = await res.json();
+        console.error('Failed to fetch drivers:', error);
+        notifications.show({
+          title: 'Erreur',
+          message: error.message || 'Impossible de charger les conducteurs',
+          color: 'red'
+        });
       }
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
