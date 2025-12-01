@@ -41,16 +41,12 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi, pricingApi } from '@/lib/api';
-import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { AddressAutocomplete } from '@/components/map/AddressAutocomplete';
+import { TripMap } from '@/components/map/TripMap';
 import { notifications } from '@mantine/notifications';
 import '@mantine/dates/styles.css';
 import '@mantine/dropzone/styles.css';
-
-// Dynamic import to avoid SSR issues with Leaflet
-const SimpleMap = dynamic(() => import('@/components/SimpleMap'), {
-  ssr: false,
-  loading: () => <div style={{ height: '400px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement de la carte...</div>
-});
+import type { GeocodingResult } from '@/types/geolocation';
 
 const VEHICLE_TYPES = [
   { value: 'CAMIONNETTE', label: 'Camionnette', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
@@ -72,6 +68,7 @@ export default function NewRidePage() {
   // Price estimation
   const [priceEstimate, setPriceEstimate] = useState<any>(null);
   const [estimating, setEstimating] = useState(false);
+  const [routeGeometry, setRouteGeometry] = useState<GeoJSON.LineString | null>(null);
 
   // Photos
   const [photos, setPhotos] = useState<File[]>([]);
@@ -100,51 +97,90 @@ export default function NewRidePage() {
     }
   }, [token, router]);
 
-  // Calculate route using OSRM (free!)
-  const calculateRoute = async () => {
+  // Calculate route and price using our integrated API
+  const calculateRoutingAndPrice = async () => {
+    if (!formData.pickupAddress || !formData.deliveryAddress) {
+      return;
+    }
+
+    setEstimating(true);
     try {
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/` +
-        `${formData.pickupLng},${formData.pickupLat};${formData.deliveryLng},${formData.deliveryLat}?` +
-        `overview=false&geometries=geojson`
-      );
+      // Use our new pricing API that integrates OSRM routing
+      const tripType = formData.numberOfTrips > 1 ? 'ALLER_RETOUR' : 'ALLER_SIMPLE';
+      const hasConvoyeur = formData.numberOfHelpers > 0;
+      const departureTime = formData.schedulingType === 'scheduled' && formData.scheduledDate
+        ? formData.scheduledDate.toISOString()
+        : new Date().toISOString();
+      const trafficLevel = formData.isExpress ? 'DENSE' : 'MOYEN';
+
+      const response = await fetch('/api/pricing/estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pickup: { lat: formData.pickupLat, lng: formData.pickupLng },
+          dropoff: { lat: formData.deliveryLat, lng: formData.deliveryLng },
+          vehicleType: formData.vehicleType,
+          tripType,
+          hasConvoyeur,
+          departureTime,
+          trafficLevel,
+        }),
+      });
 
       if (response.ok) {
         const data = await response.json();
-        if (data.routes && data.routes[0]) {
-          const route = data.routes[0];
-          setDistance(parseFloat((route.distance / 1000).toFixed(1)));
-          setDuration(Math.round(route.duration / 60));
-        }
+
+        // Update route geometry for map display
+        setRouteGeometry(data.route.geometry);
+
+        // Update distance and duration from route
+        setDistance(parseFloat((data.route.distance / 1000).toFixed(1)));
+        setDuration(Math.round(data.route.duration / 60));
+
+        // Update price estimate
+        setPriceEstimate(data.pricing);
       }
     } catch (err) {
-      console.error('Error calculating route:', err);
+      console.error('Error calculating route and price:', err);
+    } finally {
+      setEstimating(false);
     }
   };
 
-  // Calculate route when both addresses are set
+  // Calculate route and price when addresses or parameters change
   useEffect(() => {
     if (formData.pickupAddress && formData.deliveryAddress) {
-      calculateRoute();
+      calculateRoutingAndPrice();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
+  }, [
+    formData.pickupLat,
+    formData.pickupLng,
+    formData.deliveryLat,
+    formData.deliveryLng,
+    formData.vehicleType,
+    formData.numberOfHelpers,
+    formData.numberOfTrips,
+    formData.isExpress,
+    formData.schedulingType,
+    formData.scheduledDate,
+  ]);
 
-  const handlePickupChange = (address: string, lat: number, lng: number) => {
+  const handlePickupChange = (result: GeocodingResult) => {
     setFormData(prev => ({
       ...prev,
-      pickupAddress: address,
-      pickupLat: lat,
-      pickupLng: lng,
+      pickupAddress: result.label,
+      pickupLat: result.lat,
+      pickupLng: result.lng,
     }));
   };
 
-  const handleDeliveryChange = (address: string, lat: number, lng: number) => {
+  const handleDeliveryChange = (result: GeocodingResult) => {
     setFormData(prev => ({
       ...prev,
-      deliveryAddress: address,
-      deliveryLat: lat,
-      deliveryLng: lng,
+      deliveryAddress: result.label,
+      deliveryLat: result.lat,
+      deliveryLng: result.lng,
     }));
   };
 
@@ -158,61 +194,6 @@ export default function NewRidePage() {
     setError('');
     setActiveStep(prev => prev + 1);
   };
-
-  const calculatePriceEstimate = async () => {
-    // Ne pas calculer si pas assez de données
-    if (!distance || !duration || distance === 0) {
-      setPriceEstimate(null);
-      return;
-    }
-
-    setEstimating(true);
-    try {
-      // Mapper les paramètres du formulaire vers l'API
-      const tripType = formData.numberOfTrips > 1 ? 'ALLER_RETOUR' : 'ALLER_SIMPLE';
-      const hasConvoyeur = formData.numberOfHelpers > 0;
-      const departureTime = formData.schedulingType === 'scheduled' && formData.scheduledDate
-        ? formData.scheduledDate.toISOString()
-        : new Date().toISOString();
-
-      // Trafic par défaut moyen, ou dense si express
-      const trafficLevel = formData.isExpress ? 'DENSE' : 'MOYEN';
-
-      const response = await pricingApi.estimate({
-        vehicleType: formData.vehicleType as any,
-        distance,
-        duration,
-        tripType: tripType as any,
-        hasConvoyeur,
-        departureTime,
-        trafficLevel: trafficLevel as any,
-      });
-
-      setPriceEstimate(response.data.estimate);
-    } catch (error: any) {
-      console.error('Error calculating price estimate:', error);
-      // En cas d'erreur, garder l'ancienne estimation
-    } finally {
-      setEstimating(false);
-    }
-  };
-
-  // Recalculer l'estimation quand les paramètres changent
-  useEffect(() => {
-    if (distance > 0 && duration > 0) {
-      calculatePriceEstimate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    distance,
-    duration,
-    formData.vehicleType,
-    formData.numberOfHelpers,
-    formData.numberOfTrips,
-    formData.isExpress,
-    formData.schedulingType,
-    formData.scheduledDate,
-  ]);
 
   const handleSubmit = async () => {
     if (!formData.cargoDescription) {
@@ -299,18 +280,19 @@ export default function NewRidePage() {
         {/* Map - Left side - always visible */}
         <div style={{ flex: 1, position: 'relative', minHeight: '300px' }}>
           {formData.pickupAddress && formData.deliveryAddress ? (
-            <SimpleMap
+            <TripMap
               pickup={{
                 lat: formData.pickupLat,
                 lng: formData.pickupLng,
-                address: formData.pickupAddress
               }}
               dropoff={{
                 lat: formData.deliveryLat,
                 lng: formData.deliveryLng,
-                address: formData.deliveryAddress
               }}
+              route={routeGeometry || undefined}
               height="100%"
+              showRoute={!!routeGeometry}
+              fitBounds
             />
           ) : (
             <div style={{
@@ -413,8 +395,10 @@ export default function NewRidePage() {
                     label="Adresse de départ"
                     placeholder="Rechercher une adresse..."
                     value={formData.pickupAddress}
-                    onChange={handlePickupChange}
-                    icon={<IconMapPin size={18} style={{ color: '#51cf66' }} />}
+                    onSelect={handlePickupChange}
+                    onChange={(value) => setFormData({ ...formData, pickupAddress: value })}
+                    showCurrentLocation
+                    required
                   />
 
                   {/* Delivery Address with autocomplete */}
@@ -422,8 +406,10 @@ export default function NewRidePage() {
                     label="Adresse de livraison"
                     placeholder="Rechercher une adresse..."
                     value={formData.deliveryAddress}
-                    onChange={handleDeliveryChange}
-                    icon={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
+                    onSelect={handleDeliveryChange}
+                    onChange={(value) => setFormData({ ...formData, deliveryAddress: value })}
+                    showCurrentLocation
+                    required
                   />
 
                   {/* Distance and Duration Estimate - Real-time display */}
