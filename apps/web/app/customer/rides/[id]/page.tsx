@@ -38,13 +38,11 @@ import {
 } from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { rideApi, paymentApi, cancellationApi } from '@/lib/api';
-import { connectSocket, onNewBid, trackRide, stopTracking, onDriverMoved, onRideStatusChanged, onETAUpdated, onNotification, onRideCancelled } from '@/lib/socket';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { connectSocket, onNewBid, onNotification, onRideCancelled } from '@/lib/socket';
 import ChatBox from '@/components/ChatBox';
-
-// Configure Mapbox
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
+import { TripMap } from '@/components/map/TripMap';
+import { useTripTracking } from '@/hooks/useTripTracking';
+import type { GeoJSONLineString } from '@/types/geolocation';
 
 const STATUS_CONFIG = {
   PENDING_BIDS: {
@@ -134,12 +132,10 @@ const formatTime = (datetime: string | null): string => {
 export default function RideDetailsPage() {
   const router = useRouter();
   const params = useParams();
-  const { token } = useAuthStore();
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const driverMarker = useRef<mapboxgl.Marker | null>(null);
+  const { token, user } = useAuthStore();
 
   const [ride, setRide] = useState<any>(null);
+  const [routeGeometry, setRouteGeometry] = useState<GeoJSONLineString | null>(null);
   const [bids, setBids] = useState<any[]>([]);
   const [newBidIds, setNewBidIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -156,31 +152,51 @@ export default function RideDetailsPage() {
   const [selectedBidForPayment, setSelectedBidForPayment] = useState<any>(null);
   const [confirmDeliveryModalOpen, setConfirmDeliveryModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
-  const { user } = useAuthStore();
 
-  // Connect to socket and setup real-time listeners
+  // Real-time trip tracking
+  const {
+    driverLocation,
+    status: trackingStatus,
+    isConnected,
+    eta,
+  } = useTripTracking(params.id as string | null, {
+    userRole: 'customer',
+    onStatusChange: (newStatus) => {
+      console.log('📦 Ride status changed:', newStatus);
+      setRide((prev: any) => ({
+        ...prev,
+        status: newStatus,
+      }));
+
+      // Show notification
+      const statusInfo = STATUS_CONFIG[newStatus as keyof typeof STATUS_CONFIG];
+      if (statusInfo) {
+        notifications.show({
+          title: `Statut mis à jour`,
+          message: statusInfo.description,
+          color: statusInfo.color,
+          autoClose: 4000,
+        });
+      }
+    },
+    onETAUpdate: (etaData) => {
+      console.log('⏱️ ETA updated:', etaData);
+      setRide((prev: any) => ({
+        ...prev,
+        estimatedPickupTime: etaData.estimatedPickupTime,
+        estimatedDeliveryTime: etaData.estimatedDeliveryTime,
+      }));
+    },
+  });
+
+  // Initial load
   useEffect(() => {
     if (!token || !user) {
       router.push('/customer/login');
       return;
     }
 
-    // Connect socket
-    const socket = connectSocket(user.id, 'customer', token);
-
-    // Track this ride for real-time updates
-    if (params.id) {
-      trackRide(params.id as string, user.id);
-    }
-
     loadRideDetails();
-
-    // Cleanup
-    return () => {
-      if (params.id) {
-        stopTracking(params.id as string);
-      }
-    };
   }, [params.id, token, user]);
 
   // Listen for new bids
@@ -225,68 +241,6 @@ export default function RideDetailsPage() {
       } catch (error) {
         // Ignore sound errors
       }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [params.id]);
-
-  // Listen for driver location updates
-  useEffect(() => {
-    if (!params.id) return;
-
-    const unsubscribe = onDriverMoved((locationData: any) => {
-      console.log('📍 Driver location updated:', locationData);
-      updateDriverPosition({ lat: locationData.lat, lng: locationData.lng });
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [params.id]);
-
-  // Listen for ride status changes
-  useEffect(() => {
-    if (!params.id) return;
-
-    const unsubscribe = onRideStatusChanged((statusData: any) => {
-      console.log('📦 Ride status changed:', statusData);
-
-      setRide((prev: any) => ({
-        ...prev,
-        status: statusData.status,
-      }));
-
-      // Show notification
-      const statusInfo = STATUS_CONFIG[statusData.status as keyof typeof STATUS_CONFIG];
-      if (statusInfo) {
-        notifications.show({
-          title: `Statut mis à jour`,
-          message: statusInfo.description,
-          color: statusInfo.color,
-          autoClose: 4000,
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [params.id]);
-
-  // Listen for ETA updates
-  useEffect(() => {
-    if (!params.id) return;
-
-    const unsubscribe = onETAUpdated((etaData: any) => {
-      console.log('⏱️ ETA updated:', etaData);
-
-      setRide((prev: any) => ({
-        ...prev,
-        estimatedPickupTime: etaData.estimatedPickupTime,
-        estimatedDeliveryTime: etaData.estimatedDeliveryTime,
-      }));
     });
 
     return () => {
@@ -401,12 +355,6 @@ export default function RideDetailsPage() {
     };
   }, [user, token]);
 
-  useEffect(() => {
-    if (ride && mapContainer.current && !map.current) {
-      initializeMap();
-    }
-  }, [ride]);
-
   const loadRideDetails = async () => {
     try {
       const response = await rideApi.getById(params.id as string);
@@ -419,9 +367,9 @@ export default function RideDetailsPage() {
         setBids(bidsResponse.data || []);
       }
 
-      // Update driver position on map if in transit
-      if (response.data.driver && ['DRIVER_ARRIVING', 'IN_TRANSIT'].includes(response.data.status)) {
-        updateDriverPosition(response.data.driver.currentLocation);
+      // Fetch route geometry for map
+      if (response.data.pickup && response.data.dropoff) {
+        fetchRouteGeometry(response.data.pickup, response.data.dropoff);
       }
     } catch (error: any) {
       console.error('❌ Error loading ride:', error);
@@ -438,87 +386,20 @@ export default function RideDetailsPage() {
     }
   };
 
-  const initializeMap = () => {
-    if (!ride || !mapContainer.current) return;
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [ride.pickup.lng, ride.pickup.lat],
-      zoom: 12,
-    });
-
-    // Add pickup marker
-    const pickupEl = document.createElement('div');
-    pickupEl.innerHTML = '📍';
-    pickupEl.style.fontSize = '32px';
-    new mapboxgl.Marker(pickupEl)
-      .setLngLat([ride.pickup.lng, ride.pickup.lat])
-      .addTo(map.current);
-
-    // Add dropoff marker
-    const dropoffEl = document.createElement('div');
-    dropoffEl.innerHTML = '🏁';
-    dropoffEl.style.fontSize = '32px';
-    new mapboxgl.Marker(dropoffEl)
-      .setLngLat([ride.dropoff.lng, ride.dropoff.lat])
-      .addTo(map.current);
-
-    // Fit bounds
-    const bounds = new mapboxgl.LngLatBounds()
-      .extend([ride.pickup.lng, ride.pickup.lat])
-      .extend([ride.dropoff.lng, ride.dropoff.lat]);
-    map.current.fitBounds(bounds, { padding: 80 });
-
-    // Draw route
-    drawRoute();
-  };
-
-  const drawRoute = async () => {
-    if (!map.current || !ride) return;
-
+  const fetchRouteGeometry = async (pickup: any, dropoff: any) => {
     try {
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${ride.pickup.lng},${ride.pickup.lat};${ride.dropoff.lng},${ride.dropoff.lat}?geometries=geojson&access_token=${mapboxgl.accessToken}`
-      );
+      const response = await fetch('/api/routing/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickup, dropoff }),
+      });
       const data = await response.json();
 
-      if (data.routes && data.routes[0]) {
-        const geojson = {
-          type: 'Feature' as const,
-          properties: {},
-          geometry: data.routes[0].geometry,
-        };
-
-        if (map.current.getSource('route')) {
-          (map.current.getSource('route') as mapboxgl.GeoJSONSource).setData(geojson as any);
-        } else {
-          map.current.addLayer({
-            id: 'route',
-            type: 'line',
-            source: { type: 'geojson', data: geojson as any },
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': '#000', 'line-width': 4, 'line-opacity': 0.8 },
-          });
-        }
+      if (data.route?.geometry) {
+        setRouteGeometry(data.route.geometry);
       }
     } catch (error) {
-      console.error('Error drawing route:', error);
-    }
-  };
-
-  const updateDriverPosition = (location: any) => {
-    if (!map.current || !location) return;
-
-    if (driverMarker.current) {
-      driverMarker.current.setLngLat([location.lng, location.lat]);
-    } else {
-      const el = document.createElement('div');
-      el.innerHTML = '🚚';
-      el.style.fontSize = '32px';
-      driverMarker.current = new mapboxgl.Marker(el)
-        .setLngLat([location.lng, location.lat])
-        .addTo(map.current);
+      console.error('Error fetching route:', error);
     }
   };
 
@@ -742,8 +623,23 @@ export default function RideDetailsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
           {/* Left: Map */}
           <div>
-            <Paper shadow="sm" radius="lg" withBorder style={{ height: '600px', overflow: 'hidden' }}>
-              <div ref={mapContainer} style={{ height: '100%' }} />
+            <Paper shadow="sm" radius="lg" withBorder style={{ height: '600px', overflow: 'hidden', position: 'relative' }}>
+              {ride && (
+                <TripMap
+                  pickup={ride.pickup}
+                  dropoff={ride.dropoff}
+                  route={routeGeometry || undefined}
+                  driverLocation={driverLocation || undefined}
+                  height="100%"
+                  showRoute={!!routeGeometry}
+                  fitBounds
+                />
+              )}
+              {!ride && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                  <Text c="dimmed">Chargement de la carte...</Text>
+                </div>
+              )}
             </Paper>
           </div>
 

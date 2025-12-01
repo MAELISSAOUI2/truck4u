@@ -36,10 +36,8 @@ import {
 import { useAuthStore, useDriverStore } from '@/lib/store';
 import { rideApi } from '@/lib/api';
 import { disconnectSocket, driverOffline } from '@/lib/socket';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidHJ1Y2s0dSIsImEiOiJjbTEyMzQ1Njc4OTAxMmxxZjNkaDV6Z2huIn0.demo';
+import { TripMap } from '@/components/map/TripMap';
+import type { GeoJSONLineString } from '@/types/geolocation';
 
 const VEHICLE_LABELS: Record<string, string> = {
   CAMIONNETTE: 'Camionnette',
@@ -53,10 +51,9 @@ export default function AvailableRideDetailsPage() {
   const params = useParams();
   const { token, user, logout } = useAuthStore();
   const { isOnline } = useDriverStore();
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
 
   const [ride, setRide] = useState<any>(null);
+  const [routeGeometry, setRouteGeometry] = useState<GeoJSONLineString | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -90,12 +87,6 @@ export default function AvailableRideDetailsPage() {
     loadRideDetails();
   }, [params.id, token]);
 
-  useEffect(() => {
-    if (ride && mapContainer.current && !map.current) {
-      initializeMap();
-    }
-  }, [ride]);
-
   // Calculate distance using useMemo to avoid recalculation
   const distance = useMemo(() => {
     if (!ride) return 0;
@@ -121,6 +112,11 @@ export default function AvailableRideDetailsPage() {
     try {
       const response = await rideApi.getById(params.id as string);
       setRide(response.data);
+
+      // Fetch route geometry for map
+      if (response.data.pickup && response.data.dropoff) {
+        fetchRouteGeometry(response.data.pickup, response.data.dropoff);
+      }
 
       // Use the price estimation shown to the client
       // Prefer estimatedMaxPrice as default, or calculate average if both min/max exist
@@ -151,33 +147,21 @@ export default function AvailableRideDetailsPage() {
     }
   };
 
-  const initializeMap = () => {
-    if (!ride || !mapContainer.current) return;
+  const fetchRouteGeometry = async (pickup: any, dropoff: any) => {
+    try {
+      const response = await fetch('/api/routing/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickup, dropoff }),
+      });
+      const data = await response.json();
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [ride.pickup.lng, ride.pickup.lat],
-      zoom: 11,
-    });
-
-    // Add pickup marker
-    new mapboxgl.Marker({ color: '#228BE6' })
-      .setLngLat([ride.pickup.lng, ride.pickup.lat])
-      .setPopup(new mapboxgl.Popup().setHTML(`<strong>Départ</strong><br/>${ride.pickup.address}`))
-      .addTo(map.current);
-
-    // Add dropoff marker
-    new mapboxgl.Marker({ color: '#40C057' })
-      .setLngLat([ride.dropoff.lng, ride.dropoff.lat])
-      .setPopup(new mapboxgl.Popup().setHTML(`<strong>Arrivée</strong><br/>${ride.dropoff.address}`))
-      .addTo(map.current);
-
-    // Fit bounds
-    const bounds = new mapboxgl.LngLatBounds();
-    bounds.extend([ride.pickup.lng, ride.pickup.lat]);
-    bounds.extend([ride.dropoff.lng, ride.dropoff.lat]);
-    map.current.fitBounds(bounds, { padding: 50 });
+      if (data.route?.geometry) {
+        setRouteGeometry(data.route.geometry);
+      }
+    } catch (error) {
+      console.error('Error fetching route:', error);
+    }
   };
 
   const handleSubmitBid = async () => {
@@ -282,11 +266,22 @@ export default function AvailableRideDetailsPage() {
       <Container size="lg" py="xl">
         <Stack gap="xl">
           {/* Map */}
-          <Card shadow="sm" padding={0} radius="lg" withBorder>
-            <div
-              ref={mapContainer}
-              style={{ width: '100%', height: 300, borderRadius: '8px' }}
-            />
+          <Card shadow="sm" padding={0} radius="lg" withBorder style={{ overflow: 'hidden' }}>
+            {ride && (
+              <TripMap
+                pickup={ride.pickup}
+                dropoff={ride.dropoff}
+                route={routeGeometry || undefined}
+                height="300px"
+                showRoute={!!routeGeometry}
+                fitBounds
+              />
+            )}
+            {!ride && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '300px' }}>
+                <Text c="dimmed">Chargement de la carte...</Text>
+              </div>
+            )}
           </Card>
 
           {/* Route Details */}
