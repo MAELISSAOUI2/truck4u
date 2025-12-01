@@ -1,6 +1,10 @@
 version: '3.8'
 
 services:
+  # ==========================================================================
+  # Core Database & Cache
+  # ==========================================================================
+
   postgres:
     image: postgres:15-alpine
     container_name: truck4u-postgres
@@ -17,10 +21,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - truck4u-network
 
   redis:
     image: redis:7-alpine
     container_name: truck4u-redis
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
@@ -30,35 +37,147 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - truck4u-network
 
-  # Uncomment to run the backend in Docker
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: apps/api/Dockerfile
-  #   container_name: truck4u-api
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   environment:
-  #     DATABASE_URL: postgresql://truck4u:truck4u_dev_password@postgres:5432/truck4u
-  #     REDIS_URL: redis://redis:6379
-  #     JWT_SECRET: dev-secret-key
-  #     PORT: 4000
-  #     NODE_ENV: development
-  #   ports:
-  #     - "4000:4000"
-  #   volumes:
-  #     - ./apps/api:/app/apps/api
-  #     - /app/node_modules
-  #   command: yarn dev
+  # ==========================================================================
+  # Geolocation Services
+  # ==========================================================================
+
+  # OSRM (Routing Service)
+  # Note: Before first run, you need to download and process OSM data
+  # See instructions in docker-compose.osrm-setup.md
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend
+    container_name: truck4u-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./osrm-data:/data
+    command: osrm-routed --algorithm mld /data/tunisia-latest.osrm --max-table-size 10000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - truck4u-network
+    # Uncomment after preparing OSM data (see setup instructions below)
+    # profiles: ["osrm"]
+
+  # Nominatim (Geocoding Service - Alternative to Pelias)
+  # Lighter and easier to setup than Pelias
+  nominatim:
+    image: mediagora/nominatim:4.4
+    container_name: truck4u-nominatim
+    ports:
+      - "4001:8080"  # Changed from 4000 to avoid conflict with API
+    environment:
+      PBF_URL: https://download.geofabrik.de/africa/tunisia-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/africa/tunisia-updates/
+      IMPORT_WIKIPEDIA: "false"
+      IMPORT_US_POSTCODES: "false"
+      IMPORT_GB_POSTCODES: "false"
+      THREADS: 4
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+    shm_size: 1gb
+    restart: unless-stopped
+    networks:
+      - truck4u-network
+    # Note: First import takes 30-60 minutes for Tunisia data
+    # Uncomment when ready to use
+    # profiles: ["geocoding"]
+
+  # ==========================================================================
+  # Application Services
+  # ==========================================================================
+
+  # Backend API (uncomment to run in Docker)
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: truck4u-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://truck4u:truck4u_dev_password@postgres:5432/truck4u
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # Authentication
+      JWT_SECRET: dev-secret-key-change-in-production
+
+      # Server
+      PORT: 4000
+      NODE_ENV: development
+
+      # Geolocation Services (internal Docker network)
+      OSRM_URL: http://osrm:5000
+      PELIAS_URL: http://nominatim:8080  # Using Nominatim instead of Pelias
+
+      # Frontend URL for CORS
+      FRONTEND_URL: http://localhost:3000
+
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - truck4u-network
+    # Uncomment to enable
+    profiles: ["api"]
+
+  # Frontend (Next.js) - Optional, usually run with npm run dev locally
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: truck4u-web
+    depends_on:
+      - api
+    environment:
+      # API URLs (from host perspective)
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:4000
+
+      # Geolocation Services (from host perspective)
+      NEXT_PUBLIC_OSRM_URL: http://localhost:5000
+      NEXT_PUBLIC_PELIAS_URL: http://localhost:4001
+
+      # MapLibre Style
+      NEXT_PUBLIC_MAPLIBRE_STYLE: https://demotiles.maplibre.org/style.json
+
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - truck4u-network
+    # Uncomment to enable
+    profiles: ["web"]
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
+  nominatim_data:
+    driver: local
 
 networks:
-  default:
-    name: truck4u-network
+  truck4u-network:
+    driver: bridge

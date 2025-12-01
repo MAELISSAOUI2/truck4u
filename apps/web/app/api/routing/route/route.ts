@@ -1,12 +1,13 @@
 /**
  * API Route: POST /api/routing/route
  *
- * Get route from OSRM with distance, duration, and geometry
+ * Get route from OSRM with distance, duration, and geometry with Redis caching
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRoute, getRouteCacheKey } from '@/lib/services/routing/osrmClient';
 import type { RouteRequest } from '@/types/geolocation';
+import { getOrSetCached, CACHE_TTL, getRouteKey } from '@/lib/utils/redis';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -39,22 +40,36 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validated = RouteRequestSchema.parse(body);
 
-    // TODO: Check Redis cache first
-    // const cacheKey = getRouteCacheKey(
-    //   validated.pickup,
-    //   validated.dropoff,
-    //   validated.profile || 'car',
-    //   validated.waypoints
-    // );
+    // Generate cache key
+    const cacheKey = getRouteKey(
+      validated.pickup,
+      validated.dropoff,
+      validated.profile || 'car',
+      validated.alternatives || false
+    );
 
-    // Call OSRM
-    const routeResponse = await getRoute(validated as RouteRequest);
+    // Get or fetch with caching (only cache if no waypoints and no alternatives)
+    const shouldCache = !validated.waypoints && !validated.alternatives;
 
-    // TODO: Store in cache
+    let routeResponse;
+    let cached = false;
+
+    if (shouldCache) {
+      const result = await getOrSetCached(
+        cacheKey,
+        () => getRoute(validated as RouteRequest),
+        CACHE_TTL.ROUTING
+      );
+      routeResponse = result.data;
+      cached = result.cached;
+    } else {
+      // Don't cache complex routes (with waypoints or alternatives)
+      routeResponse = await getRoute(validated as RouteRequest);
+    }
 
     return NextResponse.json({
       ...routeResponse,
-      cached: false,
+      cached,
     });
   } catch (error: any) {
     console.error('[API] Routing error:', error);

@@ -1,11 +1,12 @@
 /**
  * API Route: GET /api/geocode/autocomplete
  *
- * Autocomplete address search with optional Redis caching
+ * Autocomplete address search with Redis caching
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { autocomplete, getAutocompleteCacheKey } from '@/lib/services/geocoding/peliasClient';
+import { getOrSetCached, CACHE_TTL, getGeocodingAutocompleteKey } from '@/lib/utils/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,18 +50,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // TODO: Add Redis caching here
-    // const cacheKey = getAutocompleteCacheKey(query, options);
-    // Check cache first, return if hit
+    // Generate cache key
+    const cacheKey = getGeocodingAutocompleteKey(
+      query,
+      options.lat,
+      options.lng,
+      options.limit
+    );
 
-    // Call Pelias
-    const results = await autocomplete(query, options);
-
-    // TODO: Store in cache
+    // Get or fetch with caching
+    const { data: results, cached } = await getOrSetCached(
+      cacheKey,
+      () => autocomplete(query, options),
+      CACHE_TTL.GEOCODING
+    );
 
     return NextResponse.json({
       results,
-      cached: false,
+      cached,
     });
   } catch (error: any) {
     console.error('[API] Autocomplete error:', error);

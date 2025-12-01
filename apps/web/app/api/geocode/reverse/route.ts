@@ -1,11 +1,12 @@
 /**
  * API Route: GET /api/geocode/reverse
  *
- * Reverse geocoding - Convert coordinates to address
+ * Reverse geocoding - Convert coordinates to address with Redis caching
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { reverse, getReverseCacheKey } from '@/lib/services/geocoding/peliasClient';
+import { getOrSetCached, CACHE_TTL, getReverseGeocodeKey } from '@/lib/utils/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,28 +42,36 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Add Redis caching here
-    // const cacheKey = getReverseCacheKey(latNum, lngNum);
-    // Check cache first
+    // Generate cache key
+    const cacheKey = getReverseGeocodeKey(latNum, lngNum);
 
-    // Call Pelias
-    const result = await reverse(latNum, lngNum);
+    // Get or fetch with caching
+    const { data: result, cached } = await getOrSetCached(
+      cacheKey,
+      async () => {
+        const res = await reverse(latNum, lngNum);
+        if (!res) {
+          throw new Error('No results found for coordinates');
+        }
+        return res;
+      },
+      CACHE_TTL.GEOCODING
+    );
 
-    if (!result) {
+    return NextResponse.json({
+      result,
+      cached,
+    });
+  } catch (error: any) {
+    console.error('[API] Reverse geocoding error:', error);
+
+    if (error.message === 'No results found for coordinates') {
       return NextResponse.json(
-        { error: 'No results found for coordinates' },
+        { error: error.message },
         { status: 404 }
       );
     }
 
-    // TODO: Store in cache
-
-    return NextResponse.json({
-      result,
-      cached: false,
-    });
-  } catch (error: any) {
-    console.error('[API] Reverse geocoding error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
