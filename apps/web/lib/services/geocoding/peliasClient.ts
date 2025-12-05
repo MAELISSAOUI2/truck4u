@@ -86,16 +86,17 @@ export async function autocomplete(
       addressdetails: '1',
       limit: (options?.limit || 5).toString(),
       countrycodes: 'tn', // Focus on Tunisia
+      'accept-language': 'fr', // Prefer French results
     });
 
     // Add proximity bias (viewbox) if coordinates provided
     if (options?.lat !== undefined && options?.lng !== undefined) {
-      // Create a viewbox around the user's location (roughly 50km radius)
-      const latDelta = 0.5;
-      const lngDelta = 0.5;
+      // Create a viewbox around the user's location (roughly 100km radius)
+      const latDelta = 1.0;
+      const lngDelta = 1.0;
       const viewbox = `${options.lng - lngDelta},${options.lat + latDelta},${options.lng + lngDelta},${options.lat - latDelta}`;
       params.append('viewbox', viewbox);
-      params.append('bounded', '1');
+      // Don't use bounded=1, it's too restrictive
     }
 
     const response = await fetch(
@@ -104,6 +105,7 @@ export async function autocomplete(
         signal: AbortSignal.timeout(5000),
         headers: {
           'User-Agent': 'Truck4u/1.0',
+          'Accept-Language': 'fr,en', // Prefer French, fallback to English
         },
       }
     );
@@ -122,10 +124,29 @@ export async function autocomplete(
     return data.map((item: any) => {
       const addr = item.address || {};
 
+      // Build cleaner address label
+      const parts = [];
+      if (addr.house_number && addr.road) {
+        parts.push(`${addr.house_number} ${addr.road}`);
+      } else if (addr.road) {
+        parts.push(addr.road);
+      } else if (addr.neighbourhood) {
+        parts.push(addr.neighbourhood);
+      } else if (item.name && item.name !== addr.city) {
+        parts.push(item.name);
+      }
+
+      const city = addr.city || addr.town || addr.village || addr.suburb;
+      if (city) {
+        parts.push(city);
+      }
+
+      const label = parts.length > 0 ? parts.join(', ') : item.display_name;
+
       return {
         id: item.place_id ? item.place_id.toString() : '',
-        label: item.display_name,
-        address: item.display_name,
+        label,
+        address: label,
         lat: parseFloat(item.lat),
         lng: parseFloat(item.lon),
         type: determineTypeFromOSM(item.type, item.class),
@@ -277,19 +298,48 @@ export async function reverse(lat: number, lng: number): Promise<ReverseGeocodeR
     const addr = data.address || {};
     const street = addr.road || addr.street || addr.pedestrian;
     const housenumber = addr.house_number;
+    const locality = addr.city || addr.town || addr.village || addr.suburb || addr.neighbourhood;
+    const region = addr.state || addr.province || addr.county;
+
+    // Format address in French/Latin script (avoid Arabic)
+    const addressParts = [];
+
+    if (housenumber && street) {
+      addressParts.push(`${housenumber} ${street}`);
+    } else if (street) {
+      addressParts.push(street);
+    } else if (addr.neighbourhood) {
+      addressParts.push(addr.neighbourhood);
+    }
+
+    if (locality && locality !== street) {
+      addressParts.push(locality);
+    }
+
+    if (region && region !== locality) {
+      addressParts.push(region);
+    }
+
+    if (addr.postcode) {
+      addressParts.push(addr.postcode);
+    }
+
+    const formattedAddress = addressParts.length > 0
+      ? addressParts.join(', ')
+      : (locality || region || 'Tunisie');
 
     return {
-      address: data.display_name || 'Unknown location',
+      address: formattedAddress,
       placeId: data.place_id ? data.place_id.toString() : '',
       lat: parseFloat(data.lat),
       lng: parseFloat(data.lon),
       components: {
         street,
         housenumber,
-        locality: addr.city || addr.town || addr.village || addr.suburb,
-        region: addr.state || addr.province,
+        locality,
+        region,
         postalcode: addr.postcode,
-        country: addr.country,
+        country: 'Tunisie',
       },
     };
   } catch (error) {
