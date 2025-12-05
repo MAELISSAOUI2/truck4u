@@ -226,9 +226,22 @@ export function AddressAutocomplete({
               throw new Error('Failed to reverse geocode');
             }
 
-            const result: GeocodingResult = await response.json();
-            setInputValue(result.label);
-            onSelect(result);
+            const data = await response.json();
+            const result = data.result; // Extract result from API response
+
+            // Convert ReverseGeocodeResult to GeocodingResult format
+            const geocodingResult: GeocodingResult = {
+              id: result.placeId,
+              label: result.address,
+              address: result.address,
+              lat: result.lat,
+              lng: result.lng,
+              type: 'address',
+              confidence: 0.9,
+            };
+
+            setInputValue(geocodingResult.address);
+            onSelect(geocodingResult);
             onUseCurrentLocation?.();
           } catch (error) {
             console.error('Error reverse geocoding:', error);
