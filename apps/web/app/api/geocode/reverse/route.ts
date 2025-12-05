@@ -46,34 +46,44 @@ export async function GET(request: NextRequest) {
     const cacheKey = getReverseGeocodeKey(latNum, lngNum);
 
     // Get or fetch with caching
-    const { data: result, cached } = await getOrSetCached(
-      cacheKey,
-      async () => {
-        const res = await reverse(latNum, lngNum);
-        if (!res) {
-          throw new Error('No results found for coordinates');
-        }
-        return res;
-      },
-      CACHE_TTL.GEOCODING
-    );
+    try {
+      const { data: result, cached } = await getOrSetCached(
+        cacheKey,
+        async () => {
+          const res = await reverse(latNum, lngNum);
+          if (!res) {
+            throw new Error('No results found for coordinates');
+          }
+          return res;
+        },
+        CACHE_TTL.GEOCODING
+      );
 
-    return NextResponse.json({
-      result,
-      cached,
-    });
-  } catch (error: any) {
-    console.error('[API] Reverse geocoding error:', error);
+      return NextResponse.json({
+        result,
+        cached,
+      });
+    } catch (error: any) {
+      console.error('[API] Reverse geocoding error:', error);
+      console.error('[API] Error stack:', error.stack);
 
-    if (error.message === 'No results found for coordinates') {
+      // More descriptive error messages
+      const errorMessage = error.message || 'Reverse geocoding failed';
+
       return NextResponse.json(
-        { error: error.message },
-        { status: 404 }
+        {
+          error: errorMessage,
+          coordinates: { lat: latNum, lng: lngNum },
+          details: 'Both Pelias and Nominatim geocoding services failed. Check server logs for details.'
+        },
+        { status: 500 }
       );
     }
-
+  } catch (error: any) {
+    // Top-level error handler
+    console.error('[API] Unexpected error in reverse geocode route:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
