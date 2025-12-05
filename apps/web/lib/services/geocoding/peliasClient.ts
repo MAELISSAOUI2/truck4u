@@ -34,49 +34,9 @@ export async function autocomplete(
     return [];
   }
 
-  // Try Pelias first
-  try {
-    const params = new URLSearchParams({
-      text: query.trim(),
-      size: (options?.limit || 5).toString(),
-    });
-
-    // Add focus point for proximity bias
-    if (options?.lat !== undefined && options?.lng !== undefined) {
-      params.append('focus.point.lat', options.lat.toString());
-      params.append('focus.point.lon', options.lng.toString());
-    }
-
-    // Add sources filter
-    if (options?.sources) {
-      params.append('sources', options.sources);
-    }
-
-    // Add API key if configured
-    if (PELIAS_API_KEY) {
-      params.append('api_key', PELIAS_API_KEY);
-    }
-
-    const response = await fetch(`${PELIAS_URL}/v1/autocomplete?${params.toString()}`, {
-      signal: AbortSignal.timeout(2000), // Reduced to 2s for faster fallback
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pelias autocomplete failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.features && data.features.length > 0) {
-      // Transform Pelias response to our format
-      return transformPeliasFeatures(data.features);
-    }
-
-    // Pelias returned empty results, try fallback
-    console.log('[Pelias] No autocomplete results, falling back to Nominatim');
-  } catch (error) {
-    console.log('[Pelias] Autocomplete failed, falling back to Nominatim:', (error as Error).message);
-  }
+  // TEMPORARILY DISABLED: Skip Pelias and go directly to Nominatim
+  // This is because Pelias has no imported data yet
+  console.log('[Pelias] Skipped (no data), using Nominatim directly');
 
   // Fallback to Nominatim search
   try {
@@ -225,62 +185,19 @@ export async function reverse(lat: number, lng: number): Promise<ReverseGeocodeR
     throw new Error('Invalid coordinates');
   }
 
-  // Try Pelias first
-  try {
-    const params = new URLSearchParams({
-      'point.lat': lat.toString(),
-      'point.lon': lng.toString(),
-      size: '1',
-    });
-
-    if (PELIAS_API_KEY) {
-      params.append('api_key', PELIAS_API_KEY);
-    }
-
-    const response = await fetch(`${PELIAS_URL}/v1/reverse?${params.toString()}`, {
-      signal: AbortSignal.timeout(3000), // Reduced to 3s for faster fallback
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pelias reverse failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.features && data.features.length > 0) {
-      const feature = data.features[0];
-      const props = feature.properties;
-
-      return {
-        address: formatAddress(props),
-        placeId: feature.properties.id || feature.properties.gid || '',
-        lat: feature.geometry.coordinates[1],
-        lng: feature.geometry.coordinates[0],
-        components: {
-          street: props.street,
-          housenumber: props.housenumber,
-          locality: props.locality,
-          region: props.region,
-          postalcode: props.postalcode,
-          country: props.country,
-        },
-      };
-    }
-
-    // Pelias returned empty results, try fallback
-    console.log('[Pelias] No results, falling back to Nominatim');
-  } catch (error) {
-    console.log('[Pelias] Reverse geocoding failed, falling back to Nominatim:', (error as Error).message);
-  }
+  // TEMPORARILY DISABLED: Skip Pelias and go directly to Nominatim
+  // This is because Pelias has no imported data yet
+  console.log('[Pelias] Skipped (no data), using Nominatim directly');
 
   // Fallback to Nominatim (OpenStreetMap)
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=fr`,
       {
         signal: AbortSignal.timeout(5000),
         headers: {
           'User-Agent': 'Truck4u/1.0', // Required by Nominatim usage policy
+          'Accept-Language': 'fr,en',
         },
       }
     );
