@@ -16,6 +16,7 @@ const REVERSE_CACHE_TTL = 86400;     // 24 hours
 
 /**
  * Autocomplete address search
+ * Falls back to Nominatim (OSM) if Pelias fails or has no data
  *
  * @param query - Search query
  * @param options - Optional parameters for proximity bias and limits
@@ -33,31 +34,31 @@ export async function autocomplete(
     return [];
   }
 
-  // Build URL with query parameters
-  const params = new URLSearchParams({
-    text: query.trim(),
-    size: (options?.limit || 5).toString(),
-  });
-
-  // Add focus point for proximity bias
-  if (options?.lat !== undefined && options?.lng !== undefined) {
-    params.append('focus.point.lat', options.lat.toString());
-    params.append('focus.point.lon', options.lng.toString());
-  }
-
-  // Add sources filter
-  if (options?.sources) {
-    params.append('sources', options.sources);
-  }
-
-  // Add API key if configured
-  if (PELIAS_API_KEY) {
-    params.append('api_key', PELIAS_API_KEY);
-  }
-
+  // Try Pelias first
   try {
+    const params = new URLSearchParams({
+      text: query.trim(),
+      size: (options?.limit || 5).toString(),
+    });
+
+    // Add focus point for proximity bias
+    if (options?.lat !== undefined && options?.lng !== undefined) {
+      params.append('focus.point.lat', options.lat.toString());
+      params.append('focus.point.lon', options.lng.toString());
+    }
+
+    // Add sources filter
+    if (options?.sources) {
+      params.append('sources', options.sources);
+    }
+
+    // Add API key if configured
+    if (PELIAS_API_KEY) {
+      params.append('api_key', PELIAS_API_KEY);
+    }
+
     const response = await fetch(`${PELIAS_URL}/v1/autocomplete?${params.toString()}`, {
-      signal: AbortSignal.timeout(5000), // 5s timeout
+      signal: AbortSignal.timeout(2000), // Reduced to 2s for faster fallback
     });
 
     if (!response.ok) {
@@ -66,12 +67,93 @@ export async function autocomplete(
 
     const data = await response.json();
 
-    // Transform Pelias response to our format
-    return transformPeliasFeatures(data.features || []);
+    if (data.features && data.features.length > 0) {
+      // Transform Pelias response to our format
+      return transformPeliasFeatures(data.features);
+    }
+
+    // Pelias returned empty results, try fallback
+    console.log('[Pelias] No autocomplete results, falling back to Nominatim');
   } catch (error) {
-    console.error('[Pelias] Autocomplete error:', error);
-    throw error;
+    console.log('[Pelias] Autocomplete failed, falling back to Nominatim:', (error as Error).message);
   }
+
+  // Fallback to Nominatim search
+  try {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      format: 'json',
+      addressdetails: '1',
+      limit: (options?.limit || 5).toString(),
+      countrycodes: 'tn', // Focus on Tunisia
+    });
+
+    // Add proximity bias (viewbox) if coordinates provided
+    if (options?.lat !== undefined && options?.lng !== undefined) {
+      // Create a viewbox around the user's location (roughly 50km radius)
+      const latDelta = 0.5;
+      const lngDelta = 0.5;
+      const viewbox = `${options.lng - lngDelta},${options.lat + latDelta},${options.lng + lngDelta},${options.lat - latDelta}`;
+      params.append('viewbox', viewbox);
+      params.append('bounded', '1');
+    }
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'User-Agent': 'Truck4u/1.0',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Nominatim search failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
+    }
+
+    // Transform Nominatim results to our format
+    return data.map((item: any) => {
+      const addr = item.address || {};
+
+      return {
+        id: item.place_id ? item.place_id.toString() : '',
+        label: item.display_name,
+        address: item.display_name,
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon),
+        type: determineTypeFromOSM(item.type, item.class),
+        confidence: item.importance || 0.5,
+        bounds: item.boundingbox ? {
+          minLat: parseFloat(item.boundingbox[0]),
+          maxLat: parseFloat(item.boundingbox[1]),
+          minLng: parseFloat(item.boundingbox[2]),
+          maxLng: parseFloat(item.boundingbox[3]),
+        } : undefined,
+      };
+    });
+  } catch (error) {
+    console.error('[Nominatim] Autocomplete error:', error);
+    return []; // Return empty array instead of throwing for autocomplete
+  }
+}
+
+/**
+ * Determine result type from OSM class/type
+ */
+function determineTypeFromOSM(osmType: string, osmClass: string): GeocodingResult['type'] {
+  if (osmClass === 'building' || osmType === 'house') return 'address';
+  if (osmClass === 'highway' || osmType === 'road') return 'street';
+  if (osmClass === 'amenity' || osmClass === 'shop') return 'venue';
+  if (osmClass === 'place' && (osmType === 'city' || osmType === 'town' || osmType === 'village')) return 'locality';
+  if (osmClass === 'boundary' && osmType === 'administrative') return 'region';
+  return 'address';
 }
 
 /**
