@@ -404,6 +404,12 @@ router.get('/history', verifyToken, async (req: AuthRequest, res, next) => {
       take: 50
     });
 
+    res.json({ rides });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/rides/:id - Get ride details
 router.get('/:id', verifyToken, async (req: AuthRequest, res, next) => {
   try {
@@ -1114,13 +1120,6 @@ router.post('/:id/rate', verifyToken, requireCustomer, async (req: AuthRequest, 
       message: 'Rating submitted successfully',
       overallRating: Math.round(overallRating * 10) / 10
     });
-  } catch (error) {
-    next(error);
-  }
-});
-
-
-    res.json({ rides });
   } catch (error) {
     next(error);
   }
