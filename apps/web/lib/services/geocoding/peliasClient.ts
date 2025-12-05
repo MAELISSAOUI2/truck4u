@@ -112,6 +112,7 @@ export async function forward(address: string): Promise<GeocodingResult[]> {
 
 /**
  * Reverse geocoding - Convert coordinates to address
+ * Falls back to Nominatim (OSM) if Pelias fails or has no data
  *
  * @param lat - Latitude
  * @param lng - Longitude
@@ -121,19 +122,20 @@ export async function reverse(lat: number, lng: number): Promise<ReverseGeocodeR
     throw new Error('Invalid coordinates');
   }
 
-  const params = new URLSearchParams({
-    'point.lat': lat.toString(),
-    'point.lon': lng.toString(),
-    size: '1',
-  });
-
-  if (PELIAS_API_KEY) {
-    params.append('api_key', PELIAS_API_KEY);
-  }
-
+  // Try Pelias first
   try {
+    const params = new URLSearchParams({
+      'point.lat': lat.toString(),
+      'point.lon': lng.toString(),
+      size: '1',
+    });
+
+    if (PELIAS_API_KEY) {
+      params.append('api_key', PELIAS_API_KEY);
+    }
+
     const response = await fetch(`${PELIAS_URL}/v1/reverse?${params.toString()}`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000), // Reduced to 3s for faster fallback
     });
 
     if (!response.ok) {
@@ -142,30 +144,75 @@ export async function reverse(lat: number, lng: number): Promise<ReverseGeocodeR
 
     const data = await response.json();
 
-    if (!data.features || data.features.length === 0) {
+    if (data.features && data.features.length > 0) {
+      const feature = data.features[0];
+      const props = feature.properties;
+
+      return {
+        address: formatAddress(props),
+        placeId: feature.properties.id || feature.properties.gid || '',
+        lat: feature.geometry.coordinates[1],
+        lng: feature.geometry.coordinates[0],
+        components: {
+          street: props.street,
+          housenumber: props.housenumber,
+          locality: props.locality,
+          region: props.region,
+          postalcode: props.postalcode,
+          country: props.country,
+        },
+      };
+    }
+
+    // Pelias returned empty results, try fallback
+    console.log('[Pelias] No results, falling back to Nominatim');
+  } catch (error) {
+    console.log('[Pelias] Reverse geocoding failed, falling back to Nominatim:', (error as Error).message);
+  }
+
+  // Fallback to Nominatim (OpenStreetMap)
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      {
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'User-Agent': 'Truck4u/1.0', // Required by Nominatim usage policy
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Nominatim reverse failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data || data.error) {
       return null;
     }
 
-    const feature = data.features[0];
-    const props = feature.properties;
+    const addr = data.address || {};
+    const street = addr.road || addr.street || addr.pedestrian;
+    const housenumber = addr.house_number;
 
     return {
-      address: formatAddress(props),
-      placeId: feature.properties.id || feature.properties.gid || '',
-      lat: feature.geometry.coordinates[1],
-      lng: feature.geometry.coordinates[0],
+      address: data.display_name || 'Unknown location',
+      placeId: data.place_id ? data.place_id.toString() : '',
+      lat: parseFloat(data.lat),
+      lng: parseFloat(data.lon),
       components: {
-        street: props.street,
-        housenumber: props.housenumber,
-        locality: props.locality,
-        region: props.region,
-        postalcode: props.postalcode,
-        country: props.country,
+        street,
+        housenumber,
+        locality: addr.city || addr.town || addr.village || addr.suburb,
+        region: addr.state || addr.province,
+        postalcode: addr.postcode,
+        country: addr.country,
       },
     };
   } catch (error) {
-    console.error('[Pelias] Reverse geocoding error:', error);
-    throw error;
+    console.error('[Nominatim] Reverse geocoding error:', error);
+    throw new Error('Both Pelias and Nominatim reverse geocoding failed');
   }
 }
 
