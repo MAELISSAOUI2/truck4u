@@ -427,7 +427,10 @@ export function TripMap({
 // Helper Functions
 // ==========================================================================
 
-function addRouteLayer(map: Map, route: GeoJSON.LineString) {
+function addRouteLayer(map: Map | null, route: GeoJSON.LineString) {
+  // Guard: Check if map exists
+  if (!map) return;
+
   // Remove existing layers and sources
   removeRouteLayer(map);
 
@@ -474,14 +477,25 @@ function addRouteLayer(map: Map, route: GeoJSON.LineString) {
   }, 'route-line'); // Place outline below the main line
 }
 
-function removeRouteLayer(map: Map) {
-  if (map.getLayer('route-line')) {
-    map.removeLayer('route-line');
-  }
-  if (map.getLayer('route-outline')) {
-    map.removeLayer('route-outline');
-  }
-  if (map.getSource('route')) {
-    map.removeSource('route');
+function removeRouteLayer(map: Map | null) {
+  // Guard: Check if map exists and is still valid
+  if (!map) return;
+
+  try {
+    // Check if style is still loaded (map hasn't been destroyed)
+    if (!map.getStyle()) return;
+
+    if (map.getLayer('route-line')) {
+      map.removeLayer('route-line');
+    }
+    if (map.getLayer('route-outline')) {
+      map.removeLayer('route-outline');
+    }
+    if (map.getSource('route')) {
+      map.removeSource('route');
+    }
+  } catch (error) {
+    // Silently handle errors if map is being destroyed
+    console.debug('Map cleanup error (expected during unmount):', error);
   }
 }
