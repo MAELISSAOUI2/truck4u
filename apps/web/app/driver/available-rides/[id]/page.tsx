@@ -195,9 +195,15 @@ export default function AvailableRideDetailsPage() {
       }, 2000);
     } catch (error: any) {
       console.error('Error submitting bid:', error);
+      console.error('Error response data:', error.response?.data); // DEBUG
+      console.error('Bid data sent:', { // DEBUG
+        proposedPrice: Number(bidAmount),
+        estimatedArrival: Number(estimatedArrival) || 30,
+        message: message || undefined,
+      });
       notifications.show({
         title: 'Erreur',
-        message: error.response?.data?.message || 'Impossible de soumettre l\'offre',
+        message: error.response?.data?.error || error.response?.data?.message || 'Impossible de soumettre l\'offre',
         color: 'red',
       });
     } finally {
