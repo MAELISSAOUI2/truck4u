@@ -3,26 +3,13 @@ import { prisma } from '@truck4u/database';
 import { verifyToken, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs/promises';
+import { storageService } from '../services/storage';
 
 const router = Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads', 'kyc');
-    await fs.mkdir(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `${uniqueSuffix}-${file.originalname}`);
-  }
-});
-
+// Configure multer for file uploads (memory storage for cloud upload)
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB max
   },
@@ -67,6 +54,17 @@ router.post('/documents', upload.single('file'), async (req, res, next) => {
       return res.status(404).json({ error: 'Driver not found' });
     }
 
+    // Upload file to storage (local or cloud)
+    const uploadResult = await storageService.upload(
+      req.file.buffer,
+      req.file.originalname,
+      {
+        folder: `kyc/${driver.id}`,
+        contentType: req.file.mimetype,
+        isPublic: false
+      }
+    );
+
     // Check if document already exists for this type
     const existingDoc = await prisma.kYCDocument.findFirst({
       where: {
@@ -75,15 +73,26 @@ router.post('/documents', upload.single('file'), async (req, res, next) => {
       }
     });
 
-    // Create document record
+    // If updating existing document, delete old file
+    if (existingDoc && existingDoc.fileUrl) {
+      try {
+        // Extract key from URL
+        const oldKey = existingDoc.fileUrl.replace(/^\/uploads\//, '');
+        await storageService.delete(oldKey);
+      } catch (err) {
+        console.error('Error deleting old file:', err);
+      }
+    }
+
+    // Create or update document record
     const document = existingDoc
       ? await prisma.kYCDocument.update({
           where: { id: existingDoc.id },
           data: {
-            fileUrl: `/uploads/kyc/${req.file.filename}`,
+            fileUrl: uploadResult.url,
             fileName: req.file.originalname,
-            fileSize: req.file.size,
-            mimeType: req.file.mimetype,
+            fileSize: uploadResult.size,
+            mimeType: uploadResult.contentType,
             verificationStatus: 'PENDING',
             uploadedAt: new Date(),
             expiresAt: expiresAt ? new Date(expiresAt) : null
@@ -93,10 +102,10 @@ router.post('/documents', upload.single('file'), async (req, res, next) => {
           data: {
             driverId: driver.id,
             documentType,
-            fileUrl: `/uploads/kyc/${req.file.filename}`,
+            fileUrl: uploadResult.url,
             fileName: req.file.originalname,
-            fileSize: req.file.size,
-            mimeType: req.file.mimetype,
+            fileSize: uploadResult.size,
+            mimeType: uploadResult.contentType,
             expiresAt: expiresAt ? new Date(expiresAt) : null
           }
         });
@@ -196,12 +205,12 @@ router.delete('/documents/:id', async (req, res, next) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Delete file from disk
+    // Delete file from storage
     try {
-      const filePath = path.join(process.cwd(), document.fileUrl);
-      await fs.unlink(filePath);
+      const key = document.fileUrl.replace(/^\/uploads\//, '');
+      await storageService.delete(key);
     } catch (err) {
-      console.error('Error deleting file:', err);
+      console.error('Error deleting file from storage:', err);
     }
 
     // Delete from database
