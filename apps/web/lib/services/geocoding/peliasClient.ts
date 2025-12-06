@@ -44,9 +44,10 @@ export async function autocomplete(
       q: query.trim(),
       format: 'json',
       addressdetails: '1',
-      limit: (options?.limit || 5).toString(),
+      limit: (options?.limit || 10).toString(), // Augmenté à 10 résultats
       countrycodes: 'tn', // Focus on Tunisia
       'accept-language': 'fr', // Prefer French results
+      dedupe: '1', // Dédupliquer les résultats similaires
     });
 
     // Add proximity bias (viewbox) if coordinates provided
