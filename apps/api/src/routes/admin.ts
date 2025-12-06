@@ -98,14 +98,14 @@ router.get('/kyc/driver/:id', async (req, res, next) => {
         kycDocuments: {
           orderBy: { uploadedAt: 'desc' }
         },
-        completedRides: {
+        rides: {
           take: 10,
           orderBy: { completedAt: 'desc' },
           select: {
             id: true,
             status: true,
             finalPrice: true,
-            customerRating: true,
+            customerRatingOverall: true,
             completedAt: true
           }
         }
