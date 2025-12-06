@@ -126,7 +126,8 @@ export function AddressAutocomplete({
         throw new Error('Failed to fetch suggestions');
       }
 
-      const results: GeocodingResult[] = await response.json();
+      const data = await response.json();
+      const results = data.results || []; // Extract results from API response
       setSuggestions(results);
       setIsOpen(results.length > 0);
       setSelectedIndex(-1);
