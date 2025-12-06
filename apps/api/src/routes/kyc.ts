@@ -55,11 +55,12 @@ router.post('/documents', upload.single('file'), async (req, res, next) => {
     }
 
     // Upload file to storage (local or cloud)
+    // Structure: kyc/{documentType}/{driverId}_{filename}
     const uploadResult = await storageService.upload(
       req.file.buffer,
-      req.file.originalname,
+      `${driver.id}_${req.file.originalname}`,
       {
-        folder: `kyc/${driver.id}`,
+        folder: `kyc/${documentType}`,
         contentType: req.file.mimetype,
         isPublic: false
       }
