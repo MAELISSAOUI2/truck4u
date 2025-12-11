@@ -1,0 +1,38 @@
+'use client';
+
+import { MantineProvider, createTheme } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+
+// Thème Uber-style - Noir, blanc, minimaliste
+const theme = createTheme({
+  primaryColor: 'dark',
+  defaultRadius: 'md',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  headings: {
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    fontWeight: '700',
+  },
+  components: {
+    Button: {
+      defaultProps: {
+        size: 'lg',
+        radius: 'xl',
+      },
+    },
+    TextInput: {
+      defaultProps: {
+        size: 'lg',
+        radius: 'xl',
+      },
+    },
+  },
+});
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <Notifications position="top-right" zIndex={1000} />
+      {children}
+    </MantineProvider>
+  );
+}
