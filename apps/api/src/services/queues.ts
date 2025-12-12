@@ -3,6 +3,7 @@ import { Redis } from 'ioredis';
 import type { Server } from 'socket.io';
 import { processAutoConfirmation } from './paymentAutoConfirmation';
 import { processSubscriptionExpiration } from './subscriptionExpiration';
+import { processDispatchStep, checkBidsAndContinue, DispatchJobData } from './rideDispatch';
 
 // Configuration Redis
 const redisConfig = {
@@ -17,6 +18,7 @@ const connection = new Redis(redisConfig);
 // Queues
 export const autoConfirmQueue = new Queue('auto-confirm-payments', { connection });
 export const subscriptionExpirationQueue = new Queue('subscription-expiration', { connection });
+export const rideDispatchQueue = new Queue('ride-dispatch', { connection });
 
 // Schedulers (pour les jobs répétés)
 const autoConfirmScheduler = new QueueScheduler('auto-confirm-payments', { connection: connection.duplicate() });
@@ -52,6 +54,32 @@ export function startQueueWorkers(io?: Server) {
     { connection: connection.duplicate() }
   );
 
+  // Worker pour dispatch des courses aux conducteurs
+  const rideDispatchWorker = new Worker(
+    'ride-dispatch',
+    async (job) => {
+      console.log(`[BullMQ] Processing ride dispatch job ${job.id} (type: ${job.name})...`);
+      const data = job.data as DispatchJobData;
+
+      let result;
+      if (job.name === 'dispatch-step') {
+        result = await processDispatchStep(data, io);
+      } else if (job.name === 'check-bids') {
+        result = await checkBidsAndContinue(data, io);
+      } else {
+        console.error(`[BullMQ] Unknown ride dispatch job type: ${job.name}`);
+        return { success: false, error: 'unknown_job_type' };
+      }
+
+      console.log(`[BullMQ] Ride dispatch job ${job.id} completed:`, result);
+      return result;
+    },
+    {
+      connection: connection.duplicate(),
+      concurrency: 10 // Allow multiple dispatch jobs to run in parallel
+    }
+  );
+
   // Gestionnaires d'événements
   autoConfirmWorker.on('completed', (job) => {
     console.log(`[BullMQ] ✅ Auto-confirm job ${job.id} completed`);
@@ -69,13 +97,22 @@ export function startQueueWorkers(io?: Server) {
     console.error(`[BullMQ] ❌ Subscription expiration job ${job?.id} failed:`, err);
   });
 
-  console.log('[BullMQ] ✅ Workers started successfully');
+  rideDispatchWorker.on('completed', (job) => {
+    console.log(`[BullMQ] ✅ Ride dispatch job ${job.id} completed`);
+  });
+
+  rideDispatchWorker.on('failed', (job, err) => {
+    console.error(`[BullMQ] ❌ Ride dispatch job ${job?.id} failed:`, err);
+  });
+
+  console.log('[BullMQ] ✅ Workers started successfully (auto-confirm, subscription, ride-dispatch)');
 
   // Retourner fonction de cleanup
   return async () => {
     console.log('[BullMQ] Stopping workers and schedulers...');
     await autoConfirmWorker.close();
     await subscriptionWorker.close();
+    await rideDispatchWorker.close();
     await autoConfirmScheduler.close();
     await subscriptionScheduler.close();
     await connection.quit();

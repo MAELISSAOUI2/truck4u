@@ -9,6 +9,7 @@
   "scripts": {
     "dev:api": "npm run dev --workspace=@truck4u/api",
     "dev:web": "npm run dev --workspace=@truck4u/web",
+    "dev:mobile": "npm run start --workspace=@truck4u/mobile",
     "build": "npm run build --workspaces --if-present",
     "db:generate": "npm run generate --workspace=@truck4u/database",
     "db:push": "npm run push --workspace=@truck4u/database",

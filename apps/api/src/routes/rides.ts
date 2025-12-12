@@ -4,6 +4,7 @@ import { verifyToken, requireCustomer, requireDriver, AuthRequest } from '../mid
 import { z } from 'zod';
 import Redis from 'ioredis';
 import { Server } from 'socket.io';
+import { initiateRideDispatch } from '../services/rideDispatch';
 
 const router = Router();
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
@@ -85,75 +86,13 @@ function estimatePrice(distance: number, vehicleType: string, loadAssistance: bo
   };
 }
 
-// Helper: Proximity-based driver dispatch
-async function dispatchToDrivers(rideId: string, pickup: any, vehicleType: string, io: Server) {
-  const radiusSteps = [
-    { radius: 5, waitTime: 180000 }, // 5km, 3min
-    { radius: 10, waitTime: 120000 }, // 10km, 2min
-    { radius: 20, waitTime: 120000 }, // 20km, 2min
-    { radius: 30, waitTime: 60000 }  // 30km+, 1min
-  ];
-
-  for (const step of radiusSteps) {
-    // Find drivers within radius using Redis GEORADIUS
-    const nearbyDriverIds = await redis.georadius(
-      'drivers:available',
-      pickup.lng,
-      pickup.lat,
-      step.radius,
-      'km',
-      'ASC'
-    ) as string[];
-
-    if (nearbyDriverIds.length === 0) continue;
-
-    // Filter by vehicle type and verification status
-    const drivers = await prisma.driver.findMany({
-      where: {
-        id: { in: nearbyDriverIds },
-        vehicleType,
-        isAvailable: true,
-        verificationStatus: 'APPROVED'
-      },
-      select: {
-        id: true,
-        name: true,
-        rating: true
-      }
-    });
-
-    if (drivers.length > 0) {
-      // Notify drivers via Socket.io
-      const ride = await prisma.ride.findUnique({
-        where: { id: rideId },
-        include: { customer: true }
-      });
-
-      drivers.forEach(driver => {
-        io.to(`driver:${driver.id}`).emit('ride_request', {
-          rideId,
-          pickup: ride?.pickup,
-          dropoff: ride?.dropoff,
-          distance: ride?.distance,
-          vehicleType,
-          loadAssistance: ride?.loadAssistance,
-          estimatedPrice: { min: ride?.estimatedMinPrice, max: ride?.estimatedMaxPrice },
-          expiresIn: step.waitTime / 1000
-        });
-      });
-
-      // Wait for bids
-      await new Promise(resolve => setTimeout(resolve, step.waitTime));
-
-      // Check if any bids received
-      const bids = await prisma.bid.count({
-        where: { rideId, status: 'ACTIVE' }
-      });
-
-      if (bids > 0) break; // Stop searching if we got bids
-    }
-  }
-}
+// Note: Driver dispatch logic has been migrated to BullMQ workers
+// See: apps/api/src/services/rideDispatch.ts
+// This provides:
+// - Durable job processing (survives server restarts)
+// - Automatic retries on failure
+// - Horizontal scalability (multiple worker instances)
+// - Better monitoring and observability
 
 // POST /api/rides/estimate - Get price estimate
 router.post('/estimate', verifyToken, requireCustomer, async (req: AuthRequest, res, next) => {
@@ -233,11 +172,8 @@ router.post('/', verifyToken, requireCustomer, async (req: AuthRequest, res, nex
       }
     });
 
-    // Dispatch to nearby drivers
-    const io = req.app.get('io') as Server;
-    setTimeout(() => {
-      dispatchToDrivers(ride.id, data.pickup, data.vehicleType, io);
-    }, 100);
+    // Dispatch to nearby drivers using BullMQ (durable, scalable)
+    await initiateRideDispatch(ride.id, data.pickup, data.vehicleType);
 
     res.status(201).json(ride);
   } catch (error) {

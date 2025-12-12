@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Truck4u",
+    "slug": "truck4u",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.truck4u.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Truck4u needs your location to find nearby drivers and track deliveries.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Truck4u needs your location to provide accurate driver tracking and delivery updates."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.truck4u.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Truck4u to use your location for accurate tracking and driver matching."
+        }
+      ]
+    ],
+    "scheme": "truck4u",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "truck4u-mobile"
+      }
+    }
+  }
+}

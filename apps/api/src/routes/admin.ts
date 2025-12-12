@@ -3,6 +3,7 @@ import { prisma } from '@truck4u/database';
 import { verifyToken, requireAdmin, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import path from 'path';
+import { blacklistAllUserTokens, removeUserBlacklist } from '../services/tokenBlacklist';
 
 const router = Router();
 
@@ -472,12 +473,20 @@ router.patch('/drivers/:id/suspend', async (req, res, next) => {
       data: {
         verificationStatus: 'SUSPENDED',
         isAvailable: false,
+        isDeactivated: true,
+        deactivatedAt: new Date(),
+        deactivationReason: reason,
         rejectionReason: reason
       }
     });
 
+    // Instantly revoke all active sessions
+    await blacklistAllUserTokens(driver.id, 'driver', `admin_suspension: ${reason}`);
+
+    console.log(`[Admin] Driver ${driver.id} suspended. All sessions revoked.`);
+
     res.json({
-      message: 'Driver suspended',
+      message: 'Driver suspended and all sessions terminated',
       driver
     });
   } catch (error) {
@@ -492,12 +501,20 @@ router.patch('/drivers/:id/activate', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         verificationStatus: 'APPROVED',
+        isDeactivated: false,
+        deactivatedAt: null,
+        deactivationReason: null,
         rejectionReason: null
       }
     });
 
+    // Remove driver from token blacklist (allow new logins)
+    await removeUserBlacklist(driver.id, 'driver');
+
+    console.log(`[Admin] Driver ${driver.id} reactivated. Blacklist removed.`);
+
     res.json({
-      message: 'Driver activated',
+      message: 'Driver activated successfully',
       driver
     });
   } catch (error) {
