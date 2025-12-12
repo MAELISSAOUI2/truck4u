@@ -74,3 +74,64 @@ export const useLocationStore = create<LocationState>((set) => ({
   currentLocation: null,
   setCurrentLocation: (location) => set({ currentLocation: location }),
 }));
+
+interface Notification {
+  id: string;
+  type: 'ride_request' | 'bid_received' | 'bid_accepted' | 'ride_status' | 'payment' | 'general';
+  title: string;
+  message: string;
+  data?: any;
+  timestamp: number;
+  read: boolean;
+}
+
+interface NotificationState {
+  notifications: Notification[];
+  unreadCount: number;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
+  markAsRead: (notificationId: string) => void;
+  markAllAsRead: () => void;
+  clearNotifications: () => void;
+  updateNotificationStatus: (notificationId: string, status: any) => void;
+}
+
+export const useNotificationStore = create<NotificationState>((set) => ({
+  notifications: [],
+  unreadCount: 0,
+  addNotification: (notification) =>
+    set((state) => {
+      const newNotification: Notification = {
+        ...notification,
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: Date.now(),
+        read: false,
+      };
+      return {
+        notifications: [newNotification, ...state.notifications],
+        unreadCount: state.unreadCount + 1,
+      };
+    }),
+  markAsRead: (notificationId) =>
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === notificationId ? { ...n, read: true } : n
+      ),
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    })),
+  markAllAsRead: () =>
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    })),
+  clearNotifications: () =>
+    set({
+      notifications: [],
+      unreadCount: 0,
+    }),
+  updateNotificationStatus: (notificationId, status) =>
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === notificationId ? { ...n, data: { ...n.data, ...status } } : n
+      ),
+    })),
+}));
