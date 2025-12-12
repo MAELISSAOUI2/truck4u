@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { ColorSchemeScript } from '@mantine/core';
+import { Providers } from './providers';
+import './globals.css';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
-import './globals.css';
-import { Providers } from './providers';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Truck4u - Logistics On-Demand',
@@ -29,15 +27,14 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <head>
+        <ColorSchemeScript defaultColorScheme="light" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
