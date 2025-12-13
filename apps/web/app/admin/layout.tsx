@@ -2,23 +2,45 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import Link from 'next/link';
+import {
+  AppShell,
+  Burger,
+  Group,
+  NavLink,
+  Title,
+  Text,
+  ActionIcon,
+  Stack,
+  Loader,
+  Center,
+} from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import {
+  IconLayoutDashboard,
+  IconCheckupList,
+  IconUsers,
+  IconTruck,
+  IconChartBar,
+  IconLogout,
+  IconCoin,
+} from '@tabler/icons-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [opened, { toggle, close }] = useDisclosure();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
-    if (!token) {
+    if (!token && !pathname?.includes('/login')) {
       router.push('/admin/login');
     } else {
       setIsAuthenticated(true);
     }
     setLoading(false);
-  }, [router]);
+  }, [router, pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
@@ -27,64 +49,78 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Chargement...</div>
-      </div>
+      <Center style={{ minHeight: '100vh' }}>
+        <Loader size="lg" color="dark" />
+      </Center>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !pathname?.includes('/login')) {
     return null;
   }
 
+  // Login page doesn't need layout
+  if (pathname?.includes('/login')) {
+    return <>{children}</>;
+  }
+
   const navItems = [
-    { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-    { href: '/admin/kyc', label: 'KYC', icon: '✓' },
-    { href: '/admin/drivers', label: 'Conducteurs', icon: '🚛' },
-    { href: '/admin/rides', label: 'Courses', icon: '📦' },
-    { href: '/admin/analytics', label: 'Analytiques', icon: '📈' }
+    { href: '/admin/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+    { href: '/admin/kyc', label: 'Vérification KYC', icon: IconCheckupList },
+    { href: '/admin/drivers', label: 'Conducteurs', icon: IconUsers },
+    { href: '/admin/rides', label: 'Courses', icon: IconTruck },
+    { href: '/admin/pricing', label: 'Configuration Prix', icon: IconCoin },
+    { href: '/admin/analytics', label: 'Analytiques', icon: IconChartBar },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="fixed top-0 left-0 h-full w-64 bg-white shadow-lg">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-blue-600">Truck4u Admin</h1>
-        </div>
-
-        <nav className="px-4">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-colors ${
-                pathname === item.href
-                  ? 'bg-blue-50 text-blue-600 font-medium'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className="absolute bottom-0 w-full p-4 border-t">
-          <button
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between">
+          <Group>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Title order={3} style={{ fontSize: '1.25rem' }}>Truck4u Admin</Title>
+          </Group>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            size="lg"
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Déconnexion"
           >
-            <span>🚪</span>
-            <span>Déconnexion</span>
-          </button>
-        </div>
-      </aside>
+            <IconLogout size={20} />
+          </ActionIcon>
+        </Group>
+      </AppShell.Header>
 
-      {/* Main Content */}
-      <main className="ml-64 p-8">
-        {children}
-      </main>
-    </div>
+      <AppShell.Navbar p="md">
+        <Stack gap="xs">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+
+            return (
+              <NavLink
+                key={item.href}
+                label={item.label}
+                leftSection={<Icon size={20} />}
+                active={isActive}
+                onClick={() => {
+                  router.push(item.href);
+                  close();
+                }}
+                style={{ borderRadius: 8 }}
+              />
+            );
+          })}
+        </Stack>
+      </AppShell.Navbar>
+
+      <AppShell.Main>{children}</AppShell.Main>
+    </AppShell>
   );
 }

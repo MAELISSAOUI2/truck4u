@@ -38,6 +38,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@cspotcode/source-map-support": "^0.8.1",
     "@jest/globals": "^29.7.0",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.19",

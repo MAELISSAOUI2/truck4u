@@ -2,366 +2,704 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
-import { rideApi } from '@/lib/api';
+import dynamic from 'next/dynamic';
 import {
-  MapPin, Package, Calendar, Clock, Truck, ArrowRight, Upload, X, Users,
-  AlertCircle, Check, ChevronRight, ArrowLeft, Zap
-} from 'lucide-react';
-import Link from 'next/link';
+  Container,
+  Stack,
+  Title,
+  Text,
+  Textarea,
+  Button,
+  Card,
+  Group,
+  ActionIcon,
+  Paper,
+  SimpleGrid,
+  Checkbox,
+  Select,
+  Stepper,
+  Badge,
+  ThemeIcon,
+  rem,
+  TextInput,
+} from '@mantine/core';
+import { DateTimePicker } from '@mantine/dates';
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import {
+  IconArrowLeft,
+  IconMapPin,
+  IconPackage,
+  IconClock,
+  IconNavigation,
+  IconMinus,
+  IconPlus,
+  IconCalendar,
+  IconPhoto,
+  IconUpload,
+  IconX,
+  IconCheck,
+} from '@tabler/icons-react';
+import { useAuthStore } from '@/lib/store';
+import { rideApi, pricingApi } from '@/lib/api';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { notifications } from '@mantine/notifications';
+import '@mantine/dates/styles.css';
+import '@mantine/dropzone/styles.css';
+
+// Dynamic import to avoid SSR issues with Leaflet
+const SimpleMap = dynamic(() => import('@/components/SimpleMap'), {
+  ssr: false,
+  loading: () => <div style={{ height: '400px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Chargement de la carte...</div>
+});
 
 const VEHICLE_TYPES = [
-  { value: 'PICKUP', label: 'Pickup', capacity: '500 kg', icon: '🚙', price: 15 },
-  { value: 'VAN', label: 'Camionnette', capacity: '1 tonne', icon: '🚐', price: 25 },
-  { value: 'SMALL_TRUCK', label: 'Petit Camion', capacity: '3 tonnes', icon: '🚚', price: 45 },
-  { value: 'MEDIUM_TRUCK', label: 'Camion Moyen', capacity: '8 tonnes', icon: '🚛', price: 85 },
-  { value: 'LARGE_TRUCK', label: 'Grand Camion', capacity: '20 tonnes', icon: '🚛', price: 150 },
+  { value: 'CAMIONNETTE', label: 'Camionnette', icon: '🚙', basePrice: 20, capacity: '500kg', description: 'Parfait pour les petits colis' },
+  { value: 'FOURGON', label: 'Fourgon', icon: '🚐', basePrice: 35, capacity: '1 tonne', description: 'Idéal pour les charges moyennes' },
+  { value: 'CAMION_3_5T', label: 'Camion 3.5T', icon: '🚚', basePrice: 60, capacity: '3.5 tonnes', description: 'Pour les grandes livraisons' },
+  { value: 'CAMION_LOURD', label: 'Camion Lourd', icon: '🚛', basePrice: 100, capacity: '8+ tonnes', description: 'Transport de marchandises lourdes' },
 ];
 
 export default function NewRidePage() {
   const router = useRouter();
   const { token } = useAuthStore();
+
+  const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [estimating, setEstimating] = useState(false);
-  const [estimate, setEstimate] = useState<any>(null);
   const [error, setError] = useState('');
-  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [distance, setDistance] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Price estimation
+  const [priceEstimate, setPriceEstimate] = useState<any>(null);
+  const [estimating, setEstimating] = useState(false);
+
+  // Photos
+  const [photos, setPhotos] = useState<File[]>([]);
 
   const [formData, setFormData] = useState({
     pickupAddress: '',
+    pickupLat: 36.8065,
+    pickupLng: 10.1815,
     deliveryAddress: '',
-    vehicleType: 'VAN',
+    deliveryLat: 36.8188,
+    deliveryLng: 10.1658,
+    schedulingType: 'immediate', // 'immediate' or 'scheduled'
+    scheduledDate: null as Date | null,
+    vehicleType: 'FOURGON',
     cargoDescription: '',
     cargoWeight: '',
-    numberOfTrips: 1,
     numberOfHelpers: 0,
-    isUrgent: false,
+    numberOfTrips: 1,
+    isExpress: false,
   });
 
   useEffect(() => {
-    if (!token) router.push('/customer/login');
-  }, [token]);
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      Array.from(e.target.files).forEach((file) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setUploadedPhotos((prev) => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
-  const calculateEstimate = () => {
-    const vehicle = VEHICLE_TYPES.find((v) => v.value === formData.vehicleType);
-    if (!vehicle) return null;
-
-    const basePrice = vehicle.price;
-    const distance = 15;
-    const distancePrice = distance * 1.5;
-    const weightFactor = formData.cargoWeight ? Math.max(1, parseInt(formData.cargoWeight) / 100) : 1;
-    const tripsFactor = formData.numberOfTrips;
-    const helpersCost = formData.numberOfHelpers * 15;
-    const urgentFactor = formData.isUrgent ? 1.2 : 1;
-
-    const subtotal = (basePrice + distancePrice) * weightFactor * tripsFactor * urgentFactor;
-    const total = Math.round(subtotal + helpersCost);
-
-    return {
-      basePrice,
-      distancePrice: Math.round(distancePrice),
-      helpersCost,
-      urgentSurcharge: formData.isUrgent ? Math.round(subtotal * 0.2) : 0,
-      estimatedPrice: total,
-      distance,
-      duration: Math.round(distance * 3 + 15),
-    };
-  };
-
-  const handleEstimate = () => {
-    if (!formData.pickupAddress || !formData.deliveryAddress) {
-      setError('Veuillez remplir les adresses');
+    if (!token) {
+      router.push('/customer/login');
       return;
     }
-    setError('');
-    setEstimating(true);
-    setTimeout(() => {
-      const calc = calculateEstimate();
-      setEstimate(calc);
-      setEstimating(false);
-      setCurrentStep(3);
-    }, 800);
+  }, [token, router]);
+
+  // Calculate route using OSRM (free!)
+  const calculateRoute = async () => {
+    try {
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${formData.pickupLng},${formData.pickupLat};${formData.deliveryLng},${formData.deliveryLat}?` +
+        `overview=false&geometries=geojson`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.routes && data.routes[0]) {
+          const route = data.routes[0];
+          setDistance(parseFloat((route.distance / 1000).toFixed(1)));
+          setDuration(Math.round(route.duration / 60));
+        }
+      }
+    } catch (err) {
+      console.error('Error calculating route:', err);
+    }
   };
 
-  const handleCreateRide = async () => {
-    if (!estimate) return;
+  // Calculate route when both addresses are set
+  useEffect(() => {
+    if (formData.pickupAddress && formData.deliveryAddress) {
+      calculateRoute();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.pickupLat, formData.pickupLng, formData.deliveryLat, formData.deliveryLng]);
+
+  const handlePickupChange = (address: string, lat: number, lng: number) => {
+    setFormData(prev => ({
+      ...prev,
+      pickupAddress: address,
+      pickupLat: lat,
+      pickupLng: lng,
+    }));
+  };
+
+  const handleDeliveryChange = (address: string, lat: number, lng: number) => {
+    setFormData(prev => ({
+      ...prev,
+      deliveryAddress: address,
+      deliveryLat: lat,
+      deliveryLng: lng,
+    }));
+  };
+
+  const handleNextStep = () => {
+    if (activeStep === 0) {
+      if (!formData.pickupAddress || !formData.deliveryAddress) {
+        setError('Veuillez saisir les deux adresses');
+        return;
+      }
+    }
+    setError('');
+    setActiveStep(prev => prev + 1);
+  };
+
+  const calculatePriceEstimate = async () => {
+    // Ne pas calculer si pas assez de données
+    if (!distance || !duration || distance === 0) {
+      setPriceEstimate(null);
+      return;
+    }
+
+    setEstimating(true);
+    try {
+      // Mapper les paramètres du formulaire vers l'API
+      const tripType = formData.numberOfTrips > 1 ? 'ALLER_RETOUR' : 'ALLER_SIMPLE';
+      const hasConvoyeur = formData.numberOfHelpers > 0;
+      const departureTime = formData.schedulingType === 'scheduled' && formData.scheduledDate
+        ? formData.scheduledDate.toISOString()
+        : new Date().toISOString();
+
+      // Trafic par défaut moyen, ou dense si express
+      const trafficLevel = formData.isExpress ? 'DENSE' : 'MOYEN';
+
+      const response = await pricingApi.estimate({
+        vehicleType: formData.vehicleType as any,
+        distance,
+        duration,
+        tripType: tripType as any,
+        hasConvoyeur,
+        departureTime,
+        trafficLevel: trafficLevel as any,
+      });
+
+      setPriceEstimate(response.data.estimate);
+    } catch (error: any) {
+      console.error('Error calculating price estimate:', error);
+      // En cas d'erreur, garder l'ancienne estimation
+    } finally {
+      setEstimating(false);
+    }
+  };
+
+  // Recalculer l'estimation quand les paramètres changent
+  useEffect(() => {
+    if (distance > 0 && duration > 0) {
+      calculatePriceEstimate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    distance,
+    duration,
+    formData.vehicleType,
+    formData.numberOfHelpers,
+    formData.numberOfTrips,
+    formData.isExpress,
+    formData.schedulingType,
+    formData.scheduledDate,
+  ]);
+
+  const handleSubmit = async () => {
+    if (!formData.cargoDescription) {
+      setError('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
     try {
-      const response = await rideApi.create({
-        ...formData,
-        estimatedPrice: estimate.estimatedPrice,
-        estimatedDistance: estimate.distance,
-        estimatedDuration: estimate.duration,
-        photos: uploadedPhotos,
+      // Upload photos first if any
+      const photoUrls: string[] = [];
+      // In a real app, you'd upload to a storage service here
+
+      // Transform data to match API schema
+      const apiData = {
+        pickup: {
+          lat: formData.pickupLat,
+          lng: formData.pickupLng,
+          address: formData.pickupAddress,
+        },
+        dropoff: {
+          lat: formData.deliveryLat,
+          lng: formData.deliveryLng,
+          address: formData.deliveryAddress,
+        },
+        vehicleType: formData.vehicleType,
+        loadAssistance: formData.numberOfHelpers > 0,
+        numberOfTrips: formData.numberOfTrips,
+        isExpress: formData.isExpress,
+        itemPhotos: photoUrls,
+        description: formData.cargoDescription,
+        serviceType: formData.schedulingType === 'immediate' ? 'IMMEDIATE' : 'SCHEDULED',
+        scheduledFor: formData.scheduledDate ? formData.scheduledDate.toISOString() : undefined,
+      };
+
+      const response = await rideApi.create(apiData);
+
+      notifications.show({
+        title: 'Succès!',
+        message: 'Votre course a été publiée avec succès',
+        color: 'green',
       });
-      router.push(`/customer/rides/${response.data.id}`);
+
+      // Success! Redirect to dashboard
+      router.push(`/customer/dashboard?success=ride_created`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erreur lors de la création');
+      console.error('Erreur création course:', err);
+
+      // If API is not available, show helpful message
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('⚠️ API backend non disponible. Démarrez l\'API avec: cd apps/api && npm run dev');
+      } else {
+        setError(err.response?.data?.message || 'Erreur lors de la création');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8f9fa' }}>
       {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/customer/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Retour</span>
-            </Link>
-            <h1 className="text-2xl font-bold">Nouvelle Course</h1>
-            <div className="w-20" />
-          </div>
-        </div>
-      </header>
-
-      {/* Progress */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-center gap-4">
-          {[
-            { num: 1, label: 'Adresses' },
-            { num: 2, label: 'Détails' },
-            { num: 3, label: 'Confirmation' },
-          ].map((step, i) => (
-            <div key={step.num} className="flex items-center gap-4">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
-                currentStep >= step.num ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-              }`}>
-                {currentStep > step.num ? <Check className="w-5 h-5" /> : step.num}
-              </div>
-              {i < 2 && (
-                <div className={`w-12 h-0.5 ${currentStep > step.num ? 'bg-primary' : 'bg-muted'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <Paper p="md" radius={0} withBorder>
+        <Container size="xl">
+          <Group justify="space-between">
+            <ActionIcon
+              size="lg"
+              variant="subtle"
+              color="dark"
+              onClick={() => activeStep > 0 ? setActiveStep(prev => prev - 1) : router.push('/customer/dashboard')}
+            >
+              <IconArrowLeft size={24} />
+            </ActionIcon>
+            <Title order={2} size="1.25rem">Nouvelle course</Title>
+            <div style={{ width: 40 }} />
+          </Group>
+        </Container>
+      </Paper>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-6 p-4 bg-error/10 border border-error/30 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
-            <p className="text-error text-sm">{error}</p>
-          </div>
-        )}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+        {/* Map - Left side - always visible */}
+        <div style={{ flex: 1, position: 'relative', minHeight: '300px' }}>
+          {formData.pickupAddress && formData.deliveryAddress ? (
+            <SimpleMap
+              pickup={{
+                lat: formData.pickupLat,
+                lng: formData.pickupLng,
+                address: formData.pickupAddress
+              }}
+              dropoff={{
+                lat: formData.deliveryLat,
+                lng: formData.deliveryLng,
+                address: formData.deliveryAddress
+              }}
+              height="100%"
+            />
+          ) : (
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#f1f3f5'
+            }}>
+              <Stack align="center" gap="md">
+                <IconMapPin size={64} color="#868e96" />
+                <Text c="dimmed" size="lg">
+                  Sélectionnez les adresses pour voir la carte
+                </Text>
+              </Stack>
+            </div>
+          )}
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Step 1 */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                <div className="card p-8">
-                  <h3 className="text-lg font-bold mb-4">Point de départ</h3>
-                  <input
-                    type="text"
-                    value={formData.pickupAddress}
-                    onChange={(e) => setFormData({ ...formData, pickupAddress: e.target.value })}
-                    className="input"
-                    placeholder="Ex: Avenue Habib Bourguiba, Tunis"
-                  />
-                </div>
-
-                <div className="card p-8">
-                  <h3 className="text-lg font-bold mb-4">Point d'arrivée</h3>
-                  <input
-                    type="text"
-                    value={formData.deliveryAddress}
-                    onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })}
-                    className="input"
-                    placeholder="Ex: Zone Industrielle, Sousse"
-                  />
-                </div>
-
-                <button
-                  onClick={() => setCurrentStep(2)}
-                  disabled={!formData.pickupAddress || !formData.deliveryAddress}
-                  className="btn-primary w-full justify-center py-3 gap-2 disabled:opacity-50"
-                >
-                  Continuer
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Step 2 */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <div className="card p-8">
-                  <h3 className="text-lg font-bold mb-4">Type de véhicule</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {VEHICLE_TYPES.map((v) => (
-                      <button
-                        key={v.value}
-                        onClick={() => setFormData({ ...formData, vehicleType: v.value })}
-                        className={`p-4 rounded-lg border-2 text-left transition ${
-                          formData.vehicleType === v.value
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="text-2xl mb-2">{v.icon}</div>
-                        <p className="font-bold">{v.label}</p>
-                        <p className="text-xs text-muted-foreground">{v.capacity}</p>
-                      </button>
-                    ))}
+          {/* Route Info Overlay */}
+          {distance > 0 && (
+            <Paper
+              shadow="lg"
+              p="md"
+              radius="lg"
+              withBorder
+              style={{
+                position: 'absolute',
+                top: 16,
+                left: 16,
+                right: 16,
+                zIndex: 10,
+                backgroundColor: 'white',
+              }}
+            >
+              <Group justify="space-between">
+                <Group gap="sm">
+                  <ThemeIcon size="lg" radius="lg" variant="light" color="blue">
+                    <IconNavigation size={20} />
+                  </ThemeIcon>
+                  <div>
+                    <Text size="xs" c="dimmed">Distance</Text>
+                    <Text size="lg" fw={700}>{distance} km</Text>
                   </div>
-                </div>
+                </Group>
+                <Group gap="sm">
+                  <ThemeIcon size="lg" radius="lg" variant="light" color="green">
+                    <IconClock size={20} />
+                  </ThemeIcon>
+                  <div>
+                    <Text size="xs" c="dimmed">Durée</Text>
+                    <Text size="lg" fw={700}>{duration} min</Text>
+                  </div>
+                </Group>
+              </Group>
+            </Paper>
+          )}
+        </div>
 
-                <div className="card p-8">
-                  <h3 className="text-lg font-bold mb-4">Description de la marchandise</h3>
-                  <textarea
+        {/* Form - Right side with stepper */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', backgroundColor: 'white' }}>
+          <Container size="md" py="xl">
+            <Stepper active={activeStep} onStepClick={setActiveStep} size="sm" mb="xl">
+              <Stepper.Step label="Adresses" description="D'où à où ?">
+                <Stack gap="xl" mt="xl">
+                  {error && (
+                    <Paper p="md" radius="md" bg="red.0" withBorder>
+                      <Text c="red" size="sm">{error}</Text>
+                    </Paper>
+                  )}
+
+                  {/* Scheduling Type */}
+                  <Select
+                    label="Quand ?"
+                    size="lg"
+                    radius="lg"
+                    value={formData.schedulingType}
+                    onChange={(value) => setFormData({ ...formData, schedulingType: value || 'immediate' })}
+                    data={[
+                      { value: 'immediate', label: 'Immédiatement' },
+                      { value: 'scheduled', label: 'Planifier' },
+                    ]}
+                    leftSection={<IconClock size={18} />}
+                  />
+
+                  {formData.schedulingType === 'scheduled' && (
+                    <DateTimePicker
+                      label="Date et heure de prise en charge"
+                      placeholder="Sélectionner une date et heure"
+                      size="lg"
+                      radius="lg"
+                      value={formData.scheduledDate}
+                      onChange={(value) => setFormData({ ...formData, scheduledDate: value as any })}
+                      minDate={new Date()}
+                      leftSection={<IconCalendar size={18} />}
+                    />
+                  )}
+
+                  {/* Pickup Address with autocomplete */}
+                  <AddressAutocomplete
+                    label="Adresse de départ"
+                    placeholder="Rechercher une adresse..."
+                    value={formData.pickupAddress}
+                    onChange={handlePickupChange}
+                    icon={<IconMapPin size={18} style={{ color: '#51cf66' }} />}
+                  />
+
+                  {/* Delivery Address with autocomplete */}
+                  <AddressAutocomplete
+                    label="Adresse de livraison"
+                    placeholder="Rechercher une adresse..."
+                    value={formData.deliveryAddress}
+                    onChange={handleDeliveryChange}
+                    icon={<IconMapPin size={18} style={{ color: '#ff6b6b' }} />}
+                  />
+
+                  {/* Distance and Duration Estimate - Real-time display */}
+                  {distance > 0 && duration > 0 && (
+                    <Paper p="lg" radius="lg" withBorder style={{ backgroundColor: '#E7F5FF' }}>
+                      <Group justify="space-between">
+                        <div>
+                          <Group gap="xs" mb={8}>
+                            <IconNavigation size={20} color="#228BE6" />
+                            <Text size="sm" fw={600}>Estimation du trajet</Text>
+                          </Group>
+                          <Group gap="xl">
+                            <div>
+                              <Text size="xs" c="dimmed">Distance</Text>
+                              <Text size="lg" fw={700} c="blue">{distance} km</Text>
+                            </div>
+                            <div>
+                              <Text size="xs" c="dimmed">Durée estimée</Text>
+                              <Text size="lg" fw={700} c="blue">
+                                {duration < 60 ? `${duration} min` : `${Math.floor(duration / 60)}h ${duration % 60}min`}
+                              </Text>
+                            </div>
+                          </Group>
+                        </div>
+                      </Group>
+                    </Paper>
+                  )}
+
+                  <Button
+                    size="xl"
+                    radius="lg"
+                    color="dark"
+                    onClick={handleNextStep}
+                    disabled={!formData.pickupAddress || !formData.deliveryAddress}
+                    fullWidth
+                  >
+                    Continuer
+                  </Button>
+                </Stack>
+              </Stepper.Step>
+
+              <Stepper.Step label="Véhicule" description="Type de transport">
+                <Stack gap="xl" mt="xl">
+                  <Text size="sm" fw={600}>Sélectionnez le type de véhicule</Text>
+                  <SimpleGrid cols={2} spacing="md">
+                    {VEHICLE_TYPES.map((vehicle) => (
+                      <Card
+                        key={vehicle.value}
+                        shadow="sm"
+                        padding="lg"
+                        radius="lg"
+                        withBorder
+                        style={{
+                          cursor: 'pointer',
+                          borderColor: formData.vehicleType === vehicle.value ? '#000' : undefined,
+                          borderWidth: formData.vehicleType === vehicle.value ? 2 : 1,
+                          backgroundColor: formData.vehicleType === vehicle.value ? '#f8f9fa' : undefined,
+                        }}
+                        onClick={() => setFormData({ ...formData, vehicleType: vehicle.value })}
+                      >
+                        <Stack gap="sm">
+                          <div style={{ fontSize: '2.5rem', textAlign: 'center' }}>{vehicle.icon}</div>
+                          <Text fw={700} size="md" ta="center">{vehicle.label}</Text>
+                          <Badge color="gray" variant="light" fullWidth>{vehicle.capacity}</Badge>
+                          <Text size="xs" c="dimmed" ta="center">{vehicle.description}</Text>
+                        </Stack>
+                      </Card>
+                    ))}
+                  </SimpleGrid>
+
+                  <Button size="xl" radius="lg" color="dark" onClick={handleNextStep} fullWidth>
+                    Continuer
+                  </Button>
+                </Stack>
+              </Stepper.Step>
+
+              <Stepper.Step label="Détails" description="Informations">
+                <Stack gap="lg" mt="xl">
+                  <Textarea
+                    label="Description de la marchandise"
+                    placeholder="Ex: 20 cartons de produits alimentaires"
+                    size="md"
+                    radius="lg"
+                    rows={3}
                     value={formData.cargoDescription}
                     onChange={(e) => setFormData({ ...formData, cargoDescription: e.target.value })}
-                    rows={3}
-                    className="input"
-                    placeholder="Ex: 20 cartons de produits alimentaires"
+                    required
+                    leftSection={<IconPackage size={18} />}
                   />
-                </div>
 
-                <div className="card p-8">
-                  <h3 className="text-lg font-bold mb-4">Options</h3>
-                  <label className="flex items-center gap-3 p-3 border-2 border-border rounded-lg hover:border-primary/50 cursor-pointer transition">
-                    <input
-                      type="checkbox"
-                      checked={formData.isUrgent}
-                      onChange={(e) => setFormData({ ...formData, isUrgent: e.target.checked })}
-                      className="w-5 h-5 rounded"
+                  <TextInput
+                    label="Poids estimé (kg)"
+                    placeholder="500"
+                    size="md"
+                    radius="lg"
+                    type="number"
+                    value={formData.cargoWeight}
+                    onChange={(e) => setFormData({ ...formData, cargoWeight: e.target.value })}
+                  />
+
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Nombre de convoyeurs</Text>
+                    <Group gap="xs">
+                      <ActionIcon
+                        size="lg"
+                        radius="lg"
+                        variant="light"
+                        color="gray"
+                        onClick={() => setFormData({ ...formData, numberOfHelpers: Math.max(0, formData.numberOfHelpers - 1) })}
+                      >
+                        <IconMinus size={18} />
+                      </ActionIcon>
+                      <Text size="xl" fw={700} style={{ flex: 1, textAlign: 'center' }}>
+                        {formData.numberOfHelpers}
+                      </Text>
+                      <ActionIcon
+                        size="lg"
+                        radius="lg"
+                        color="dark"
+                        onClick={() => setFormData({ ...formData, numberOfHelpers: formData.numberOfHelpers + 1 })}
+                      >
+                        <IconPlus size={18} />
+                      </ActionIcon>
+                    </Group>
+                  </div>
+
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Nombre de voyages</Text>
+                    <Group gap="xs">
+                      <ActionIcon
+                        size="lg"
+                        radius="lg"
+                        variant="light"
+                        color="gray"
+                        onClick={() => setFormData({ ...formData, numberOfTrips: Math.max(1, formData.numberOfTrips - 1) })}
+                      >
+                        <IconMinus size={18} />
+                      </ActionIcon>
+                      <Text size="xl" fw={700} style={{ flex: 1, textAlign: 'center' }}>
+                        {formData.numberOfTrips}
+                      </Text>
+                      <ActionIcon
+                        size="lg"
+                        radius="lg"
+                        color="dark"
+                        onClick={() => setFormData({ ...formData, numberOfTrips: formData.numberOfTrips + 1 })}
+                      >
+                        <IconPlus size={18} />
+                      </ActionIcon>
+                    </Group>
+                  </div>
+
+                  <Paper p="md" radius="lg" withBorder style={{ backgroundColor: formData.isExpress ? '#fff3e0' : 'transparent' }}>
+                    <Checkbox
+                      label={
+                        <div>
+                          <Group gap="xs">
+                            <Text fw={600}>Livraison Express ⚡</Text>
+                            <Badge color="orange" variant="light">
+                              +{distance < 10 ? 10 : distance < 30 ? 12 : 15} DT
+                            </Badge>
+                          </Group>
+                          <Text size="sm" c="dimmed">Priorité maximale • Livraison dans l'heure</Text>
+                        </div>
+                      }
+                      checked={formData.isExpress}
+                      onChange={(e) => setFormData({ ...formData, isExpress: e.target.checked })}
+                      size="md"
                     />
-                    <div>
-                      <p className="font-semibold">Course urgente</p>
-                      <p className="text-xs text-muted-foreground">+20% sur le tarif</p>
-                    </div>
-                  </label>
-                </div>
+                  </Paper>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="flex-1 px-6 py-3 border-2 border-border rounded-lg font-semibold hover:bg-muted transition"
-                  >
-                    Retour
-                  </button>
-                  <button
-                    onClick={handleEstimate}
-                    disabled={estimating}
-                    className="flex-1 btn-primary justify-center disabled:opacity-50"
-                  >
-                    {estimating ? 'Calcul...' : 'Obtenir une estimation'}
-                  </button>
-                </div>
-              </div>
-            )}
+                  <div>
+                    <Text size="sm" fw={500} mb="xs">Photos de la marchandise (optionnel)</Text>
+                    <Dropzone
+                      onDrop={(files) => setPhotos(prev => [...prev, ...files])}
+                      onReject={(files) => console.log('rejected files', files)}
+                      maxSize={5 * 1024 ** 2}
+                      accept={IMAGE_MIME_TYPE}
+                    >
+                      <Group justify="center" gap="xl" style={{ minHeight: rem(120), pointerEvents: 'none' }}>
+                        <Dropzone.Accept>
+                          <IconUpload size={52} stroke={1.5} />
+                        </Dropzone.Accept>
+                        <Dropzone.Reject>
+                          <IconX size={52} stroke={1.5} />
+                        </Dropzone.Reject>
+                        <Dropzone.Idle>
+                          <IconPhoto size={52} stroke={1.5} />
+                        </Dropzone.Idle>
 
-            {/* Step 3 */}
-            {currentStep === 3 && estimate && (
-              <div className="space-y-6">
-                <div className="card p-8 bg-gradient-to-br from-primary to-secondary text-white">
-                  <h3 className="text-2xl font-bold mb-6">Estimation de prix</h3>
+                        <div>
+                          <Text size="xl" inline>
+                            Glissez des photos ici ou cliquez pour sélectionner
+                          </Text>
+                          <Text size="sm" c="dimmed" inline mt={7}>
+                            Taille maximale : 5 MB
+                          </Text>
+                        </div>
+                      </Group>
+                    </Dropzone>
 
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between text-white/80">
-                      <span>Prix de base</span>
-                      <span className="font-semibold">{estimate.basePrice} DT</span>
-                    </div>
-                    <div className="flex justify-between text-white/80">
-                      <span>Distance ({estimate.distance} km)</span>
-                      <span className="font-semibold">{estimate.distancePrice} DT</span>
-                    </div>
-                    {estimate.helpersCost > 0 && (
-                      <div className="flex justify-between text-white/80">
-                        <span>Convoyeurs ({formData.numberOfHelpers})</span>
-                        <span className="font-semibold">{estimate.helpersCost} DT</span>
-                      </div>
+                    {photos.length > 0 && (
+                      <SimpleGrid cols={4} spacing="xs" mt="md">
+                        {photos.map((file, idx) => (
+                          <Paper key={idx} p="xs" radius="md" withBorder>
+                            <Group gap="xs" justify="space-between">
+                              <Text size="xs" truncate style={{ flex: 1 }}>{file.name}</Text>
+                              <ActionIcon
+                                size="sm"
+                                color="red"
+                                variant="subtle"
+                                onClick={() => setPhotos(photos.filter((_, i) => i !== idx))}
+                              >
+                                <IconX size={14} />
+                              </ActionIcon>
+                            </Group>
+                          </Paper>
+                        ))}
+                      </SimpleGrid>
                     )}
-                    {estimate.urgentSurcharge > 0 && (
-                      <div className="flex justify-between text-white/80">
-                        <span>Course urgente</span>
-                        <span className="font-semibold">+{estimate.urgentSurcharge} DT</span>
+                  </div>
+
+                  {/* Prix estimé */}
+                  <Paper p="xl" radius="lg" withBorder style={{ backgroundColor: '#f8f9fa' }}>
+                    <Group justify="space-between" align="center">
+                      <div>
+                        <Text size="sm" c="dimmed" mb={4}>Prix estimé</Text>
+                        {estimating ? (
+                          <Text size="lg" c="dimmed">Calcul en cours...</Text>
+                        ) : priceEstimate ? (
+                          <>
+                            <Title order={2} size="2rem">{priceEstimate.finalPrice.toFixed(2)} DT</Title>
+                            <Group gap="xs" mt={4}>
+                              <Text size="xs" c="dimmed">
+                                {distance.toFixed(1)} km • {duration} min
+                              </Text>
+                              {formData.numberOfHelpers > 0 && (
+                                <Badge size="sm" variant="light" color="orange">
+                                  +{formData.numberOfHelpers} convoyeur(s)
+                                </Badge>
+                              )}
+                              {formData.numberOfTrips > 1 && (
+                                <Badge size="sm" variant="light" color="blue">
+                                  Aller-retour
+                                </Badge>
+                              )}
+                            </Group>
+                            <Text size="xs" c="dimmed" mt={4}>
+                              Prix estimé selon la configuration actuelle
+                            </Text>
+                          </>
+                        ) : (
+                          <Text size="lg" c="dimmed">
+                            Sélectionnez les adresses pour voir le prix
+                          </Text>
+                        )}
                       </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-white/20 pt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xl">Total estimé</span>
-                      <span className="text-4xl font-bold">{estimate.estimatedPrice} DT</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="flex-1 px-6 py-3 border-2 border-border rounded-lg font-semibold hover:bg-muted transition"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={handleCreateRide}
-                    disabled={loading}
-                    className="flex-1 btn-secondary justify-center py-3 disabled:opacity-50"
-                  >
-                    {loading ? 'Création...' : 'Publier la course'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Summary */}
-          <div className="lg:col-span-1">
-            <div className="card p-6 sticky top-24">
-              <h3 className="text-lg font-bold mb-4">Résumé</h3>
-              <div className="space-y-3 text-sm">
-                {formData.pickupAddress && (
-                  <div>
-                    <p className="text-muted-foreground">De</p>
-                    <p className="font-semibold">{formData.pickupAddress}</p>
-                  </div>
-                )}
-                {formData.deliveryAddress && (
-                  <div>
-                    <p className="text-muted-foreground">À</p>
-                    <p className="font-semibold">{formData.deliveryAddress}</p>
-                  </div>
-                )}
-                {formData.vehicleType && (
-                  <div>
-                    <p className="text-muted-foreground">Véhicule</p>
-                    <p className="font-semibold">{VEHICLE_TYPES.find(v => v.value === formData.vehicleType)?.label}</p>
-                  </div>
-                )}
-                {estimate && (
-                  <div className="mt-6 pt-6 border-t border-border">
-                    <p className="text-muted-foreground mb-2">Estimation</p>
-                    <p className="text-3xl font-bold text-primary">{estimate.estimatedPrice} DT</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+                      <Button
+                        size="xl"
+                        radius="xl"
+                        color="dark"
+                        onClick={handleSubmit}
+                        loading={loading}
+                        disabled={!formData.cargoDescription}
+                        leftSection={<IconCheck size={20} />}
+                      >
+                        Publier la course
+                      </Button>
+                    </Group>
+                  </Paper>
+                </Stack>
+              </Stepper.Step>
+            </Stepper>
+          </Container>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

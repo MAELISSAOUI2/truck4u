@@ -1,6 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Title,
+  Text,
+  Stack,
+  Group,
+  Paper,
+  Table,
+  TextInput,
+  Select,
+  Badge,
+  Button,
+  Pagination,
+  Loader,
+  Center,
+  ActionIcon,
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import {
+  IconSearch,
+  IconEye,
+  IconBan,
+  IconCircleCheck,
+} from '@tabler/icons-react';
 
 interface Driver {
   id: string;
@@ -17,15 +42,15 @@ interface Driver {
   createdAt: string;
 }
 
-const STATUS_COLORS = {
-  PENDING_DOCUMENTS: 'bg-gray-100 text-gray-800',
-  PENDING_REVIEW: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-800',
-  REJECTED: 'bg-red-100 text-red-800',
-  SUSPENDED: 'bg-red-100 text-red-800'
+const STATUS_COLORS: Record<string, string> = {
+  PENDING_DOCUMENTS: 'gray',
+  PENDING_REVIEW: 'yellow',
+  APPROVED: 'green',
+  REJECTED: 'red',
+  SUSPENDED: 'red'
 };
 
-const STATUS_LABELS = {
+const STATUS_LABELS: Record<string, string> = {
   PENDING_DOCUMENTS: 'Documents manquants',
   PENDING_REVIEW: 'En vérification',
   APPROVED: 'Approuvé',
@@ -34,10 +59,11 @@ const STATUS_LABELS = {
 };
 
 export default function AdminDriversPage() {
+  const router = useRouter();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -73,6 +99,11 @@ export default function AdminDriversPage() {
       }
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: 'Impossible de charger les conducteurs',
+        color: 'red'
+      });
     } finally {
       setLoading(false);
     }
@@ -97,12 +128,19 @@ export default function AdminDriversPage() {
       );
 
       if (res.ok) {
-        alert('Conducteur suspendu');
+        notifications.show({
+          title: 'Succès',
+          message: 'Conducteur suspendu',
+          color: 'orange'
+        });
         fetchDrivers();
       }
     } catch (error) {
-      console.error('Failed to suspend driver:', error);
-      alert('Erreur lors de la suspension');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors de la suspension',
+        color: 'red'
+      });
     }
   };
 
@@ -122,187 +160,171 @@ export default function AdminDriversPage() {
       );
 
       if (res.ok) {
-        alert('Conducteur réactivé');
+        notifications.show({
+          title: 'Succès',
+          message: 'Conducteur réactivé',
+          color: 'green'
+        });
         fetchDrivers();
       }
     } catch (error) {
-      console.error('Failed to activate driver:', error);
-      alert('Erreur lors de la réactivation');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors de la réactivation',
+        color: 'red'
+      });
     }
   };
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Conducteurs</h1>
-        <p className="text-gray-600">Gérer tous les conducteurs de la plateforme</p>
-      </div>
+    <Container size="xl">
+      <Stack gap="xl">
+        <div>
+          <Title order={1} mb="xs">Conducteurs</Title>
+          <Text c="dimmed">Gérer tous les conducteurs de la plateforme</Text>
+        </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Recherche</label>
-            <input
-              type="text"
+        {/* Filters */}
+        <Paper p="md" radius="md" withBorder>
+          <Group>
+            <TextInput
+              placeholder="Nom, téléphone, email, plaque..."
+              leftSection={<IconSearch size={16} />}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Nom, téléphone, email, plaque..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              style={{ flex: 1 }}
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Statut</label>
-            <select
+            <Select
+              placeholder="Statut"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Tous</option>
-              <option value="PENDING_DOCUMENTS">Documents manquants</option>
-              <option value="PENDING_REVIEW">En vérification</option>
-              <option value="APPROVED">Approuvé</option>
-              <option value="REJECTED">Rejeté</option>
-              <option value="SUSPENDED">Suspendu</option>
-            </select>
-          </div>
-        </div>
-      </div>
+              onChange={setStatusFilter}
+              clearable
+              data={[
+                { value: 'PENDING_DOCUMENTS', label: 'Documents manquants' },
+                { value: 'PENDING_REVIEW', label: 'En vérification' },
+                { value: 'APPROVED', label: 'Approuvé' },
+                { value: 'REJECTED', label: 'Rejeté' },
+                { value: 'SUSPENDED', label: 'Suspendu' }
+              ]}
+              style={{ width: 200 }}
+            />
+          </Group>
+        </Paper>
 
-      {/* Drivers Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {loading ? (
-          <div className="text-center py-12 text-gray-500">Chargement...</div>
-        ) : drivers.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">Aucun conducteur trouvé</div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Conducteur
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Véhicule
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Statut
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Note
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Courses
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Gains
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {drivers.map((driver) => (
-                    <tr key={driver.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="font-medium">{driver.name}</div>
-                          <div className="text-sm text-gray-500">{driver.phone}</div>
-                          {driver.email && (
-                            <div className="text-xs text-gray-400">{driver.email}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm">
-                          <div>{driver.vehicleType}</div>
-                          {driver.vehiclePlate && (
-                            <div className="text-gray-500">{driver.vehiclePlate}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          STATUS_COLORS[driver.verificationStatus as keyof typeof STATUS_COLORS]
-                        }`}>
-                          {STATUS_LABELS[driver.verificationStatus as keyof typeof STATUS_LABELS]}
-                        </span>
-                        {driver.isAvailable && driver.verificationStatus === 'APPROVED' && (
-                          <div className="text-xs text-green-600 mt-1">● Disponible</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <span className="text-yellow-500">★</span>
-                          <span className="font-medium">{driver.rating.toFixed(1)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-medium">{driver.totalRides}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-medium">{driver.totalEarnings.toFixed(2)} TND</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <a
-                            href={`/admin/kyc?driver=${driver.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
-                          >
-                            Voir
-                          </a>
-                          {driver.verificationStatus === 'APPROVED' ? (
-                            <button
-                              onClick={() => handleSuspend(driver.id)}
-                              className="text-red-600 hover:text-red-800 text-sm"
+        {/* Table */}
+        <Paper radius="md" withBorder>
+          {loading ? (
+            <Center p="xl">
+              <Loader size="lg" color="dark" />
+            </Center>
+          ) : drivers.length === 0 ? (
+            <Center p="xl">
+              <Text c="dimmed">Aucun conducteur trouvé</Text>
+            </Center>
+          ) : (
+            <>
+              <Table.ScrollContainer minWidth={800}>
+                <Table striped highlightOnHover>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Conducteur</Table.Th>
+                      <Table.Th>Véhicule</Table.Th>
+                      <Table.Th>Statut</Table.Th>
+                      <Table.Th>Note</Table.Th>
+                      <Table.Th>Courses</Table.Th>
+                      <Table.Th>Gains</Table.Th>
+                      <Table.Th>Actions</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {drivers.map((driver) => (
+                      <Table.Tr key={driver.id}>
+                        <Table.Td>
+                          <div>
+                            <Text fw={600}>{driver.name}</Text>
+                            <Text size="sm" c="dimmed">{driver.phone}</Text>
+                            {driver.email && (
+                              <Text size="xs" c="dimmed">{driver.email}</Text>
+                            )}
+                          </div>
+                        </Table.Td>
+                        <Table.Td>
+                          <div>
+                            <Text size="sm">{driver.vehicleType}</Text>
+                            {driver.vehiclePlate && (
+                              <Text size="xs" c="dimmed">{driver.vehiclePlate}</Text>
+                            )}
+                          </div>
+                        </Table.Td>
+                        <Table.Td>
+                          <Stack gap={4}>
+                            <Badge color={STATUS_COLORS[driver.verificationStatus]}>
+                              {STATUS_LABELS[driver.verificationStatus]}
+                            </Badge>
+                            {driver.isAvailable && driver.verificationStatus === 'APPROVED' && (
+                              <Text size="xs" c="green">● Disponible</Text>
+                            )}
+                          </Stack>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={4}>
+                            <Text fw={600}>{driver.rating.toFixed(1)}</Text>
+                            <Text size="sm" c="yellow">★</Text>
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fw={600}>{driver.totalRides}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text fw={600}>{driver.totalEarnings.toFixed(2)} TND</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="xs">
+                            <ActionIcon
+                              variant="subtle"
+                              color="blue"
+                              onClick={() => router.push(`/admin/kyc?driver=${driver.id}`)}
+                              title="Voir"
                             >
-                              Suspendre
-                            </button>
-                          ) : driver.verificationStatus === 'SUSPENDED' ? (
-                            <button
-                              onClick={() => handleActivate(driver.id)}
-                              className="text-green-600 hover:text-green-800 text-sm"
-                            >
-                              Activer
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              <IconEye size={18} />
+                            </ActionIcon>
+                            {driver.verificationStatus === 'APPROVED' && (
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => handleSuspend(driver.id)}
+                                title="Suspendre"
+                              >
+                                <IconBan size={18} />
+                              </ActionIcon>
+                            )}
+                            {driver.verificationStatus === 'SUSPENDED' && (
+                              <ActionIcon
+                                variant="subtle"
+                                color="green"
+                                onClick={() => handleActivate(driver.id)}
+                                title="Activer"
+                              >
+                                <IconCircleCheck size={18} />
+                              </ActionIcon>
+                            )}
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="px-6 py-4 border-t flex items-center justify-between">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Précédent
-                </button>
-                <span className="text-sm text-gray-600">
-                  Page {page} sur {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Suivant
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+              {totalPages > 1 && (
+                <Group justify="center" p="md">
+                  <Pagination value={page} onChange={setPage} total={totalPages} />
+                </Group>
+              )}
+            </>
+          )}
+        </Paper>
+      </Stack>
+    </Container>
   );
 }

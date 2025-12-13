@@ -2,22 +2,47 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Stack,
+  Title,
+  Text,
+  Button,
+  TextInput,
+  Textarea,
+  Paper,
+  Group,
+  ActionIcon,
+  Avatar,
+  SimpleGrid,
+  Card,
+  Center,
+  Loader,
+} from '@mantine/core';
+import {
+  IconArrowLeft,
+  IconUser,
+  IconPhone,
+  IconMail,
+  IconMapPin,
+  IconBuilding,
+  IconLogout,
+  IconEdit,
+  IconCheck,
+  IconX,
+  IconPackage,
+  IconClock,
+} from '@tabler/icons-react';
 import { useAuthStore } from '@/lib/store';
 import { customerApi } from '@/lib/api';
-import {
-  User, Phone, Mail, MapPin, Building2, ArrowLeft, Edit2, Save, X, LogOut,
-  AlertCircle
-} from 'lucide-react';
-import Link from 'next/link';
 
 export default function CustomerProfilePage() {
   const router = useRouter();
-  const { token, user, login, logout } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -59,13 +84,9 @@ export default function CustomerProfilePage() {
       const response = await customerApi.updateProfile(formData);
       setProfile(response.data);
       setEditing(false);
-
-      if (formData.name !== user?.name) {
-        login({ ...user!, name: formData.name }, token!);
-      }
     } catch (error) {
-      setError('Erreur lors de la mise à jour du profil');
       console.error('Failed to update profile:', error);
+      alert('Erreur lors de la mise à jour');
     } finally {
       setSaving(false);
     }
@@ -82,227 +103,180 @@ export default function CustomerProfilePage() {
     setEditing(false);
   };
 
+  const handleLogout = () => {
+    if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
+      logout();
+      router.push('/');
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Chargement...</p>
-        </div>
-      </div>
+      <Center style={{ minHeight: '100vh' }}>
+        <Loader size="lg" color="dark" />
+      </Center>
     );
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div style={{ minHeight: '100vh', paddingBottom: '2rem' }}>
       {/* Header */}
-      <header className="bg-card border-b border-border">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/customer/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Retour</span>
-            </Link>
-            <h1 className="text-2xl font-bold">Mon Profil</h1>
-            <div className="w-20" />
-          </div>
-        </div>
-      </header>
+      <Paper p="md" radius={0} withBorder>
+        <Container size="md">
+          <Group justify="space-between">
+            <ActionIcon size="lg" variant="subtle" color="dark" onClick={() => router.push('/customer/dashboard')}>
+              <IconArrowLeft size={24} />
+            </ActionIcon>
+            <Title order={2} size="1.25rem">Mon Profil</Title>
+            <div style={{ width: 40 }} />
+          </Group>
+        </Container>
+      </Paper>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card">
+      <Container size="md" mt="xl">
+        <Stack gap="xl">
           {/* Profile Header */}
-          <div className="p-8 border-b border-border flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 bg-primary/10 rounded-lg flex items-center justify-center">
-                <User className="w-10 h-10 text-primary" />
-              </div>
+          <Paper shadow="sm" p="xl" radius="lg" withBorder>
+            <Stack gap="md" align="center">
+              <Avatar size={80} radius="xl" color="dark">
+                <IconUser size={40} />
+              </Avatar>
               <div>
-                <h2 className="text-3xl font-bold">{profile.name}</h2>
-                <p className="text-sm text-muted-foreground">
+                <Title order={2} ta="center">{profile.name}</Title>
+                <Text c="dimmed" ta="center">
                   {profile.accountType === 'BUSINESS' ? 'Compte Entreprise' : 'Compte Particulier'}
-                </p>
+                </Text>
               </div>
-            </div>
+            </Stack>
+          </Paper>
 
-            {!editing && (
-              <button
-                onClick={() => setEditing(true)}
-                className="flex items-center gap-2 btn-primary"
-              >
-                <Edit2 className="w-4 h-4" />
-                Modifier
-              </button>
-            )}
-          </div>
+          {/* Stats */}
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+            <Card shadow="sm" padding="md" radius="lg" withBorder>
+              <Stack gap="xs" align="center">
+                <IconPackage size={24} />
+                <Title order={3} size="1.5rem">{profile.totalRides || 0}</Title>
+                <Text size="xs" c="dimmed">Courses</Text>
+              </Stack>
+            </Card>
+            <Card shadow="sm" padding="md" radius="lg" withBorder>
+              <Stack gap="xs" align="center">
+                <IconCheck size={24} color="green" />
+                <Title order={3} size="1.5rem" c="green">{profile.completedRides || 0}</Title>
+                <Text size="xs" c="dimmed">Terminées</Text>
+              </Stack>
+            </Card>
+            <Card shadow="sm" padding="md" radius="lg" withBorder>
+              <Stack gap="xs" align="center">
+                <IconClock size={24} color="orange" />
+                <Title order={3} size="1.5rem" c="orange">{profile.pendingRides || 0}</Title>
+                <Text size="xs" c="dimmed">En cours</Text>
+              </Stack>
+            </Card>
+            <Card shadow="sm" padding="md" radius="lg" withBorder>
+              <Stack gap="xs" align="center">
+                <Text size="xs" c="dimmed">Total dépensé</Text>
+                <Title order={3} size="1.5rem">{profile.totalSpent || 0}</Title>
+                <Text size="xs" c="dimmed">DT</Text>
+              </Stack>
+            </Card>
+          </SimpleGrid>
 
-          {/* Error */}
-          {error && (
-            <div className="flex items-start gap-3 m-8 p-4 bg-error/10 border border-error/30 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
-              <p className="text-error text-sm">{error}</p>
-            </div>
-          )}
+          {/* Profile Info */}
+          <Paper shadow="sm" radius="lg" withBorder>
+            <Group justify="space-between" p="lg" style={{ borderBottom: '1px solid #e9ecef' }}>
+              <Title order={3} size="1.125rem">Informations personnelles</Title>
+              {!editing ? (
+                <Button 
+                  variant="subtle" 
+                  color="dark"
+                  leftSection={<IconEdit size={16} />}
+                  onClick={() => setEditing(true)}
+                >
+                  Modifier
+                </Button>
+              ) : (
+                <Group gap="xs">
+                  <ActionIcon variant="subtle" color="gray" onClick={handleCancel}>
+                    <IconX size={20} />
+                  </ActionIcon>
+                  <ActionIcon variant="filled" color="dark" onClick={handleSave} loading={saving}>
+                    <IconCheck size={20} />
+                  </ActionIcon>
+                </Group>
+              )}
+            </Group>
 
-          {/* Profile Form */}
-          <div className="p-8 space-y-6">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                {profile.accountType === 'BUSINESS' ? 'Nom du responsable' : 'Nom complet'}
-              </label>
-              {editing ? (
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="input"
+            <Stack gap="lg" p="lg">
+              <TextInput
+                label="Nom complet"
+                size="md"
+                radius="lg"
+                leftSection={<IconUser size={18} />}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                disabled={!editing}
+              />
+
+              {profile.accountType === 'BUSINESS' && (
+                <TextInput
+                  label="Nom de l'entreprise"
+                  size="md"
+                  radius="lg"
+                  leftSection={<IconBuilding size={18} />}
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  disabled={!editing}
                 />
-              ) : (
-                <p className="text-foreground">{profile.name}</p>
               )}
-            </div>
 
-            {/* Company Name */}
-            {profile.accountType === 'BUSINESS' && (
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Nom de l'entreprise
-                </label>
-                {editing ? (
-                  <input
-                    type="text"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    className="input"
-                  />
-                ) : (
-                  <p className="text-foreground">{profile.companyName || '-'}</p>
-                )}
-              </div>
-            )}
+              <TextInput
+                label="Téléphone"
+                size="md"
+                radius="lg"
+                leftSection={<IconPhone size={18} />}
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                disabled={!editing}
+              />
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Téléphone
-              </label>
-              {editing ? (
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="input pl-10"
-                  />
-                </div>
-              ) : (
-                <p className="text-foreground">{profile.phone}</p>
-              )}
-            </div>
+              <TextInput
+                label="Email"
+                size="md"
+                radius="lg"
+                leftSection={<IconMail size={18} />}
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                disabled={!editing}
+                placeholder="email@exemple.com"
+              />
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Email
-              </label>
-              {editing ? (
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="input pl-10"
-                  />
-                </div>
-              ) : (
-                <p className="text-foreground">{profile.email || '-'}</p>
-              )}
-            </div>
-
-            {/* Address */}
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Adresse
-              </label>
-              {editing ? (
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={3}
-                    className="input pl-10"
-                  />
-                </div>
-              ) : (
-                <p className="text-foreground whitespace-pre-wrap">{profile.address}</p>
-              )}
-            </div>
-
-            {/* Edit/Save Buttons */}
-            {editing && (
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleCancel}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-border rounded-lg font-semibold hover:bg-muted transition"
-                >
-                  <X className="w-4 h-4" />
-                  Annuler
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 btn-primary justify-center gap-2 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  {saving ? 'Enregistrement...' : 'Enregistrer'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Stats Section */}
-          <div className="p-8 bg-muted/50 border-t border-border">
-            <h3 className="text-lg font-bold mb-6">Statistiques</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-primary">{profile.totalRides || 0}</p>
-                <p className="text-sm text-muted-foreground mt-1">Courses totales</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-success">{profile.completedRides || 0}</p>
-                <p className="text-sm text-muted-foreground mt-1">Terminées</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-accent">{profile.pendingRides || 0}</p>
-                <p className="text-sm text-muted-foreground mt-1">En cours</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl font-bold text-secondary">{profile.totalSpent || 0} DT</p>
-                <p className="text-sm text-muted-foreground mt-1">Total dépensé</p>
-              </div>
-            </div>
-          </div>
+              <Textarea
+                label="Adresse"
+                size="md"
+                radius="lg"
+                rows={3}
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                disabled={!editing}
+                placeholder="Votre adresse complète"
+              />
+            </Stack>
+          </Paper>
 
           {/* Logout Button */}
-          <div className="p-8 border-t border-border">
-            <button
-              onClick={() => {
-                logout();
-                router.push('/');
-              }}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-error/10 hover:bg-error/20 text-error font-semibold rounded-lg transition"
-            >
-              <LogOut className="w-5 h-5" />
-              Se déconnecter
-            </button>
-          </div>
-        </div>
-      </main>
+          <Button
+            variant="outline"
+            color="red"
+            size="lg"
+            radius="xl"
+            leftSection={<IconLogout size={20} />}
+            onClick={handleLogout}
+          >
+            Se déconnecter
+          </Button>
+        </Stack>
+      </Container>
     </div>
   );
 }

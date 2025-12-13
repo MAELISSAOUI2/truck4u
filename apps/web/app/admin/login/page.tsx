@@ -2,91 +2,133 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  PasswordInput,
+  Button,
+  Stack,
+  Center,
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconLock, IconMail } from '@tabler/icons-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [credentials, setCredentials] = useState({
+    email: '',
+    password: ''
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
-      // TODO: Implement actual admin login
-      // For now, use a simple mock
-      if (email === 'admin@truck4u.tn' && password === 'admin123') {
-        localStorage.setItem('adminToken', 'mock-admin-token');
-        router.push('/admin/dashboard');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(credentials)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Store admin token
+        localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('adminData', JSON.stringify(data.admin));
+
+        notifications.show({
+          title: 'Connexion réussie',
+          message: `Bienvenue ${data.admin.name}!`,
+          color: 'green'
+        });
+
+        router.push('/admin/kyc');
       } else {
-        setError('Email ou mot de passe incorrect');
+        notifications.show({
+          title: 'Erreur',
+          message: data.error || 'Email ou mot de passe incorrect',
+          color: 'red'
+        });
       }
-    } catch (err) {
-      setError('Erreur de connexion');
+    } catch (error) {
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur de connexion au serveur',
+        color: 'red'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600 mb-2">Truck4u Admin</h1>
-          <p className="text-gray-600">Connexion au back office</p>
-        </div>
+    <div style={{ minHeight: '100vh', background: '#f8f9fa', display: 'flex', alignItems: 'center' }}>
+      <Container size="xs">
+        <Paper p="xl" radius="md" withBorder>
+          <Stack gap="lg">
+            <Center>
+              <div>
+                <Title order={1} ta="center" mb="xs">
+                  Espace Administrateur
+                </Title>
+                <Text size="sm" c="dimmed" ta="center">
+                  Connectez-vous pour gérer Truck4U
+                </Text>
+              </div>
+            </Center>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="admin@truck4u.tn"
-              required
-            />
-          </div>
+            <form onSubmit={handleLogin}>
+              <Stack gap="md">
+                <TextInput
+                  label="Email"
+                  placeholder="admin@truck4u.tn"
+                  leftSection={<IconMail size={16} />}
+                  type="email"
+                  value={credentials.email}
+                  onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                  required
+                  size="md"
+                />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mot de passe
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="••••••••"
-              required
-            />
-          </div>
+                <PasswordInput
+                  label="Mot de passe"
+                  placeholder="Votre mot de passe"
+                  leftSection={<IconLock size={16} />}
+                  value={credentials.password}
+                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                  required
+                  size="md"
+                />
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
+                <Button
+                  type="submit"
+                  fullWidth
+                  size="lg"
+                  loading={loading}
+                  mt="md"
+                >
+                  Se connecter
+                </Button>
+              </Stack>
+            </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Demo: admin@truck4u.tn / admin123</p>
-        </div>
-      </div>
+            <Paper p="md" withBorder style={{ background: '#fff3cd', borderColor: '#ffc107' }}>
+              <Text size="xs" c="dimmed" ta="center">
+                <strong>Pour créer un compte admin:</strong><br />
+                Utilisez Prisma Studio ou créez un admin via la base de données
+              </Text>
+            </Paper>
+          </Stack>
+        </Paper>
+      </Container>
     </div>
   );
 }

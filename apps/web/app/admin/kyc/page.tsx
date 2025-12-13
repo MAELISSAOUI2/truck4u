@@ -2,6 +2,38 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Container,
+  Title,
+  Text,
+  Stack,
+  Group,
+  Paper,
+  Card,
+  Button,
+  Textarea,
+  Badge,
+  Tabs,
+  Loader,
+  Center,
+  SimpleGrid,
+  Modal,
+  Image,
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { useDisclosure } from '@mantine/hooks';
+import {
+  IconCheck,
+  IconX,
+  IconFileText,
+  IconUser,
+  IconTruck,
+  IconPhone,
+  IconMail,
+  IconChevronRight,
+  IconBell,
+} from '@tabler/icons-react';
+import { connectSocket, onNewKYCSubmission } from '@/lib/socket';
 
 interface Driver {
   id: string;
@@ -12,7 +44,6 @@ interface Driver {
   vehiclePlate?: string;
   verificationStatus: string;
   createdAt: string;
-  updatedAt: string;
   kycDocuments: KYCDocument[];
 }
 
@@ -21,7 +52,7 @@ interface KYCDocument {
   documentType: string;
   fileName: string;
   fileUrl: string;
-  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  verificationStatus: string;
   verificationNotes?: string;
   uploadedAt: string;
 }
@@ -46,22 +77,58 @@ export default function AdminKYCPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
-  const [viewingDocument, setViewingDocument] = useState<KYCDocument | null>(null);
+  const [activeTab, setActiveTab] = useState('pending');
   const [rejectReason, setRejectReason] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
+  const [viewingDoc, setViewingDoc] = useState<KYCDocument | null>(null);
+  const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
 
   useEffect(() => {
     fetchDrivers();
   }, [activeTab]);
 
+  // Setup socket connection for real-time KYC notifications
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+
+    // Get admin ID from token (decode JWT)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const adminId = payload.userId;
+
+      // Connect socket as admin
+      connectSocket(adminId, 'admin', token);
+
+      // Listen for new KYC submissions
+      const unsubscribe = onNewKYCSubmission((data: any) => {
+        console.log('🔔 New KYC submission received:', data);
+
+        notifications.show({
+          title: '📝 Nouvelle demande KYC',
+          message: `${data.driverName} a soumis ${data.documentsCount} documents pour vérification`,
+          color: 'blue',
+          autoClose: false,
+          icon: <IconBell size={20} />,
+        });
+
+        // Refresh drivers list to show the new submission
+        fetchDrivers();
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error('Error setting up admin socket:', error);
+    }
+  }, []);
+
   const fetchDrivers = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
-      const endpoint = activeTab === 'pending'
-        ? '/api/admin/kyc/pending'
-        : '/api/admin/drivers?status=PENDING_REVIEW';
+      const endpoint = '/api/admin/kyc/pending';
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
         headers: {
@@ -75,6 +142,11 @@ export default function AdminKYCPage() {
       }
     } catch (error) {
       console.error('Failed to fetch drivers:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: 'Impossible de charger les conducteurs',
+        color: 'red'
+      });
     } finally {
       setLoading(false);
     }
@@ -119,20 +191,31 @@ export default function AdminKYCPage() {
       );
 
       if (res.ok) {
-        alert('Conducteur approuvé avec succès');
+        notifications.show({
+          title: 'Succès',
+          message: 'Conducteur approuvé avec succès',
+          color: 'green'
+        });
         setSelectedDriver(null);
         setApprovalNotes('');
         fetchDrivers();
       }
     } catch (error) {
-      console.error('Failed to approve driver:', error);
-      alert('Erreur lors de l\'approbation');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors de l\'approbation',
+        color: 'red'
+      });
     }
   };
 
   const handleRejectDriver = async () => {
     if (!selectedDriver || !rejectReason.trim()) {
-      alert('Veuillez fournir une raison pour le rejet');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Veuillez fournir une raison pour le rejet',
+        color: 'red'
+      });
       return;
     }
 
@@ -151,14 +234,21 @@ export default function AdminKYCPage() {
       );
 
       if (res.ok) {
-        alert('Conducteur rejeté');
+        notifications.show({
+          title: 'Rejeté',
+          message: 'Conducteur rejeté',
+          color: 'orange'
+        });
         setSelectedDriver(null);
         setRejectReason('');
         fetchDrivers();
       }
     } catch (error) {
-      console.error('Failed to reject driver:', error);
-      alert('Erreur lors du rejet');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors du rejet',
+        color: 'red'
+      });
     }
   };
 
@@ -178,235 +268,291 @@ export default function AdminKYCPage() {
       );
 
       if (res.ok) {
-        alert(`Document ${status === 'APPROVED' ? 'approuvé' : 'rejeté'}`);
+        notifications.show({
+          title: 'Succès',
+          message: `Document ${status === 'APPROVED' ? 'approuvé' : 'rejeté'}`,
+          color: status === 'APPROVED' ? 'green' : 'orange'
+        });
         if (selectedDriver) {
           fetchDriverDetails(selectedDriver.id);
         }
       }
     } catch (error) {
-      console.error('Failed to verify document:', error);
-      alert('Erreur lors de la vérification');
+      notifications.show({
+        title: 'Erreur',
+        message: 'Erreur lors de la vérification',
+        color: 'red'
+      });
     }
   };
 
+  const openDocumentModal = (doc: KYCDocument) => {
+    setViewingDoc(doc);
+    openModal();
+  };
+
+  if (loading) {
+    return (
+      <Center style={{ minHeight: '70vh' }}>
+        <Loader size="lg" color="dark" />
+      </Center>
+    );
+  }
+
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Vérification KYC</h1>
-        <p className="text-gray-600">Gérer les demandes de vérification des conducteurs</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-4 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'pending'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          En attente ({drivers.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'all'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Tous
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Drivers List */}
-        <div className="lg:col-span-1 bg-white rounded-lg shadow-md p-4">
-          <h2 className="font-semibold mb-4">Conducteurs</h2>
-
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">Chargement...</div>
-          ) : drivers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Aucun conducteur</div>
-          ) : (
-            <div className="space-y-2">
-              {drivers.map((driver) => (
-                <button
-                  key={driver.id}
-                  onClick={() => fetchDriverDetails(driver.id)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
-                    selectedDriver?.id === driver.id
-                      ? 'bg-blue-50 border-2 border-blue-500'
-                      : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                  }`}
-                >
-                  <div className="font-medium">{driver.name}</div>
-                  <div className="text-sm text-gray-600">{driver.phone}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {driver.kycDocuments.length} documents
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+    <Container size="xl">
+      <Stack gap="xl">
+        <div>
+          <Title order={1} mb="xs">Vérification KYC</Title>
+          <Text c="dimmed">Gérer les demandes de vérification des conducteurs</Text>
         </div>
 
-        {/* Driver Details */}
-        <div className="lg:col-span-2">
-          {!selectedDriver ? (
-            <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-              Sélectionnez un conducteur pour voir les détails
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Driver Info */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4">Informations du conducteur</h2>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Nom:</span>
-                    <p className="font-medium">{selectedDriver.name}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Téléphone:</span>
-                    <p className="font-medium">{selectedDriver.phone}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Email:</span>
-                    <p className="font-medium">{selectedDriver.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Type de véhicule:</span>
-                    <p className="font-medium">{selectedDriver.vehicleType}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Plaque:</span>
-                    <p className="font-medium">{selectedDriver.vehiclePlate || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Inscrit le:</span>
-                    <p className="font-medium">
-                      {new Date(selectedDriver.createdAt).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'pending')}>
+          <Tabs.List>
+            <Tabs.Tab value="pending">
+              En attente ({drivers.length})
+            </Tabs.Tab>
+            <Tabs.Tab value="all">
+              Tous
+            </Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
 
-              {/* Documents */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4">Documents</h2>
+        <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="lg">
+          {/* Drivers List */}
+          <div>
+            <Title order={3} size="h5" mb="md">Conducteurs</Title>
 
-                {selectedDriver.kycDocuments.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Aucun document téléchargé</p>
-                ) : (
-                  <div className="space-y-4">
-                    {selectedDriver.kycDocuments.map((doc) => (
-                      <div key={doc.id} className="border rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="font-medium">{DOC_TYPE_LABELS[doc.documentType] || doc.documentType}</h3>
-                            <p className="text-sm text-gray-600">{doc.fileName}</p>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            doc.verificationStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                            doc.verificationStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {doc.verificationStatus === 'APPROVED' ? 'Approuvé' :
-                             doc.verificationStatus === 'REJECTED' ? 'Rejeté' :
-                             'En attente'}
-                          </span>
-                        </div>
-
-                        <div className="flex gap-2 mt-3">
-                          <a
-                            href={`${process.env.NEXT_PUBLIC_API_URL}${doc.fileUrl}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                          >
-                            Voir le document
-                          </a>
-
-                          {doc.verificationStatus === 'PENDING' && (
-                            <>
-                              <button
-                                onClick={() => handleVerifyDocument(doc.id, 'APPROVED')}
-                                className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                              >
-                                Approuver
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const notes = prompt('Raison du rejet (optionnel):');
-                                  handleVerifyDocument(doc.id, 'REJECTED', notes || undefined);
-                                }}
-                                className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                              >
-                                Rejeter
-                              </button>
-                            </>
-                          )}
-                        </div>
-
-                        {doc.verificationNotes && (
-                          <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded p-2">
-                            <p className="text-xs text-yellow-900">Note: {doc.verificationNotes}</p>
-                          </div>
-                        )}
+            {drivers.length === 0 ? (
+              <Paper p="xl" radius="md" withBorder>
+                <Center>
+                  <Text c="dimmed">Aucun conducteur en attente</Text>
+                </Center>
+              </Paper>
+            ) : (
+              <Stack gap="sm">
+                {drivers.map((driver) => (
+                  <Card
+                    key={driver.id}
+                    shadow="sm"
+                    padding="md"
+                    radius="md"
+                    withBorder
+                    style={{
+                      cursor: 'pointer',
+                      border: selectedDriver?.id === driver.id ? '2px solid #228be6' : undefined
+                    }}
+                    onClick={() => fetchDriverDetails(driver.id)}
+                  >
+                    <Group justify="space-between">
+                      <div>
+                        <Text fw={600} mb={4}>{driver.name}</Text>
+                        <Text size="sm" c="dimmed">{driver.phone}</Text>
+                        <Text size="xs" c="dimmed" mt={4}>
+                          {driver.kycDocuments.length} documents
+                        </Text>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <IconChevronRight size={20} color="#adb5bd" />
+                    </Group>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </div>
 
-              {/* Actions */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4">Actions</h2>
+          {/* Driver Details */}
+          <div style={{ gridColumn: 'span 2' }}>
+            {!selectedDriver ? (
+              <Paper p="xl" radius="md" withBorder>
+                <Center style={{ minHeight: 300 }}>
+                  <Stack gap="xs" align="center">
+                    <IconUser size={48} color="#adb5bd" />
+                    <Text c="dimmed">Sélectionnez un conducteur</Text>
+                  </Stack>
+                </Center>
+              </Paper>
+            ) : (
+              <Stack gap="lg">
+                {/* Driver Info */}
+                <Paper p="lg" radius="md" withBorder>
+                  <Title order={3} size="h5" mb="md">Informations du conducteur</Title>
+                  <SimpleGrid cols={2} spacing="md">
+                    <div>
+                      <Text size="xs" c="dimmed" mb={4}>Nom</Text>
+                      <Group gap="xs">
+                        <IconUser size={16} />
+                        <Text fw={600}>{selectedDriver.name}</Text>
+                      </Group>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed" mb={4}>Téléphone</Text>
+                      <Group gap="xs">
+                        <IconPhone size={16} />
+                        <Text fw={600}>{selectedDriver.phone}</Text>
+                      </Group>
+                    </div>
+                    {selectedDriver.email && (
+                      <div>
+                        <Text size="xs" c="dimmed" mb={4}>Email</Text>
+                        <Group gap="xs">
+                          <IconMail size={16} />
+                          <Text fw={600}>{selectedDriver.email}</Text>
+                        </Group>
+                      </div>
+                    )}
+                    <div>
+                      <Text size="xs" c="dimmed" mb={4}>Véhicule</Text>
+                      <Group gap="xs">
+                        <IconTruck size={16} />
+                        <Text fw={600}>{selectedDriver.vehicleType}</Text>
+                      </Group>
+                    </div>
+                  </SimpleGrid>
+                </Paper>
 
-                <div className="space-y-4">
-                  {/* Approve */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Notes d'approbation (optionnel)</label>
-                    <textarea
+                {/* Documents */}
+                <Paper p="lg" radius="md" withBorder>
+                  <Title order={3} size="h5" mb="md">Documents</Title>
+
+                  {selectedDriver.kycDocuments.length === 0 ? (
+                    <Center py="xl">
+                      <Text c="dimmed">Aucun document téléchargé</Text>
+                    </Center>
+                  ) : (
+                    <Stack gap="md">
+                      {selectedDriver.kycDocuments.map((doc) => (
+                        <Card key={doc.id} padding="md" radius="md" withBorder>
+                          <Group justify="space-between" mb="sm">
+                            <div>
+                              <Text fw={600} mb={4}>
+                                {DOC_TYPE_LABELS[doc.documentType] || doc.documentType}
+                              </Text>
+                              <Text size="sm" c="dimmed">{doc.fileName}</Text>
+                            </div>
+                            <Badge
+                              color={
+                                doc.verificationStatus === 'APPROVED' ? 'green' :
+                                doc.verificationStatus === 'REJECTED' ? 'red' :
+                                'yellow'
+                              }
+                            >
+                              {doc.verificationStatus === 'APPROVED' ? 'Approuvé' :
+                               doc.verificationStatus === 'REJECTED' ? 'Rejeté' :
+                               'En attente'}
+                            </Badge>
+                          </Group>
+
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="light"
+                              leftSection={<IconFileText size={16} />}
+                              onClick={() => openDocumentModal(doc)}
+                            >
+                              Voir
+                            </Button>
+
+                            {doc.verificationStatus === 'PENDING' && (
+                              <>
+                                <Button
+                                  size="xs"
+                                  color="green"
+                                  leftSection={<IconCheck size={16} />}
+                                  onClick={() => handleVerifyDocument(doc.id, 'APPROVED')}
+                                >
+                                  Approuver
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  color="red"
+                                  leftSection={<IconX size={16} />}
+                                  onClick={() => {
+                                    const notes = prompt('Raison du rejet (optionnel):');
+                                    handleVerifyDocument(doc.id, 'REJECTED', notes || undefined);
+                                  }}
+                                >
+                                  Rejeter
+                                </Button>
+                              </>
+                            )}
+                          </Group>
+
+                          {doc.verificationNotes && (
+                            <Text size="sm" c="dimmed" mt="sm" p="xs" style={{ background: '#f8f9fa', borderRadius: 4 }}>
+                              Note: {doc.verificationNotes}
+                            </Text>
+                          )}
+                        </Card>
+                      ))}
+                    </Stack>
+                  )}
+                </Paper>
+
+                {/* Actions */}
+                <Paper p="lg" radius="md" withBorder>
+                  <Title order={3} size="h5" mb="md">Actions</Title>
+
+                  <Stack gap="md">
+                    <Textarea
+                      label="Notes d'approbation (optionnel)"
+                      placeholder="Ajouter des notes..."
                       value={approvalNotes}
                       onChange={(e) => setApprovalNotes(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      rows={3}
-                      placeholder="Ajouter des notes..."
+                      minRows={2}
                     />
-                    <button
+                    <Button
+                      fullWidth
+                      color="green"
+                      leftSection={<IconCheck size={20} />}
                       onClick={handleApproveDriver}
-                      className="mt-2 w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700"
                     >
                       Approuver le conducteur
-                    </button>
-                  </div>
+                    </Button>
 
-                  {/* Reject */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Raison du rejet *</label>
-                    <textarea
+                    <Textarea
+                      label="Raison du rejet *"
+                      placeholder="Expliquez la raison du rejet..."
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      rows={3}
-                      placeholder="Expliquez la raison du rejet..."
+                      minRows={3}
+                      required
                     />
-                    <button
+                    <Button
+                      fullWidth
+                      color="red"
+                      leftSection={<IconX size={20} />}
                       onClick={handleRejectDriver}
-                      className="mt-2 w-full bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700"
                     >
                       Rejeter le conducteur
-                    </button>
-                  </div>
-                </div>
-              </div>
+                    </Button>
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
+          </div>
+        </SimpleGrid>
+
+        {/* Document Viewer Modal */}
+        <Modal
+          opened={modalOpened}
+          onClose={closeModal}
+          title={viewingDoc ? DOC_TYPE_LABELS[viewingDoc.documentType] : 'Document'}
+          size="lg"
+        >
+          {viewingDoc && (
+            <div>
+              <Image
+                src={`${process.env.NEXT_PUBLIC_API_URL}${viewingDoc.fileUrl}`}
+                alt={viewingDoc.fileName}
+                fit="contain"
+              />
+              <Text size="sm" c="dimmed" mt="md">
+                {viewingDoc.fileName}
+              </Text>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </Modal>
+      </Stack>
+    </Container>
   );
 }
