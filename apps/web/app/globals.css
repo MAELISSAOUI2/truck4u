@@ -1,180 +1,183 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ===================================
+   TRUCK4U - Global Styles
+   Mantine-based Design System
+   =================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 220 13% 15%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 13% 15%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 15%;
+:root {
+  /* Brand Colors */
+  --truck4u-primary: #1c7ed6;
+  --truck4u-primary-dark: #1864ab;
+  --truck4u-secondary: #12b886;
+  --truck4u-accent: #f59f00;
 
-    /* Primary - Professional Blue */
-    --primary: 214 88% 49%;
-    --primary-foreground: 210 40% 98%;
-
-    /* Secondary - Modern Teal */
-    --secondary: 173 80% 39%;
-    --secondary-foreground: 210 40% 98%;
-
-    /* Accent - Warm Orange */
-    --accent: 24 95% 53%;
-    --accent-foreground: 210 40% 98%;
-
-    /* Status Colors */
-    --success: 142 76% 36%;
-    --success-foreground: 210 40% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 13% 15%;
-    --error: 0 84% 60%;
-    --error-foreground: 210 40% 98%;
-
-    /* Neutral */
-    --muted: 220 13% 91%;
-    --muted-foreground: 220 9% 46%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 214 88% 49%;
-
-    --radius: 0.75rem;
-  }
-
-  .dark {
-    --background: 220 13% 9%;
-    --foreground: 0 0% 98%;
-    --card: 220 13% 13%;
-    --card-foreground: 0 0% 98%;
-    --popover: 220 13% 13%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 214 88% 58%;
-    --primary-foreground: 220 13% 15%;
-    --secondary: 173 80% 48%;
-    --secondary-foreground: 220 13% 15%;
-    --accent: 24 95% 61%;
-    --accent-foreground: 220 13% 15%;
-    --success: 142 76% 45%;
-    --success-foreground: 220 13% 15%;
-    --warning: 38 92% 58%;
-    --warning-foreground: 220 13% 15%;
-    --error: 0 84% 65%;
-    --error-foreground: 220 13% 15%;
-    --muted: 220 13% 23%;
-    --muted-foreground: 220 9% 66%;
-    --border: 220 13% 23%;
-    --input: 220 13% 23%;
-    --ring: 214 88% 58%;
-  }
+  /* Neutral Colors */
+  --truck4u-bg: #f8f9fa;
+  --truck4u-text: #212529;
+  --truck4u-border: #dee2e6;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  html {
-    @apply scroll-smooth;
-  }
-
-  body {
-    @apply bg-background text-foreground font-sans;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-bold tracking-tight;
-  }
-
-  h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl leading-tight;
-  }
-
-  h2 {
-    @apply text-3xl md:text-4xl leading-tight;
-  }
-
-  h3 {
-    @apply text-2xl md:text-3xl leading-snug;
-  }
-
-  h4 {
-    @apply text-xl md:text-2xl;
-  }
-
-  p {
-    @apply leading-relaxed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center px-6 py-3 bg-secondary text-secondary-foreground font-semibold rounded-lg hover:bg-secondary/90 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .btn-outline {
-    @apply inline-flex items-center justify-center px-6 py-3 border-2 border-primary text-primary font-semibold rounded-lg hover:bg-primary/5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .card {
-    @apply bg-card text-card-foreground rounded-xl border border-border shadow-sm;
-  }
-
-  .input {
-    @apply w-full px-4 py-3 bg-input text-foreground border border-input rounded-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all;
-  }
-
-  .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
-  }
-
-  .badge-primary {
-    @apply badge bg-primary/10 text-primary;
-  }
-
-  .badge-success {
-    @apply badge bg-success/10 text-success;
-  }
-
-  .badge-warning {
-    @apply badge bg-warning/10 text-warning;
-  }
-
-  .badge-error {
-    @apply badge bg-error/10 text-error;
-  }
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Mapbox styles */
-.mapboxgl-canvas {
-  outline: none;
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: var(--truck4u-text);
+  background-color: var(--truck4u-bg);
 }
 
-.mapboxgl-ctrl-bottom-left,
-.mapboxgl-ctrl-bottom-right {
-  display: none;
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
 }
 
-/* Custom scrollbar */
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+h5 { font-size: 1.25rem; }
+h6 { font-size: 1rem; }
+
+/* Paragraphs */
+p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+/* Links */
+a {
+  color: var(--truck4u-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--truck4u-primary-dark);
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: #f1f3f5;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: #868e96;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--accent-foreground) / 0.5);
+  background: #495057;
+}
+
+/* Leaflet Map Styles */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+}
+
+/* Hide Leaflet attribution (optional) */
+.leaflet-control-attribution {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Utility Classes (Minimal, Mantine-compatible) */
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mt-4 { margin-top: 2rem; }
+
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mb-4 { margin-bottom: 2rem; }
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.gap-3 { gap: 1.5rem; }
+.gap-4 { gap: 2rem; }
+
+/* Loading States */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--truck4u-primary);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: white;
+  }
+
+  nav, .no-print {
+    display: none;
+  }
 }
