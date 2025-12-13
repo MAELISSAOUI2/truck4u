@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Driver {
+  id                   String    @id @default(uuid())
+  phone                String    @unique
+  name                 String
+  email                String?
+  verificationStatus   VerificationStatus @default(PENDING_DOCUMENTS)
+  verificationNotes    String?   @db.Text
+  rejectionReason      String?   @db.Text
+  hasBusinessLicense   Boolean   @default(false)
+  isAvailable          Boolean   @default(false)
+  vehicleType          VehicleType
+  vehiclePlate         String?
+  vehicleBrand         String?
+  vehicleModel         String?
+  vehicleYear          Int?
+  vehicleColor         String?
+  rating               Float     @default(0.0)
+  totalRides           Int       @default(0)
+  totalEarnings        Float     @default(0.0)
+  currentLocation      Json?     // {lat, lng, timestamp}
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  bids                 Bid[]
+  completedRides       Ride[]    @relation("CompletedRides")
+  earnings             DriverEarnings[]
+  kycDocuments         KYCDocument[]
+
+  @@index([verificationStatus])
+  @@index([isAvailable, vehicleType])
+}
+
+model KYCDocument {
+  id                   String    @id @default(uuid())
+  driverId             String
+  documentType         DocumentType
+  fileUrl              String
+  fileName             String
+  fileSize             Int
+  mimeType             String
+  verificationStatus   DocumentVerificationStatus @default(PENDING)
+  verificationNotes    String?   @db.Text
+  uploadedAt           DateTime  @default(now())
+  verifiedAt           DateTime?
+  verifiedBy           String?   // Admin ID or system
+  expiresAt            DateTime? // For documents with expiration (license, etc.)
+  metadata             Json?     // Additional document-specific data
+
+  driver               Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, documentType])
+  @@index([verificationStatus])
+}
+
+model Admin {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  name                 String
+  role                 AdminRole @default(MODERATOR)
+  isActive             Boolean   @default(true)
+  lastLoginAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([email])
+  @@index([isActive])
+}
+
+model Customer {
+  id                   String    @id @default(uuid())
+  phone                String    @unique
+  name                 String
+  email                String?
+  accountType          AccountType @default(INDIVIDUAL)
+  companyName          String?
+  taxId                String?
+  isB2BSubscriber      Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  rides                Ride[]
+  subscription         B2BSubscription?
+  
+  @@index([accountType, isB2BSubscriber])
+}
+
+model Ride {
+  id                   String    @id @default(uuid())
+  customerId           String
+  driverId             String?
+  status               RideStatus @default(PENDING_BIDS)
+  
+  // Route
+  pickup               Json      // {lat, lng, address, details, access_notes}
+  dropoff              Json      // {lat, lng, address, details}
+  distance             Float     // in km
+  estimatedDuration    Int       // in minutes
+  
+  // Service details
+  vehicleType          VehicleType
+  loadAssistance       Boolean   @default(false)
+  numberOfTrips        Int       @default(1)
+  itemPhotos           String[]  // S3 URLs
+  description          String?   @db.Text
+  
+  // Timing
+  serviceType          ServiceType @default(IMMEDIATE)
+  scheduledFor         DateTime?
+  
+  // Pricing
+  estimatedMinPrice    Float?
+  estimatedMaxPrice    Float?
+  winningBidId         String?   @unique
+  finalPrice           Float?
+  platformFee          Float?
+  driverEarnings       Float?
+  
+  // Proof of service
+  proofPhotos          Json?     // {loading: url, delivery: url, timestamp}
+  
+  // Rating
+  customerRating       Int?
+  customerReview       String?   @db.Text
+  driverRating         Int?
+  driverReview         String?   @db.Text
+  
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  completedAt          DateTime?
+  
+  customer             Customer  @relation(fields: [customerId], references: [id])
+  driver               Driver?   @relation("CompletedRides", fields: [driverId], references: [id])
+  bids                 Bid[]
+  payment              Payment?
+  winningBid           Bid?      @relation("WinningBid", fields: [winningBidId], references: [id])
+  
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@index([driverId])
+  @@index([serviceType, scheduledFor])
+}
+
+model Bid {
+  id                   String    @id @default(uuid())
+  rideId               String
+  driverId             String
+  proposedPrice        Float
+  estimatedArrival     Int       // in minutes
+  message              String?   @db.Text
+  status               BidStatus @default(ACTIVE)
+  expiresAt            DateTime
+  createdAt            DateTime  @default(now())
+  
+  ride                 Ride      @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  driver               Driver    @relation(fields: [driverId], references: [id])
+  winningRide          Ride?     @relation("WinningBid")
+  
+  @@index([rideId, status])
+  @@index([driverId, createdAt])
+  @@index([expiresAt])
+}
+
+model Payment {
+  id                   String    @id @default(uuid())
+  rideId               String    @unique
+  method               PaymentMethod
+  totalAmount          Float
+  platformFee          Float
+  driverAmount         Float
+  status               PaymentStatus @default(PENDING)
+  transactionRef       String?
+  metadata             Json?     // Payment gateway specific data
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  
+  ride                 Ride      @relation(fields: [rideId], references: [id])
+  
+  @@index([status, createdAt])
+}
+
+model B2BSubscription {
+  id                   String    @id @default(uuid())
+  customerId           String    @unique
+  planType             SubscriptionPlan
+  monthlyFee           Float
+  includedRides        Int
+  usedRides            Int       @default(0)
+  reducedCommission    Float     // e.g., 0.08 for 8%
+  status               SubscriptionStatus @default(ACTIVE)
+  startDate            DateTime  @default(now())
+  endDate              DateTime
+  lastInvoiceDate      DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  
+  customer             Customer  @relation(fields: [customerId], references: [id])
+  
+  @@index([status, endDate])
+}
+
+model DriverEarnings {
+  id                   String    @id @default(uuid())
+  driverId             String
+  rideId               String    @unique
+  grossAmount          Float
+  platformFee          Float
+  netEarnings          Float
+  paidAt               DateTime  @default(now())
+  
+  driver               Driver    @relation(fields: [driverId], references: [id])
+  
+  @@index([driverId, paidAt])
+}
+
+// Enums
+enum VerificationStatus {
+  PENDING_DOCUMENTS
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum DocumentType {
+  CIN_FRONT
+  CIN_BACK
+  DRIVING_LICENSE
+  VEHICLE_REGISTRATION
+  BUSINESS_LICENSE
+  VEHICLE_PHOTO_FRONT
+  VEHICLE_PHOTO_BACK
+  VEHICLE_PHOTO_LEFT
+  VEHICLE_PHOTO_RIGHT
+  VEHICLE_PHOTO_INTERIOR
+  INSURANCE_CERTIFICATE
+  TECHNICAL_INSPECTION
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+enum VehicleType {
+  CAMIONNETTE
+  FOURGON
+  CAMION_3_5T
+  CAMION_LOURD
+}
+
+enum AccountType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum RideStatus {
+  PENDING_BIDS
+  BID_ACCEPTED
+  NO_DRIVERS_AVAILABLE
+  DRIVER_ARRIVING
+  PICKUP_ARRIVED
+  LOADING
+  IN_TRANSIT
+  DROPOFF_ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  IMMEDIATE
+  SCHEDULED
+}
+
+enum BidStatus {
+  ACTIVE
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  FLOUCI
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum SubscriptionPlan {
+  STARTER
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
