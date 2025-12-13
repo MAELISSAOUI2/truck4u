@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 import { Queue, Worker } from 'bullmq';
+=======
+import { Queue, Worker, QueueScheduler } from 'bullmq';
+>>>>>>> 808adc8 (fix: Add styled-jsx and restore ALL previous implementation work)
 import { Redis } from 'ioredis';
 import type { Server } from 'socket.io';
 import { processAutoConfirmation } from './paymentAutoConfirmation';
 import { processSubscriptionExpiration } from './subscriptionExpiration';
+<<<<<<< HEAD
 import { processDispatchStep, checkBidsAndContinue, DispatchJobData } from './rideDispatch';
+=======
+>>>>>>> 808adc8 (fix: Add styled-jsx and restore ALL previous implementation work)
 
 // Configuration Redis
 const redisConfig = {
@@ -16,11 +23,20 @@ const redisConfig = {
 const connection = new Redis(redisConfig);
 
 // Queues
+<<<<<<< HEAD
 // Note: In BullMQ v5+, QueueScheduler is no longer needed
 // The Queue handles scheduling automatically
 export const autoConfirmQueue = new Queue('auto-confirm-payments', { connection });
 export const subscriptionExpirationQueue = new Queue('subscription-expiration', { connection });
 export const rideDispatchQueue = new Queue('ride-dispatch', { connection });
+=======
+export const autoConfirmQueue = new Queue('auto-confirm-payments', { connection });
+export const subscriptionExpirationQueue = new Queue('subscription-expiration', { connection });
+
+// Schedulers (pour les jobs répétés)
+const autoConfirmScheduler = new QueueScheduler('auto-confirm-payments', { connection: connection.duplicate() });
+const subscriptionScheduler = new QueueScheduler('subscription-expiration', { connection: connection.duplicate() });
+>>>>>>> 808adc8 (fix: Add styled-jsx and restore ALL previous implementation work)
 
 /**
  * Démarre les workers BullMQ pour traiter les jobs
@@ -52,6 +68,7 @@ export function startQueueWorkers(io?: Server) {
     { connection: connection.duplicate() }
   );
 
+<<<<<<< HEAD
   // Worker pour dispatch des courses aux conducteurs
   const rideDispatchWorker = new Worker(
     'ride-dispatch',
@@ -78,6 +95,8 @@ export function startQueueWorkers(io?: Server) {
     }
   );
 
+=======
+>>>>>>> 808adc8 (fix: Add styled-jsx and restore ALL previous implementation work)
   // Gestionnaires d'événements
   autoConfirmWorker.on('completed', (job) => {
     console.log(`[BullMQ] ✅ Auto-confirm job ${job.id} completed`);
@@ -95,6 +114,7 @@ export function startQueueWorkers(io?: Server) {
     console.error(`[BullMQ] ❌ Subscription expiration job ${job?.id} failed:`, err);
   });
 
+<<<<<<< HEAD
   rideDispatchWorker.on('completed', (job) => {
     console.log(`[BullMQ] ✅ Ride dispatch job ${job.id} completed`);
   });
@@ -111,6 +131,17 @@ export function startQueueWorkers(io?: Server) {
     await autoConfirmWorker.close();
     await subscriptionWorker.close();
     await rideDispatchWorker.close();
+=======
+  console.log('[BullMQ] ✅ Workers started successfully');
+
+  // Retourner fonction de cleanup
+  return async () => {
+    console.log('[BullMQ] Stopping workers and schedulers...');
+    await autoConfirmWorker.close();
+    await subscriptionWorker.close();
+    await autoConfirmScheduler.close();
+    await subscriptionScheduler.close();
+>>>>>>> 808adc8 (fix: Add styled-jsx and restore ALL previous implementation work)
     await connection.quit();
     console.log('[BullMQ] All workers stopped');
   };
